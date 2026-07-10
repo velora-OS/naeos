@@ -1,0 +1,110 @@
+# Full NAEOS Specification Example
+# Demonstrates all available fields
+
+project: e-commerce-platform
+
+modules:
+  - name: auth
+    path: ./internal/auth
+    description: Authentication and authorization module
+    dependencies:
+      - core
+      - user
+
+  - name: core
+    path: ./internal/core
+    description: Core business logic and shared utilities
+
+  - name: user
+    path: ./internal/user
+    description: User management and profile module
+    dependencies:
+      - core
+
+  - name: order
+    path: ./internal/order
+    description: Order processing module
+    dependencies:
+      - core
+      - user
+      - payment
+
+  - name: payment
+    path: ./internal/payment
+    description: Payment processing module
+    dependencies:
+      - core
+
+services:
+  - name: api-gateway
+    kind: http
+    port: 8080
+    description: Main REST API gateway
+    endpoints:
+      - method: GET
+        path: /health
+        action: healthCheck
+      - method: POST
+        path: /auth/login
+        action: login
+      - method: POST
+        path: /auth/register
+        action: register
+      - method: GET
+        path: /users
+        action: listUsers
+      - method: GET
+        path: /users/:id
+        action: getUser
+      - method: PUT
+        path: /users/:id
+        action: updateUser
+      - method: DELETE
+        path: /users/:id
+        action: deleteUser
+      - method: POST
+        path: /orders
+        action: createOrder
+      - method: GET
+        path: /orders/:id
+        action: getOrder
+      - method: POST
+        path: /payments
+        action: processPayment
+
+  - name: worker
+    kind: worker
+    port: 9090
+    description: Background job processor
+    endpoints:
+      - method: POST
+        path: /jobs/process
+        action: processJob
+
+architecture:
+  pattern: hexagonal
+  description: Hexagonal architecture with clear separation of core logic from infrastructure
+  principles:
+    - Core business logic is framework-independent
+    - Ports define interfaces for external communication
+    - Adapters implement ports for specific technologies
+    - Dependencies point inward toward the core
+    - Testability through dependency injection
+
+deployment:
+  strategy: blue-green
+  environments:
+    - development
+    - staging
+    - production
+
+testing:
+  strategy: unit
+  coverage: "85%"
+
+generation:
+  languages:
+    - go
+    - typescript
+  output_dir: ./out
+  module_dir: ./internal

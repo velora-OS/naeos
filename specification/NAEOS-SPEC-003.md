@@ -188,6 +188,27 @@ owned_by
 
 Relasi harus konsisten dengan Engineering Knowledge Graph.
 
+### 9.1 generated_by Relationship
+
+Relasi `generated_by` digunakan untuk artefak yang dihasilkan oleh compiler:
+
+```
+Source Artifact (specification YAML)
+       │
+       │  generated_by → adapter
+       │
+       ▼
+Generated Artifact (Go / TypeScript / Python / Java / Rust source code)
+```
+
+Setiap artefak output memiliki metadata:
+- `generated_by` — adapter identifier (contoh: `"go"`, `"typescript"`)
+- `generated_at` — timestamp generasi
+- `language` — bahasa target
+- `source_spec` — path ke spesifikasi sumber
+
+Relasi ini memungkinkan traceability dari artefak output kembali ke spesifikasi aslinya.
+
 10. Traceability
 
 Setiap Artifact harus dapat ditelusuri.
@@ -282,6 +303,72 @@ Output Adapter
 
 Perbedaan hanya terletak pada adapter output.
 
+### 14.1 Multi-Adapter Output Model
+
+Compiler menggunakan dua lapisan generasi:
+
+```
+         ┌─────────────────────────────────┐
+         │       Transformation Engine      │
+         └───────────────┬─────────────────┘
+                         │
+         ┌───────────────▼─────────────────┐
+         │    Default Engine                │
+         │    (Go-centric boilerplate)      │
+         └───────────────┬─────────────────┘
+                         │
+         ┌───────────────▼─────────────────┐
+         │    Adapter Layer                 │
+         │    (per-language dispatch)       │
+         └───────────────┬─────────────────┘
+                         │
+       ┌─────────────────┼─────────────────┐
+       │                 │                 │
+ ┌─────▼──────┐  ┌──────▼───────┐  ┌──────▼──────┐
+ │ GoAdapter  │  │TSAdapter     │  │PyAdapter    │
+ │ JavaAdapter│  │RustAdapter   │  │(extensible) │
+ └────────────┘  └──────────────┘  └─────────────┘
+```
+
+### 14.2 NEIR as Intermediate Representation
+
+Semua artefak ditransformasi ke NEIR (Nusantara Enterprise Intermediate Representation) sebelum dikirim ke output adapter:
+
+```
+Specification YAML
+       │
+       ▼
+   Parser
+       │
+       ▼
+   NormalizedSpec
+       │
+       ▼
+   ResolvedSpec
+       │
+       ▼
+   NEIR (Intermediate Representation)
+       │
+       ├──→ DefaultEngine → Go artifacts
+       │
+       └──→ Adapters → Language-specific artifacts
+```
+
+NEIR menjadi satu-satunya format input untuk adapter. Adapter tidak perlu memahami spesifikasi asli — hanya NEIR.
+
+### 14.3 Generated Artifact Identity
+
+Artefak yang dihasilkan oleh adapter memiliki identity:
+
+```
+generated_by: <adapter-language>
+generated_at: <timestamp>
+source_neir: <neir-hash>
+language: <target-language>
+```
+
+Field `generated_by` pada metadata artefak output menunjukkan adapter mana yang menghasilkannya. Field `language` menunjukkan bahasa target.
+
 15. Extension Model
 
 Vendor atau organisasi dapat membuat Artifact baru.
@@ -311,10 +398,14 @@ NAEOS-SPEC-001	Overview
 NAEOS-SPEC-002	Engineering Knowledge Graph
 NAEOS-SPEC-004	Metadata Specification
 NAEOS-SPEC-005	Rule Model
+NAEOS-SPEC-008	Compiler Model
 NAEOS-GOV-008	Versioning Policy
+NES-039	SDK Multi-Language Specification
+NES-040	Output Adapter Architecture
 Revision History
 Version	Date	Change
 1.0.0	2026-07-09	Initial Universal Artifact Model
+1.1.0	2026-07-10	Expanded Compiler Behavior with multi-adapter model, NEIR, and generated_by relationship
 Status
 NAEOS-SPEC-003
 

@@ -19,25 +19,58 @@ func (f ParserFunc) Parse(input string) (*SpecDocument, error) {
 }
 
 type Module struct {
-	Name string
-	Path string
+	Name         string
+	Path         string
+	Description  string
+	Dependencies []string
 }
 
 type Service struct {
-	Name string
-	Kind string
-	Port int
+	Name        string
+	Kind        string
+	Port        int
+	Description string
+	Endpoints   []Endpoint
+}
+
+type Endpoint struct {
+	Method string
+	Path   string
+	Action string
+}
+
+type Architecture struct {
+	Pattern     string
+	Description string
+	Principles  []string
+}
+
+type Deployment struct {
+	Strategy string
+	Environments []string
+}
+
+type Testing struct {
+	Strategy string
+	Coverage string
+}
+
+type Generation struct {
+	Languages []string
+	OutputDir string
+	ModuleDir string
 }
 
 type SpecDocument struct {
-  main
-	Raw  string
-	Data any
-
-	Raw     string
-	Project string
-	Modules []Module
-	Services []Service
+	Raw          string
+	Data         any
+	Project      string
+	Modules      []Module
+	Services     []Service
+	Architecture *Architecture
+	Deployment   *Deployment
+	Testing      *Testing
+	Generation   *Generation
 }
 
 func NewParser() Parser {
@@ -60,8 +93,163 @@ func NewParser() Parser {
 			return nil, err
 		}
 
-		return &SpecDocument{Raw: input, Data: value}, nil
+		doc := &SpecDocument{Raw: input, Data: value}
+
+		if m, ok := value.(map[string]any); ok {
+			if project, ok := m["project"].(string); ok {
+				doc.Project = project
+			}
+			if rawModules, ok := m["modules"].([]any); ok {
+				for _, raw := range rawModules {
+					if mod, ok := raw.(map[string]any); ok {
+						doc.Modules = append(doc.Modules, extractModule(mod))
+					}
+				}
+			}
+			if rawServices, ok := m["services"].([]any); ok {
+				for _, raw := range rawServices {
+					if svc, ok := raw.(map[string]any); ok {
+						doc.Services = append(doc.Services, extractService(svc))
+					}
+				}
+			}
+			if rawArch, ok := m["architecture"].(map[string]any); ok {
+				doc.Architecture = extractArchitecture(rawArch)
+			}
+			if rawDeploy, ok := m["deployment"].(map[string]any); ok {
+				doc.Deployment = extractDeployment(rawDeploy)
+			}
+			if rawTest, ok := m["testing"].(map[string]any); ok {
+				doc.Testing = extractTesting(rawTest)
+			}
+			if rawGen, ok := m["generation"].(map[string]any); ok {
+				doc.Generation = extractGeneration(rawGen)
+			}
+		}
+
+		return doc, nil
 	})
+}
+
+func extractModule(m map[string]any) Module {
+	mod := Module{}
+	if name, ok := m["name"].(string); ok {
+		mod.Name = name
+	}
+	if path, ok := m["path"].(string); ok {
+		mod.Path = path
+	}
+	if desc, ok := m["description"].(string); ok {
+		mod.Description = desc
+	}
+	if deps, ok := m["dependencies"].([]any); ok {
+		for _, d := range deps {
+			if s, ok := d.(string); ok {
+				mod.Dependencies = append(mod.Dependencies, s)
+			}
+		}
+	}
+	return mod
+}
+
+func extractService(s map[string]any) Service {
+	svc := Service{}
+	if name, ok := s["name"].(string); ok {
+		svc.Name = name
+	}
+	if kind, ok := s["kind"].(string); ok {
+		svc.Kind = kind
+	}
+	if port, ok := s["port"].(int); ok {
+		svc.Port = port
+	}
+	if desc, ok := s["description"].(string); ok {
+		svc.Description = desc
+	}
+	if rawEndpoints, ok := s["endpoints"].([]any); ok {
+		for _, raw := range rawEndpoints {
+			if ep, ok := raw.(map[string]any); ok {
+				svc.Endpoints = append(svc.Endpoints, extractEndpoint(ep))
+			}
+		}
+	}
+	return svc
+}
+
+func extractEndpoint(m map[string]any) Endpoint {
+	ep := Endpoint{}
+	if method, ok := m["method"].(string); ok {
+		ep.Method = method
+	}
+	if path, ok := m["path"].(string); ok {
+		ep.Path = path
+	}
+	if action, ok := m["action"].(string); ok {
+		ep.Action = action
+	}
+	return ep
+}
+
+func extractArchitecture(m map[string]any) *Architecture {
+	arch := &Architecture{}
+	if pattern, ok := m["pattern"].(string); ok {
+		arch.Pattern = pattern
+	}
+	if desc, ok := m["description"].(string); ok {
+		arch.Description = desc
+	}
+	if principles, ok := m["principles"].([]any); ok {
+		for _, p := range principles {
+			if s, ok := p.(string); ok {
+				arch.Principles = append(arch.Principles, s)
+			}
+		}
+	}
+	return arch
+}
+
+func extractDeployment(m map[string]any) *Deployment {
+	deploy := &Deployment{}
+	if strategy, ok := m["strategy"].(string); ok {
+		deploy.Strategy = strategy
+	}
+	if envs, ok := m["environments"].([]any); ok {
+		for _, e := range envs {
+			if s, ok := e.(string); ok {
+				deploy.Environments = append(deploy.Environments, s)
+			}
+		}
+	}
+	return deploy
+}
+
+func extractGeneration(m map[string]any) *Generation {
+	gen := &Generation{}
+	if langs, ok := m["languages"].([]any); ok {
+		for _, l := range langs {
+			if s, ok := l.(string); ok {
+				gen.Languages = append(gen.Languages, s)
+			}
+		}
+	}
+	if outputDir, ok := m["output_dir"].(string); ok {
+		gen.OutputDir = outputDir
+	}
+	if moduleDir, ok := m["module_dir"].(string); ok {
+		gen.ModuleDir = moduleDir
+	}
+	return gen
+}
+
+func extractTesting(m map[string]any) *Testing {
+	test := &Testing{}
+	if strategy, ok := m["strategy"].(string); ok {
+		test.Strategy = strategy
+	}
+	if coverage, ok := m["coverage"].(string); ok {
+		test.Coverage = coverage
+	}
+	return test
 }
 
 func parseYAMLNode(node *yaml.Node) (any, error) {
@@ -137,52 +325,6 @@ func parseYAMLScalar(node *yaml.Node) (any, error) {
 		}
 		return node.Value, nil
 	}
-
-		doc := &SpecDocument{Raw: input}
-		var currentSection string
-		for _, line := range strings.Split(input, "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-				continue
-			}
-
-			switch {
-			case strings.HasPrefix(trimmed, "project:"):
-				doc.Project = strings.TrimSpace(strings.TrimPrefix(trimmed, "project:"))
-				currentSection = ""
-			case strings.HasPrefix(trimmed, "modules:"):
-				currentSection = "modules"
-			case strings.HasPrefix(trimmed, "services:"):
-				currentSection = "services"
-			case strings.HasPrefix(trimmed, "- name:"):
-				name := strings.TrimSpace(strings.TrimPrefix(trimmed, "- name:"))
-				switch currentSection {
-				case "modules":
-					doc.Modules = append(doc.Modules, Module{Name: name})
-				case "services":
-					doc.Services = append(doc.Services, Service{Name: name})
-				}
-			case strings.HasPrefix(trimmed, "path:"):
-				path := strings.TrimSpace(strings.TrimPrefix(trimmed, "path:"))
-				if len(doc.Modules) > 0 {
-					doc.Modules[len(doc.Modules)-1].Path = path
-				}
-			case strings.HasPrefix(trimmed, "kind:"):
-				kind := strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:"))
-				if len(doc.Services) > 0 {
-					doc.Services[len(doc.Services)-1].Kind = kind
-				}
-			case strings.HasPrefix(trimmed, "port:"):
-				port, err := parsePort(trimmed)
-				if err == nil && len(doc.Services) > 0 {
-					doc.Services[len(doc.Services)-1].Port = port
-				}
-			}
-		}
-
-		applyDefaults(doc, input)
-		return doc, nil
-	})
 }
 
 func applyDefaults(doc *SpecDocument, input string) {

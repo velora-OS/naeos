@@ -48,31 +48,43 @@ memungkinkan validasi otomatis,
 mendukung AI reasoning,
 menyediakan dasar bagi compliance engine.
 2. Rule Architecture
-Artifact
 
-↓
-
-Metadata
-
-↓
-
-Rules
-
-↓
-
-Validator
-
-↓
-
-Compiler
-
-↓
-
-AI Review
-
-↓
-
-Compliance
+```
+┌─────────────────────────────────────────────────────────┐
+│                  Rule Architecture                      │
+│                                                         │
+│  ┌──────────┐                                          │
+│  │ Artifact  │                                         │
+│  └─────┬────┘                                          │
+│        │                                                │
+│  ┌─────▼────┐                                          │
+│  │ Metadata  │                                         │
+│  └─────┬────┘                                          │
+│        │                                                │
+│  ┌─────▼────┐                                          │
+│  │  Rules   │                                          │
+│  └─────┬────┘                                          │
+│        │                                                │
+│  ┌─────▼──────────┐  ┌──────────────┐                 │
+│  │   Validator     │  │ Policy Engine │                 │
+│  └─────┬──────────┘  └──────┬───────┘                 │
+│        │                    │                          │
+│        └────────┬───────────┘                          │
+│                 ▼                                       │
+│  ┌──────────────────────────┐                          │
+│  │   Compiler / Adapter     │                          │
+│  │   (generates artifacts)  │                          │
+│  └──────────────┬───────────┘                          │
+│                 ▼                                       │
+│  ┌──────────────────────────┐                          │
+│  │   AI Review              │                          │
+│  └──────────────┬───────────┘                          │
+│                 ▼                                       │
+│  ┌──────────────────────────┐                          │
+│  │   Compliance             │                          │
+│  └──────────────────────────┘                          │
+└─────────────────────────────────────────────────────────┘
+```
 
 Rule menjadi lapisan logika yang menghubungkan spesifikasi dengan implementasi.
 
@@ -161,6 +173,32 @@ AI
 Compliance
 
 Governance
+
+Generation (Multi-Language SDK)
+
+### 8.1 Generation Rules
+
+Kategori `Generation` mendefinisikan aturan untuk produksi artefak multi-bahasa:
+
+| Rule | Scope | Condition | Severity |
+|------|-------|-----------|----------|
+| GEN-001 | Project | `generation.languages` contains only supported languages | Error |
+| GEN-002 | Project | At least one adapter registered for each target language | Warning |
+| GEN-003 | Module | Module path valid per target language conventions | Error |
+| GEN-004 | Service | Service port not conflict across adapters | Error |
+| GEN-005 | Project | Output directory writable | Error |
+
+### 8.2 Adapter Validation Rules
+
+Setiap adapter harus mematuhi aturan berikut:
+
+| Rule | Description |
+|------|-------------|
+| ADP-001 | Adapter MUST implement `OutputAdapter` interface |
+| ADP-002 | Adapter MUST register via `init()` in its package |
+| ADP-003 | Adapter MUST return valid `language.Language` from `Language()` |
+| ADP-004 | Adapter MUST NOT generate artifacts that conflict with default engine |
+| ADP-005 | Adapter SHOULD generate artifacts following target language conventions |
 9. Rule Evaluation
 
 Urutan evaluasi:
@@ -271,6 +309,27 @@ mengusulkan perbaikan.
 
 Dengan demikian AI tidak hanya menghasilkan kode, tetapi juga mematuhi aturan engineering.
 
+### 14.1 Adapter Validation by AI
+
+AI Agent dapat memvalidasi artefak yang dihasilkan oleh adapter:
+
+```
+Generated Artifact (Go / TypeScript / Python / Java / Rust)
+       │
+       ▼
+Rule Engine (Generation Rules)
+       │
+       ├──→ Language convention check
+       ├──→ Build file validity
+       ├──→ Module structure check
+       └──→ Dockerfile correctness
+       │
+       ▼
+Validation Result
+```
+
+AI menggunakan rule kategori Generation dan adapter-specific rules untuk memastikan artefak output memenuhi standar bahasa target.
+
 15. Compliance Engine
 
 Rule Model menjadi dasar Compliance Engine.
@@ -306,9 +365,13 @@ NAEOS-SPEC-002	Engineering Knowledge Graph
 NAEOS-SPEC-003	Universal Artifact Model
 NAEOS-SPEC-004	Metadata Specification
 NAEOS-SPEC-006	Dependency Graph
+NAEOS-SPEC-008	Compiler Model
+NES-039	SDK Multi-Language Specification
+NES-040	Output Adapter Architecture
 Revision History
 Version	Date	Change
 1.0.0	2026-07-09	Initial Rule Model
+1.1.0	2026-07-10	Expanded Rule Architecture diagram, added Generation Rules, Adapter Validation Rules, AI Adapter Validation
 Status
 NAEOS-SPEC-005
 

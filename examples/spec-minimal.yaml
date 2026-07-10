@@ -1,0 +1,4 @@
+# Minimal NAEOS Specification
+# All fields except project are optional (defaults will be applied)
+
+project: my-project

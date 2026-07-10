@@ -21,18 +21,25 @@ This document covers the logical organization of repository directories, documen
 - kernel/: base runtime and primitive services.
 - policy/: policy rules and policy compilation artifacts.
 - specification/: core technical specifications.
-- docs/: modular documentation set.
-- internal/specification/: lexer, parser, normalizer, and resolver components.
+- profile/: profile system specifications.
+- Reference Architecture/: reference architecture documents.
+- templates/: reusable templates (ADR, RFC).
+- examples/: reference implementations and example specs.
+- docs/: modular documentation set (NES series).
+- cmd/naeos/: CLI application entry point.
+- pkg/kernel/: public kernel runtime (DI, service registry, event bus, lifecycle, telemetry).
+- pkg/pipeline/: public pipeline orchestrator.
+- pkg/config/: public configuration loader.
+- internal/specification/: parser, normalizer, and resolver components.
 - internal/neir/: NEIR domain model, builder, serializer, validator, and versioning support.
 - internal/planner/: graph, scheduler, and optimizer logic.
-- internal/generation/: engine, templates, targets, and renderers.
+- internal/generation/: engine, templates, and renderers.
 - internal/governance/: policy and review enforcement modules.
-- internal/knowledge/: graph, index, and provenance support.
+- internal/knowledge/: graph, provenance, and lineage support.
 - internal/runtime/: execution engine, lifecycle management, and telemetry.
-- internal/kernel/: runtime services, registry, and event handling.
-- internal/shared/: shared types, errors, contracts, and utilities.
-- templates/: reusable templates.
-- examples/: reference implementations.
+- internal/events/: internal event bus (pub/sub).
+- internal/registry/: component registry (versioned, categorized).
+- internal/shared/: shared types and contracts.
 
 ## 6. Requirements
 ### 6.1 Functional Requirements

@@ -1,10 +1,9 @@
 package http
 
-import "fmt"
+import "net/http"
 
-// Handler is a starter HTTP handler for the api module.
 type Handler struct{}
 
-func (h Handler) ServeHTTP(w interface{}, r interface{}) {
-	fmt.Println("handler for api")
+func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("handler for api"))
 }

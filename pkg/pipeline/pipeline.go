@@ -2,14 +2,22 @@ package pipeline
 
 import (
 	"fmt"
-	"time"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/NAEOS-foundation/naeos/internal/generation/adapters"
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
+	"github.com/NAEOS-foundation/naeos/internal/governance/policy"
+	"github.com/NAEOS-foundation/naeos/internal/governance/review"
 	"github.com/NAEOS-foundation/naeos/internal/neir/builder"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/generation"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
 	"github.com/NAEOS-foundation/naeos/internal/neir/validator"
+	"github.com/NAEOS-foundation/naeos/internal/planner/graph"
 	"github.com/NAEOS-foundation/naeos/internal/planner/scheduler"
+	"github.com/NAEOS-foundation/naeos/internal/registry"
 	"github.com/NAEOS-foundation/naeos/internal/specification/normalizer"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/specification/resolver"
@@ -17,51 +25,54 @@ import (
 	"github.com/NAEOS-foundation/naeos/pkg/kernel"
 )
 
-// Config provides optional dependencies and runtime settings for the pipeline.
 type Config struct {
-	Name       string
-	Mode       string
-	Verbose    bool
-	OutputDir  string
-	Parser     parser.Parser
+	Name      string
+	Mode      string
+	Verbose   bool
+	OutputDir string
+	Languages []string
+	Parser    parser.Parser
 	Normalizer normalizer.Normalizer
 	Resolver   resolver.Resolver
 	Builder    builder.Builder
 	Validator  validator.Validator
 	Scheduler  scheduler.Scheduler
 	Generator  engine.GeneratorEngine
+	Graph      *graph.PlannerGraph
+	Registry   *registry.Registry
+	Evaluator  policy.Evaluator
+	Reviewer   review.Reviewer
 	Kernel     *kernel.Kernel
+	Policies   []policy.Rule
 }
 
-// Pipeline coordinates the main NAEOS processing flow.
 type Pipeline struct {
-	parser     parser.Parser
-	normalizer normalizer.Normalizer
-	resolver   resolver.Resolver
-	builder    builder.Builder
-	validator  validator.Validator
-	scheduler  scheduler.Scheduler
-	generator  engine.GeneratorEngine
-	kernel     *kernel.Kernel
-	parser        parser.Parser
-	normalizer    normalizer.Normalizer
-	resolver      resolver.Resolver
-	builder       builder.Builder
-	validator     validator.Validator
-	scheduler     scheduler.Scheduler
-	generator     engine.GeneratorEngine
+	parser         parser.Parser
+	normalizer     normalizer.Normalizer
+	resolver       resolver.Resolver
+	builder        builder.Builder
+	validator      validator.Validator
+	scheduler      scheduler.Scheduler
+	generator      engine.GeneratorEngine
+	graph          *graph.PlannerGraph
+	registry       *registry.Registry
+	evaluator      policy.Evaluator
+	reviewer       review.Reviewer
+	kernel         *kernel.Kernel
+	policies       []policy.Rule
 	outputDirValue string
+	languages      []string
 }
 
-// Result is the output produced by a pipeline run.
 type Result struct {
 	Source    string
-	NEIR      *builder.NEIR
+	NEIR      *model.NEIR
 	Artifacts []engine.Artifact
 	Tasks     []scheduler.Task
+	Graph     *graph.PlannerGraph
+	Reviews   []*review.ReviewResult
 }
 
-// ConfigFromFile loads pipeline configuration from a JSON or YAML file and returns a Config.
 func ConfigFromFile(path string) (Config, error) {
 	fileCfg, err := cfgpkg.LoadFile(path)
 	if err != nil {
@@ -72,20 +83,12 @@ func ConfigFromFile(path string) (Config, error) {
 		Mode:      fileCfg.Pipeline.Mode,
 		Verbose:   fileCfg.Pipeline.Verbose,
 		OutputDir: fileCfg.Pipeline.OutputDir,
+		Languages: fileCfg.Pipeline.Language,
 	}, nil
 }
 
-// New creates a default pipeline implementation with optional dependency injection.
 func New(cfg Config) (*Pipeline, error) {
 	p := &Pipeline{
-		parser:     cfg.Parser,
-		normalizer: cfg.Normalizer,
-		resolver:   cfg.Resolver,
-		builder:    cfg.Builder,
-		validator:  cfg.Validator,
-		scheduler:  cfg.Scheduler,
-		generator:  cfg.Generator,
-		kernel:     cfg.Kernel,
 		parser:         cfg.Parser,
 		normalizer:     cfg.Normalizer,
 		resolver:       cfg.Resolver,
@@ -93,7 +96,14 @@ func New(cfg Config) (*Pipeline, error) {
 		validator:      cfg.Validator,
 		scheduler:      cfg.Scheduler,
 		generator:      cfg.Generator,
+		graph:          cfg.Graph,
+		registry:       cfg.Registry,
+		evaluator:      cfg.Evaluator,
+		reviewer:       cfg.Reviewer,
+		kernel:         cfg.Kernel,
+		policies:       cfg.Policies,
 		outputDirValue: cfg.OutputDir,
+		languages:      cfg.Languages,
 	}
 
 	if p.parser == nil {
@@ -117,6 +127,18 @@ func New(cfg Config) (*Pipeline, error) {
 	if p.generator == nil {
 		p.generator = engine.NewEngine()
 	}
+	if p.graph == nil {
+		p.graph = graph.New()
+	}
+	if p.registry == nil {
+		p.registry = registry.NewRegistry()
+	}
+	if p.evaluator == nil {
+		p.evaluator = policy.NewEvaluator()
+	}
+	if p.reviewer == nil {
+		p.reviewer = review.NewReviewer()
+	}
 	if p.kernel == nil {
 		p.kernel = kernel.NewKernel()
 	}
@@ -136,6 +158,10 @@ func (p *Pipeline) registerKernelServices() error {
 		"validator":  p.validator,
 		"scheduler":  p.scheduler,
 		"generator":  p.generator,
+		"graph":      p.graph,
+		"registry":   p.registry,
+		"evaluator":  p.evaluator,
+		"reviewer":   p.reviewer,
 		"pipeline":   p,
 	}
 
@@ -147,7 +173,6 @@ func (p *Pipeline) registerKernelServices() error {
 	return nil
 }
 
-// Run executes the specification-to-artifact pipeline.
 func (p *Pipeline) executeWithKernel(fn func() (*Result, error)) (*Result, error) {
 	if err := p.kernel.Start(); err != nil {
 		return nil, err
@@ -180,16 +205,61 @@ func (p *Pipeline) emitKernelEvent(name string, payload map[string]any) error {
 	})
 }
 
-func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
-=======
-func (p *Pipeline) outputDir() string {
-	if p == nil {
-		return ""
+func (p *Pipeline) buildExecutionGraph(neir *model.NEIR) *graph.PlannerGraph {
+	g := graph.New()
+
+	if neir.Project != nil {
+		_ = g.AddNode(graph.Node{
+			ID:   "project",
+			Kind: graph.NodeKindModule,
+			Name: neir.Project.Name,
+		})
 	}
-	return p.outputDirValue
+
+	for i, mod := range neir.Modules {
+		nodeID := fmt.Sprintf("module-%s", mod.Name)
+		_ = g.AddNode(graph.Node{
+			ID:   nodeID,
+			Kind: graph.NodeKindModule,
+			Name: mod.Name,
+		})
+		if i > 0 {
+			prevID := fmt.Sprintf("module-%s", neir.Modules[i-1].Name)
+			_ = g.AddEdge(graph.Edge{
+				From: prevID,
+				To:   nodeID,
+				Kind: graph.EdgeKindDependency,
+			})
+		} else {
+			_ = g.AddEdge(graph.Edge{
+				From: "project",
+				To:   nodeID,
+				Kind: graph.EdgeKindDependency,
+			})
+		}
+	}
+
+	for _, svc := range neir.Services {
+		nodeID := fmt.Sprintf("service-%s", svc.Name)
+		_ = g.AddNode(graph.Node{
+			ID:   nodeID,
+			Kind: graph.NodeKindService,
+			Name: svc.Name,
+		})
+		if len(neir.Modules) > 0 {
+			lastModule := fmt.Sprintf("module-%s", neir.Modules[len(neir.Modules)-1].Name)
+			_ = g.AddEdge(graph.Edge{
+				From: lastModule,
+				To:   nodeID,
+				Kind: graph.EdgeKindDependency,
+			})
+		}
+	}
+
+	return g
 }
 
-func (p *Pipeline) Run(input string) (*Result, error) {
+func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 	if input == "" {
 		return nil, fmt.Errorf("input cannot be empty")
 	}
@@ -222,6 +292,16 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 		return nil, err
 	}
 
+	if len(p.languages) > 0 {
+		if neir.Generation == nil {
+			neir.Generation = &generation.GenerationConfig{}
+		}
+		neir.Generation.Languages = make([]language.Language, 0, len(p.languages))
+		for _, l := range p.languages {
+			neir.Generation.Languages = append(neir.Generation.Languages, language.Language(l))
+		}
+	}
+
 	if err := p.validator.Validate(neir); err != nil {
 		return nil, err
 	}
@@ -247,6 +327,20 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 			return nil, err
 		}
 
+		execGraph := p.buildExecutionGraph(result.NEIR)
+		result.Graph = execGraph
+
+		if len(p.policies) > 0 {
+			ctx := map[string]any{
+				"project": result.NEIR.Project.Name,
+				"modules": len(result.NEIR.Modules),
+				"services": len(result.NEIR.Services),
+			}
+			if _, err := p.evaluator.EvaluateRules(p.policies, ctx); err != nil {
+				return nil, fmt.Errorf("policy evaluation failed: %w", err)
+			}
+		}
+
 		tasks, err := p.scheduler.Schedule(result.NEIR)
 		if err != nil {
 			return nil, err
@@ -257,9 +351,42 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 			return nil, err
 		}
 
+		adapterArtifacts, err := adapters.GenerateForNEIR(result.NEIR)
+		if err != nil {
+			return nil, fmt.Errorf("adapter generation failed: %w", err)
+		}
+		artifacts = append(artifacts, adapterArtifacts...)
+
+		var reviews []*review.ReviewResult
+		for _, artifact := range artifacts {
+			r, err := p.reviewer.ReviewArtifact(artifact.Path, string(artifact.Content), []string{"no-todo", "no-placeholder"})
+			if err == nil && r != nil {
+				reviews = append(reviews, r)
+			}
+		}
+		result.Reviews = reviews
+
+		if outputDir := p.outputDirValue; outputDir != "" {
+			for _, artifact := range artifacts {
+				artifactPath := filepath.Join(outputDir, artifact.Path)
+				if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
+					return nil, fmt.Errorf("create artifact dir: %w", err)
+				}
+				if err := os.WriteFile(artifactPath, artifact.Content, 0o644); err != nil {
+					return nil, fmt.Errorf("write artifact %s: %w", artifact.Path, err)
+				}
+			}
+		}
+
 		result.Tasks = tasks
 		result.Artifacts = artifacts
-		_ = p.emitKernelEvent("pipeline.run", map[string]any{"artifacts": len(artifacts), "tasks": len(tasks)})
+		_ = p.emitKernelEvent("pipeline.run", map[string]any{
+			"artifacts": len(artifacts),
+			"tasks":     len(tasks),
+			"reviews":   len(reviews),
+			"graph_nodes": execGraph.NodeCount(),
+			"graph_edges": execGraph.EdgeCount(),
+		})
 		return result, nil
 	})
 }
@@ -298,23 +425,12 @@ func (p *Pipeline) Subscribe(topic string, handler func(any)) error {
 		return fmt.Errorf("kernel not initialized")
 	}
 	return p.kernel.Subscribe(topic, handler)
-	outputDir := p.outputDir()
-	if outputDir != "" {
-		for _, artifact := range artifacts {
-			artifactPath := filepath.Join(outputDir, artifact.Path)
-			if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
-				return nil, fmt.Errorf("create artifact dir: %w", err)
-			}
-			if err := os.WriteFile(artifactPath, artifact.Content, 0o644); err != nil {
-				return nil, fmt.Errorf("write artifact %s: %w", artifact.Path, err)
-			}
-		}
-	}
+}
 
-	return &Result{
-		Source:    parsed.Raw,
-		NEIR:      neir,
-		Artifacts: artifacts,
-		Tasks:     tasks,
-	}, nill
+func (p *Pipeline) Registry() *registry.Registry {
+	return p.registry
+}
+
+func (p *Pipeline) Graph() *graph.PlannerGraph {
+	return p.graph
 }

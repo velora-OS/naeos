@@ -41,7 +41,31 @@ dependency management,
 traceability,
 automation.
 2. Metadata Architecture
-Diagram tidak valid atau tidak didukung.
+
+```
+┌─────────────────────────────────────────────────┐
+│              Metadata Architecture              │
+│                                                 │
+│  ┌──────────────────────────────────────────┐  │
+│  │         Specification YAML                │  │
+│  │  ┌─────────────────────────────────────┐ │  │
+│  │  │  metadata:                          │ │  │
+│  │  │    id / title / type / version      │ │  │
+│  │  │    owner / status / tags            │ │  │
+│  │  │    automation:                      │ │  │
+│  │  │      compile / validate / generate  │ │  │
+│  │  │    generation:                      │ │  │
+│  │  │      languages / output_dir         │ │  │
+│  │  └─────────────────────────────────────┘ │  │
+│  └──────────────────────────────────────────┘  │
+│                       │                         │
+│          ┌────────────┼────────────┐            │
+│          ▼            ▼            ▼            │
+│    ┌──────────┐ ┌──────────┐ ┌──────────┐     │
+│    │ Compiler │ │ Validator│ │ AI Agent │     │
+│    └──────────┘ └──────────┘ └──────────┘     │
+└─────────────────────────────────────────────────┘
+```
 
 Metadata menjadi pintu masuk seluruh proses.
 
@@ -198,6 +222,14 @@ automation:
 
   ai_context:
 
+generation:
+
+  languages:
+
+  output_dir:
+
+  module_dir:
+
 Contoh:
 
 automation:
@@ -209,6 +241,56 @@ automation:
   publish: website
 
   ai_context: required
+
+generation:
+
+  languages:
+
+    - go
+
+    - typescript
+
+  output_dir: ./generated
+
+  module_dir: ./internal
+
+### 10.1 Generation Configuration
+
+Section `generation:` pada spec YAML mendefinisikan target bahasa dan direktori output untuk generasi artefak:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `languages` | `[]string` | Daftar bahasa target (contoh: `go`, `typescript`, `python`, `java`, `rust`) |
+| `output_dir` | `string` | Direktori output untuk artefak yang dihasilkan |
+| `module_dir` | `string` | Direktori root untuk module structures |
+
+### 10.2 Language Resolution
+
+Pipeline menentukan bahasa target dengan urutan berikut:
+
+1. CLI `--language` flag (override tertinggi)
+2. `generation.languages` pada spec YAML
+3. Default: `["go"]`
+
+Jika bahasa tidak dikenal, pipeline akan melewatinya tanpa error (skip silently).
+
+### 10.3 Supported Languages
+
+| Language | Identifier | Build File | Default Base Image |
+|----------|-----------|------------|-------------------|
+| Go | `go` | `go.mod` | `golang:1.22-alpine` |
+| TypeScript | `typescript` | `package.json` | `node:22-alpine` |
+| Python | `python` | `pyproject.toml` | `python:3.12-slim` |
+| Java | `java` | `pom.xml` | `eclipse-temurin:21-jdk-alpine` |
+| Rust | `rust` | `Cargo.toml` | `rust:1.78-alpine` |
+
+### 10.4 CLI Override
+
+```
+naeos run --config config.yaml --input spec.yaml --language go --language typescript
+```
+
+Flag `--language` dapat digunakan beberapa kali untuk menghasilkan artefak dalam beberapa bahasa secara bersamaan. Nilai CLI akan menimpa `generation.languages` dari spec YAML.
 11. Metadata Inheritance
 
 Artifact dapat mewarisi metadata.
@@ -341,10 +423,14 @@ NAEOS-SPEC-001	Overview
 NAEOS-SPEC-002	Engineering Knowledge Graph
 NAEOS-SPEC-003	Universal Artifact Model
 NAEOS-SPEC-005	Rule Model
+NAEOS-SPEC-008	Compiler Model
 NAEOS-GOV-008	Versioning Policy
+NES-039	SDK Multi-Language Specification
+NES-040	Output Adapter Architecture
 Revision History
 Version	Date	Change
 1.0.0	2026-07-09	Initial Metadata Specification
+1.1.0	2026-07-10	Expanded Automation Metadata with generation config, multi-language support, and CLI override
 Status
 NAEOS-SPEC-004
 

@@ -78,7 +78,42 @@ Artinya:
 Artifact A memerlukan Artifact B agar dapat diproses dengan benar.
 
 3. Graph Architecture
-Diagram tidak valid atau tidak didukung.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                 Dependency Graph Architecture            │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │              Level 0 — Foundation                │  │
+│  │   Constitution, Core Specification, GOV docs     │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │                             │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │              Level 1 — Standards                 │  │
+│  │   API Standard, Security Standard, DB Standard   │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │                             │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │              Level 2 — Profiles & Playbooks      │  │
+│  │   Backend Profile, Frontend Profile, etc.        │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │                             │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │              Level 3 — Specification             │  │
+│  │   Project specs, Module specs, API contracts     │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │                             │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │              Level 4 — Implementation            │  │
+│  │   Source Code, Tests, Config, Dockerfiles        │  │
+│  └────────────────────────┬─────────────────────────┘  │
+│                           │                             │
+│  ┌────────────────────────▼─────────────────────────┐  │
+│  │              Level 5 — Generated Artifacts       │  │
+│  │   Go, TypeScript, Python, Java, Rust adapters    │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
 
 Semakin tinggi level, semakin banyak artefak yang bergantung padanya.
 
@@ -300,6 +335,26 @@ cache hasil kompilasi,
 incremental build,
 dependency resolution,
 parallel compilation jika memungkinkan.
+
+### 14.1 Adapter Dependency Resolution
+
+Ketika pipeline menghasilkan artefak multi-bahasa, Dependency Graph digunakan untuk:
+
+1. **Menentukan urutan dispatch adapter** — adapter yang tidak memiliki inter-dependensi dapat dijalankan secara paralel.
+2. **Mendeteksi konflik output** — jika dua adapter menghasilkan artefak dengan path yang sama, Dependency Graph akan menandai konflik.
+3. **Menghitung dampak perubahan NEIR** — ketika NEIR berubah, graph menentukan adapter mana yang harus dijalankan ulang.
+
+```
+NEIR
+  │
+  ├──→ GoAdapter (independent)
+  ├──→ TypeScriptAdapter (independent)
+  ├──→ PythonAdapter (independent)
+  ├──→ JavaAdapter (independent)
+  └──→ RustAdapter (independent)
+```
+
+Semua adapter bersifat independent — tidak ada dependency antar adapter. Mereka semua bergantung pada NEIR sebagai input.
 15. Conformance
 
 Implementasi Dependency Graph MUST:
@@ -316,9 +371,12 @@ NAEOS-SPEC-003	Universal Artifact Model
 NAEOS-SPEC-004	Metadata Specification
 NAEOS-SPEC-005	Rule Model
 NAEOS-SPEC-007	Validation Model
+NAEOS-SPEC-008	Compiler Model
+NES-040	Output Adapter Architecture
 Revision History
 Version	Date	Change
 1.0.0	2026-07-09	Initial Dependency Graph Specification
+1.1.0	2026-07-10	Fixed Graph Architecture diagram, added adapter dependency resolution
 Status
 NAEOS-SPEC-006
 

@@ -70,7 +70,42 @@ G5 — Deterministic
 Input yang sama menghasilkan output yang konsisten.
 
 4. Core Architecture
-Diagram tidak valid atau tidak didukung.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  NAEOS Architecture                     │
+│                                                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
+│  │  Parser   │→│Normalizer │→│ Resolver  │→│ Builder│ │
+│  └──────────┘  └──────────┘  └──────────┘  └────────┘ │
+│                                                     │   │
+│                                               ┌─────▼─┐│
+│                                               │  NEIR  ││
+│                                               └───────┘│
+│                                                     │   │
+│              ┌──────────────────┐  ┌───────────────┤   │
+│              │                  │  │               │   │
+│        ┌─────▼──────┐   ┌──────▼──▼──┐   ┌───────▼──┐│
+│        │  Validator  │   │Scheduler   │   │Evaluator ││
+│        └────────────┘   └────────────┘   └──────────┘│
+│              │                  │               │      │
+│              ▼                  ▼               ▼      │
+│  ┌──────────────────┐  ┌──────────────────────────┐   │
+│  │ Default Engine   │  │   Adapter Layer          │   │
+│  │ (Go boilerplate) │  │  (Go, TS, Python, Java,  │   │
+│  │                  │  │   Rust — extensible)     │   │
+│  └────────┬─────────┘  └────────────┬─────────────┘   │
+│           └────────────┬────────────┘                  │
+│                        ▼                               │
+│                 ┌─────────────┐                        │
+│                 │  Reviewer   │                        │
+│                 └──────┬──────┘                        │
+│                        ▼                               │
+│                 ┌─────────────┐                        │
+│                 │   Output    │                        │
+│                 └─────────────┘                        │
+└─────────────────────────────────────────────────────────┘
+```
 5. Core Components
 
 Ekosistem NAEOS terdiri dari komponen berikut.
@@ -113,7 +148,20 @@ Antarmuka pengguna.
 
 SDK
 
-Library untuk integrasi.
+Multi-language library untuk integrasi dengan ekosistem NAEOS. SDK mendukung generasi kode dalam 5 bahasa pemrograman utama:
+- Go
+- TypeScript
+- Python
+- Java
+- Rust
+
+Arsitektur SDK menggunakan sistem Adapter yang memungkinkan penambahan bahasa baru tanpa mengubah kompiler inti. Setiap bahasa diimplementasikan sebagai OutputAdapter yang terdaftar secara otomatis melalui `init()`.
+
+Compiler menghasilkan artefak dalam dua lapisan:
+- **Default Engine** — menghasilkan boilerplate Go-centric (README, Dockerfile, CI, go.mod, module scaffolding)
+- **Adapter Layer** — dispatch ke OutputAdapter per bahasa untuk menghasilkan project files, Dockerfiles, CI workflows, dan module structures
+
+Lihat NAEOS-SPEC-008 (Compiler Model) untuk detail arsitektur adapter.
 
 Reference Platform
 
@@ -205,6 +253,13 @@ Status
 Dependency
 Traceability
 Revision History
+
+Artefak dikategorikan dalam tiga kategori utama:
+- **Specification Artifacts** — dokumen YAML/JSON yang mendefinisikan sistem
+- **Generated Artifacts** — output dari compiler (source code, Dockerfile, CI, dokumentasi)
+- **Governance Artifacts** — dokumen tata kelola, proses, dan standar
+
+Setiap artefak yang dihasilkan oleh compiler harus terintegrasi dalam NEIR (Nusantara Enterprise Intermediate Representation) sebagai representasi antara sebelum ditransformasi ke target output.
 11. Interoperability
 
 NAEOS harus dapat digunakan oleh:
@@ -220,6 +275,20 @@ OpenCode
 AI Agent internal organisasi
 
 Tanpa mengubah spesifikasi inti.
+
+### 11.1 Multi-Language SDK Interoperability
+
+SDK NAEOS mendukung integrasi dengan toolchain berbagai bahasa pemrograman. Setiap bahasa memiliki adapter yang menghasilkan artefak sesuai konvensi bahasa tersebut:
+
+| Bahasa | Build Tool | Package Registry | Container Base |
+|--------|-----------|-----------------|----------------|
+| Go | go mod | Go Module Proxy | `golang:1.22-alpine` |
+| TypeScript | npm/yarn | npm | `node:22-alpine` |
+| Python | pip/poetry | PyPI | `python:3.12-slim` |
+| Java | Maven/Gradle | Maven Central | `eclipse-temurin:21-jdk-alpine` |
+| Rust | Cargo | crates.io | `rust:1.78-alpine` |
+
+Pipeline mendukung penghasilan artefak untuk satu atau banyak bahasa secara bersamaan dari satu spesifikasi.
 
 12. Security Principles
 
@@ -254,8 +323,15 @@ Compiler Plugins
 Runtime Extensions
 Marketplace
 Knowledge Registry
+Custom Output Adapters (bahasa pemrograman baru)
+SDK Plugin System (extended functionality per bahasa)
 
 Tanpa mengubah spesifikasi inti.
+
+Sistem adapter memungkinkan komunitas untuk menambahkan dukungan bahasa pemrograman baru dengan cara:
+1. Mengimplementasikan `OutputAdapter` interface
+2. Mendaftarkan adapter melalui `init()`
+3. Adapter akan secara otomatis tersedia untuk dispatch oleh pipeline
 
 15. Related Documents
 ID	Document
@@ -263,9 +339,14 @@ NAEOS-GOV-001	Project Charter
 NAEOS-GOV-005	Core Principles
 NAEOS-SPEC-002	Engineering Knowledge Model
 NAEOS-SPEC-003	Document Model
+NAEOS-SPEC-008	Compiler Model
+NES-039	SDK Multi-Language Specification
+NES-040	Output Adapter Architecture
+
 Revision History
 Version	Date	Change
 1.0.0	2026-07-09	Initial Core Specification Overview
+1.1.0	2026-07-10	Added multi-language SDK architecture, fixed Core Architecture diagram, expanded Artifact Model, added SDK Interoperability
 Status
 NAEOS-SPEC-001
 

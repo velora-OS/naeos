@@ -15,10 +15,12 @@ type File struct {
 
 // Pipeline contains the configurable components for the NAEOS pipeline.
 type Pipeline struct {
-	Name      string `json:"name" yaml:"name"`
-	Mode      string `json:"mode" yaml:"mode"`
-	Verbose   bool   `json:"verbose" yaml:"verbose"`
-	OutputDir string `json:"output_dir" yaml:"output_dir"`
+	Name      string   `json:"name" yaml:"name"`
+	Mode      string   `json:"mode" yaml:"mode"`
+	Verbose   bool     `json:"verbose" yaml:"verbose"`
+	OutputDir string   `json:"output_dir" yaml:"output_dir"`
+	Language  []string `json:"language" yaml:"language"`
+	Target    string   `json:"target" yaml:"target"`
 }
 
 // LoadFile reads configuration from a JSON or YAML file.

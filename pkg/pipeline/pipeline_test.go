@@ -3,6 +3,7 @@ package pipeline
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
@@ -55,9 +56,12 @@ func TestPipelineUsesInjectedParser(t *testing.T) {
 func TestPipelineWritesArtifactsToOutputDir(t *testing.T) {
 	dir := t.TempDir()
 	outputDir := filepath.Join(dir, "out")
-	p := New(Config{OutputDir: outputDir})
+	p, err := New(Config{OutputDir: outputDir})
+	if err != nil {
+		t.Fatalf("create pipeline failed: %v", err)
+	}
 
-	_, err := p.Run("sample specification")
+	_, err = p.Run("sample specification")
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
@@ -118,5 +122,122 @@ func TestConfigFromFileYAML(t *testing.T) {
 	}
 	if cfg.OutputDir != "./out" {
 		t.Fatalf("expected output dir ./out, got %q", cfg.OutputDir)
+	}
+}
+
+func TestPipelineRunWithLanguageOverride(t *testing.T) {
+	p, err := New(Config{Languages: []string{"go"}})
+	if err != nil {
+		t.Fatalf("create pipeline failed: %v", err)
+	}
+
+	result, err := p.Run("project: test-proj\nmodules:\n  - name: core\n    path: ./internal/core\n")
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.NEIR == nil {
+		t.Fatal("expected NEIR")
+	}
+	if result.NEIR.Generation == nil {
+		t.Fatal("expected Generation to be set")
+	}
+	if len(result.NEIR.Generation.Languages) != 1 {
+		t.Fatalf("expected 1 language, got %d", len(result.NEIR.Generation.Languages))
+	}
+	if result.NEIR.Generation.Languages[0] != "go" {
+		t.Fatalf("expected go, got %s", result.NEIR.Generation.Languages[0])
+	}
+}
+
+func TestPipelineRunWithMultipleLanguages(t *testing.T) {
+	p, err := New(Config{Languages: []string{"go", "typescript"}})
+	if err != nil {
+		t.Fatalf("create pipeline failed: %v", err)
+	}
+
+	result, err := p.Run("project: multi-proj\nmodules:\n  - name: core\n    path: ./internal/core\n")
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.NEIR == nil || result.NEIR.Generation == nil {
+		t.Fatal("expected NEIR with Generation")
+	}
+	if len(result.NEIR.Generation.Languages) != 2 {
+		t.Fatalf("expected 2 languages, got %d", len(result.NEIR.Generation.Languages))
+	}
+	if len(result.Artifacts) == 0 {
+		t.Fatal("expected artifacts from multi-language generation")
+	}
+
+	hasGoArtifact := false
+	hasTSArtifact := false
+	for _, a := range result.Artifacts {
+		if strings.HasSuffix(a.Path, ".go") || a.Path == "go.mod" {
+			hasGoArtifact = true
+		}
+		if strings.HasSuffix(a.Path, ".ts") || strings.HasSuffix(a.Path, ".tsx") || a.Path == "package.json" {
+			hasTSArtifact = true
+		}
+	}
+	if !hasGoArtifact {
+		t.Fatal("expected at least one Go artifact")
+	}
+	if !hasTSArtifact {
+		t.Fatal("expected at least one TypeScript artifact")
+	}
+}
+
+func TestPipelineRunWithSpecFullExample(t *testing.T) {
+	specData, err := os.ReadFile("../../examples/spec-full.yaml")
+	if err != nil {
+		t.Fatalf("read spec-full.yaml: %v", err)
+	}
+
+	p, err := New(Config{})
+	if err != nil {
+		t.Fatalf("create pipeline failed: %v", err)
+	}
+
+	result, err := p.Run(string(specData))
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.NEIR == nil {
+		t.Fatal("expected NEIR")
+	}
+	if result.NEIR.Project == nil || result.NEIR.Project.Name != "e-commerce-platform" {
+		t.Fatalf("expected project e-commerce-platform, got %v", result.NEIR.Project)
+	}
+	if len(result.NEIR.Modules) != 5 {
+		t.Fatalf("expected 5 modules, got %d", len(result.NEIR.Modules))
+	}
+	if len(result.NEIR.Services) != 2 {
+		t.Fatalf("expected 2 services, got %d", len(result.NEIR.Services))
+	}
+	if result.NEIR.Generation == nil {
+		t.Fatal("expected Generation from spec-full.yaml")
+	}
+	if len(result.NEIR.Generation.Languages) != 2 {
+		t.Fatalf("expected 2 languages from spec-full.yaml, got %d", len(result.NEIR.Generation.Languages))
+	}
+	if len(result.Artifacts) == 0 {
+		t.Fatal("expected artifacts")
+	}
+
+	goArtifacts := 0
+	tsArtifacts := 0
+	for _, a := range result.Artifacts {
+		if strings.HasSuffix(a.Path, ".go") || a.Path == "go.mod" {
+			goArtifacts++
+		}
+		if strings.HasSuffix(a.Path, ".ts") || strings.HasSuffix(a.Path, ".tsx") || a.Path == "package.json" {
+			tsArtifacts++
+		}
+	}
+	if goArtifacts == 0 {
+		t.Fatal("expected Go artifacts from spec-full.yaml generation")
+	}
+	if tsArtifacts == 0 {
+		t.Fatal("expected TypeScript artifacts from spec-full.yaml generation")
 	}
 }

@@ -3,14 +3,15 @@ package engine
 import (
 	"testing"
 
-	"github.com/NAEOS-foundation/naeos/internal/neir/builder"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/module"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/project"
 )
 
 func TestGeneratorCreatesArtifactsFromNEIR(t *testing.T) {
-	neir := &builder.NEIR{
-		Project: "acme-api",
-		Modules: []any{map[string]any{"name": "auth", "path": "./internal/auth"}},
-		Metadata: map[string]any{"version": "0.1"},
+	neir := &model.NEIR{
+		Project: &project.Project{Name: "acme-api"},
+		Modules: []module.Module{{Name: "auth", Path: "./internal/auth"}},
 	}
 
 	engine := NewEngine()

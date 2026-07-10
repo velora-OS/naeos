@@ -6,6 +6,7 @@ Dokumen ini memetakan struktur dokumentasi NAEOS berdasarkan skema modular yang 
 - NES-000 Foundation — prinsip fondasi dan asumsi arsitektural.
 - NES-001 Repository — struktur repositori dan tata letak artefak.
 - NES-002 Kernel — lapisan runtime inti dan service primitive.
+- NES-002-Kernel-API — referensi API kernel Go (pkg/kernel).
 - NES-003 Workspace — konteks eksekusi proyek dan state lokal.
 - NES-004 Bootstrap — inisialisasi proyek dan pembentukan workspace.
 - NES-005 Blueprint — model desain tingkat menengah.
@@ -27,8 +28,30 @@ Dokumen ini memetakan struktur dokumentasi NAEOS berdasarkan skema modular yang 
 - NES-021 Testing — validation quality gate dan regression coverage.
 - NES-022 Release — proses publikasi dan rollout.
 - NES-023 NEIR — model engineering sentral, pipeline NEIR, dan versioning.
+- NES-023-NEIR-Model — referensi model NEIR Go (internal/neir/model).
 - NES-024 Internal Structure — draft struktur folder internal untuk implementasi teknis.
 - NES-025 Implementation Skeletons — draft file-level skeleton untuk modul internal utama.
+- NES-026 Pipeline — dokumentasi pipeline (pkg/pipeline).
+- NES-027 Governance — dokumentasi governance policy dan review.
+- NES-028 CLI Reference — referensi perintah CLI (cmd/naeos).
+- NES-029 Configuration — referensi format konfigurasi pipeline.
+- NES-030 Specification Language — bahasa spesifikasi NAEOS.
+- NES-031 Errors — katalog kode error dan penanganannya.
+- NES-032 Telemetry — referensi telemetry, metrik, dan observabilitas.
+- NES-033 Testing Guide — panduan pengujian dan coverage.
+- NES-034 Event Bus — event bus internal (pub/sub) untuk komunikasi antar komponen.
+- NES-035 Version Management — manajemen versi SemVer untuk NEIR.
+- NES-036 Template Renderer — engine rendering template berbasis text/template.
+- NES-037 Knowledge Graph & Provenance — knowledge graph dan provenance tracking.
+- NES-038 Shared Types & Contracts — tipe data dan kontrak bersama untuk seluruh komponen.
+- NES-039 SDK Multi-Language — spesifikasi SDK multi-language (Go, TypeScript, Python, Java, Rust).
+- NES-040 Output Adapter Architecture — arsitektur output adapter untuk ekstensi bahasa.
+
+## Dokumentasi pendukung
+- Kernel Architecture (NAEOS-KER-001) — arsitektur kernel.
+- Kernel Implementation (NAEOS-KER-002) — panduan implementasi kernel.
+- Kernel Examples (NAEOS-KER-003) — contoh penggunaan kernel.
+- Kernel Best Practices (NAEOS-KER-004) — praktik terbaik kernel.
 
 ## Rekomendasi penempatan dokumen
 Setiap area dapat memiliki dokumen pendukung dengan format berikut:
