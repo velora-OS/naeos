@@ -38,6 +38,20 @@ This specification establishes the mandatory design assumptions for the platform
 NEIR is the canonical intermediate representation used by the parser, resolver, planner, generator, validator, and runtime. It is not a syntax tree and not a transport format; it is the complete engineering model of the target system.
 
 ## 8. Workflow
+
+```mermaid
+flowchart TD
+    A[Define Specification] --> B[Resolve Policy & Constraints]
+    B --> C[Transform to NEIR]
+    C --> D[Produce Artifacts]
+
+    C --- NEIR["NEIR Model\n(Project, Architecture,\nDomain, Module, Service,\nAPI, Storage, Security, ...)"]
+
+    D --> E[Downstream Execution]
+
+    style NEIR fill:#f9f,stroke:#333,stroke-width:2px
+```
+
 1. Define the specification.
 2. Resolve the relevant policy and constraints.
 3. Transform the specification into a structured NEIR model.

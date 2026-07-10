@@ -47,7 +47,41 @@ The graph model covers nodes, edges, dependency graphs, execution graphs, and po
 | dataflow | Aliran data |
 | policy | Kendala policy |
 
-### 5.3 Types
+### 5.3 Example Graph
+
+```mermaid
+graph LR
+    svc1[service: auth-service] -->|dependency| mod1[module: auth-module]
+    svc1 -->|dependency| mod2[module: token-module]
+    svc1 -->|execution| svc2[service: user-service]
+    mod1 -->|dataflow| sto1[storage: user-db]
+    mod2 -->|policy| svc2
+    api1[api: REST gateway] -->|dependency| svc1
+    api1 -->|dependency| svc2
+    comp1[component: logger] -->|dependency| svc1
+    comp1 -->|dependency| svc2
+    svc2 -->|dataflow| sto1
+    dep1[deployment: production] -->|execution| svc1
+    dep1 -->|execution| svc2
+    doc1[documentation: api-guide] -->|dependency| api1
+    test1[testing: integration] -->|dependency| svc1
+    test1 -->|dependency| svc2
+    infra1[infrastructure: k8s-cluster] -->|dependency| dep1
+
+    style svc1 fill:#f9f,stroke:#333
+    style svc2 fill:#f9f,stroke:#333
+    style mod1 fill:#bbf,stroke:#333
+    style mod2 fill:#bbf,stroke:#333
+    style api1 fill:#bfb,stroke:#333
+    style comp1 fill:#fbf,stroke:#333
+    style sto1 fill:#fbb,stroke:#333
+    style dep1 fill:#ff9,stroke:#333
+    style doc1 fill:#9ff,stroke:#333
+    style test1 fill:#9fb,stroke:#333
+    style infra1 fill:#f99,stroke:#333
+```
+
+### 5.4 Types
 
 #### Node
 

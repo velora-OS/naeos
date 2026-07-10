@@ -40,6 +40,22 @@ type Plugin interface {
 
 ### 5.2 Plugin Lifecycle
 
+```mermaid
+flowchart TD
+    Discovery --> Registration
+    Registration --> DepResolution["Dependency Resolution"]
+    DepResolution --> Loading
+    Loading --> Validation
+    Validation --> Activation
+
+    DepResolution -->|"incompatible"| Rejected["Rejected"]
+    Validation -->|"invalid contract"| Rejected
+
+    Activation --> Active["Plugin Active"]
+    Active --> Deactivation["Deactivation"]
+    Deactivation --> Removed["Plugin Removed"]
+```
+
 ```
 Discovery → Registration → Dependency Resolution → Loading → Validation → Activation
     ↓                                                                              ↓

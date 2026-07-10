@@ -26,6 +26,42 @@ The knowledge model covers technical decisions, architecture records, policy con
 
 ## 5. Knowledge Forms
 
+```mermaid
+graph LR
+    subgraph Nodes["14 Node Types"]
+        N1[decision]
+        N2[requirement]
+        N3[rationale]
+        N4[component]
+        N5[policy]
+        N6[implementation]
+        N7[historical]
+        N8[service]
+        N9[module]
+        N10[api]
+        N11[storage]
+        N12[deployment]
+        N13[testing]
+        N14[security]
+    end
+    subgraph Edges["13 Edge Types"]
+        E1[depends_on]
+        E2[implements]
+        E3[related_to]
+        E4[supersedes]
+        E5[conflicts_with]
+        E6[contains]
+        E7[exposes]
+        E8[connects_to]
+        E9[deploys_to]
+        E10[tests]
+        E11[secures]
+        E12[uses]
+        E13[extends]
+    end
+    Nodes -->|modeled by| Edges
+```
+
 ### 5.1 Node Types
 
 | Tipe | Deskripsi | Contoh |
@@ -64,6 +100,14 @@ The knowledge model covers technical decisions, architecture records, policy con
 | extends | Meng-extend |
 
 ## 6. Workflow
+
+```mermaid
+flowchart LR
+    A[Record] --> B[Connect]
+    B --> C[Query]
+    C --> D[Validate]
+```
+
 1. **Record** the decision or knowledge item as a node.
 2. **Connect** related nodes with typed edges.
 3. **Attach** provenance and relevant context.

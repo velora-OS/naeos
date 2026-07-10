@@ -51,6 +51,18 @@ Intent Model bertujuan untuk:
 
 ## 2. Intent Lifecycle
 
+```mermaid
+flowchart TD
+    V[Vision] --> M[Mission]
+    M --> I[Intent]
+    I --> G[Goals]
+    G --> R[Requirements]
+    R --> S[Specification]
+    S --> A[Architecture]
+    A --> IM[Implementation]
+    IM --> E[Evidence]
+```
+
 ```
 Vision
     │

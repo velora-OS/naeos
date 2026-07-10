@@ -48,6 +48,18 @@ PATCH — bug fixes
 
 ### 5.3 Release Workflow
 
+```mermaid
+flowchart TD
+    A[Specification Updated] --> B[NEIR Model Rebuilt]
+    B --> C[Artifacts Regenerated]
+    C --> D[Validation Passed]
+    D --> E[Review Approved]
+    E --> F[Version Bumped]
+    F --> G[Changelog Generated]
+    G --> H[Artifacts Published]
+    H --> I[Release Tagged]
+```
+
 ```
 Specification Updated
     ↓

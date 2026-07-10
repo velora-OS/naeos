@@ -79,6 +79,19 @@ Engineering Knowledge Graph harus:
 ✅ AI Friendly
 
 3. High Level Model
+
+```mermaid
+graph TB
+    Intent --> Requirement
+    Requirement --> Specification
+    Specification --> Architecture
+    Architecture --> Implementation
+    Implementation --> Testing
+    Testing --> Deployment
+    Deployment --> Operation
+    Operation --> Knowledge
+```
+
 Intent
 
 ↓
@@ -205,6 +218,42 @@ Queue
 
 Cache
 5. Relationship Types
+
+```mermaid
+classDiagram
+    class Node {
+        +String id
+        +String type
+        +String title
+        +String version
+        +String status
+        +String owner
+    }
+    class Governance
+    class Requirement
+    class Architecture
+    class Knowledge
+    class Development
+    class AI
+    class Runtime
+    Node <|-- Governance
+    Node <|-- Requirement
+    Node <|-- Architecture
+    Node <|-- Knowledge
+    Node <|-- Development
+    Node <|-- AI
+    Node <|-- Runtime
+    Governance "1" --> "0..*" Requirement : owns
+    Requirement "1" --> "0..*" Architecture : implemented_by
+    Architecture "1" --> "0..*" Development : realized_in
+    Development "1" --> "0..*" Runtime : deployed_to
+    Knowledge "1" --> "0..*" Node : references
+    AI "1" --> "0..*" Node : derived_from
+    Node "1" --> "0..*" Node : depends_on
+    Node "1" --> "0..*" Node : validates
+    Node "1" --> "0..*" Node : generates
+    Node "1" --> "0..*" Node : extends
+```
 
 EKG memiliki relationship resmi.
 

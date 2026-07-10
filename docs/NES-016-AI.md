@@ -57,6 +57,27 @@ AI tidak boleh:
 - Melanggar batas-batas yang didefinisikan dalam policy.
 
 ## 6. Workflow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant AI as AI Agent
+    participant Spec as Specification
+    participant V as Validator
+    participant R as Reviewer
+
+    User->>AI: Request artifact generation
+    AI->>Spec: Read context & specifications
+    Spec-->>AI: Return specification context
+    AI->>AI: Generate artifacts
+    AI->>V: Submit for validation
+    V-->>AI: Validation result
+    AI->>R: Submit for review
+    R-->>AI: Review result
+    AI-->>User: Return approved artifact
+    User->>User: Deploy artifact
+```
+
 1. AI membaca spesifikasi dan konteks proyek.
 2. AI menghasilkan artefak sesuai standar NAEOS.
 3. Artefak divalidasi oleh validator NAEOS.

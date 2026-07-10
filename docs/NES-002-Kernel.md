@@ -38,6 +38,25 @@ The kernel specification covers:
 
 The kernel is implemented as a single `Kernel` struct in `pkg/kernel/kernel.go` that aggregates four subsystems:
 
+```mermaid
+graph TB
+    subgraph Kernel
+        SR[Service Registry]
+        EB[Event Bus]
+        LC[Lifecycle]
+        TM[Telemetry]
+        MU["sync.RWMutex"]
+    end
+    SR --> LC
+    EB --> TM
+    LC --> SR
+    TM --> EB
+    MU -.-> SR
+    MU -.-> EB
+    MU -.-> LC
+    MU -.-> TM
+```
+
 ```
 ┌──────────────────────────────────────────────────┐
 │                     Kernel                        │
@@ -158,6 +177,16 @@ The kernel emits the following events during pipeline execution:
 | `pipeline.run` | After full pipeline run | `{"artifacts": N, "tasks": N, "reviews": N, "graph_nodes": N, "graph_edges": N}` |
 
 ## 9. Workflow
+
+```mermaid
+stateDiagram-v2
+    [*] --> NotStarted
+    NotStarted --> Started: Start()
+    Started --> Stopped: Stop()
+    Stopped --> [*]
+    NotStarted --> NotStarted: Stop() [error]
+    Started --> Started: Start() [error]
+```
 
 1. **Construction**: `NewKernel()` creates an empty kernel instance.
 2. **Registration**: Services are registered via `Register(name, service)` — each service gets a unique string key.

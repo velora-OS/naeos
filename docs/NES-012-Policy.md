@@ -70,12 +70,33 @@ Priority 4 (Low) → dievaluasi terakhir
 ```
 
 ## 6. Workflow
+
+```mermaid
+flowchart TD
+    A[Define Policy Rule] --> B[Evaluate Against NEIR Context]
+    B --> C{Rule Passed?}
+    C -->|Yes| D[Enforce Approve]
+    C -->|No| E[Enforce Reject or Warn]
+    D --> F[Record Decision for Audit]
+    E --> F
+```
+
 1. **Define** the policy rule with condition, priority, action, and scope.
 2. **Evaluate** the rule against the target NEIR context.
 3. **Enforce** the resulting action (approve, reject, warn).
 4. **Record** the decision for audit trail.
 
 ## 7. Integration
+
+```mermaid
+graph LR
+    PE[Policy Engine] -->|Evaluate NEIR| P[Pipeline]
+    PE -->|Enforce Rules| G[Governance]
+    PE -->|Validate All| CLI[CLI]
+    P -->|Results| PE
+    G -->|Review Feedback| PE
+    CLI -->|Command| PE
+```
 
 Policy engine terintegrasi dengan:
 - **Pipeline** — evaluasi policy setelah NEIR model dibangun.

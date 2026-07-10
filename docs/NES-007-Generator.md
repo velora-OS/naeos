@@ -37,6 +37,24 @@ The generator covers:
 
 ### 5.1 Generation Flow
 
+```mermaid
+flowchart TD
+    Pipeline["Pipeline.Run()"] --> DefaultEngine["DefaultEngine.Generate(neir)"]
+    DefaultEngine -->|"Go boilerplate artifacts"| Merge["Combined []Artifact"]
+    Pipeline --> AdapterDispatch["adapters.GenerateForNEIR(neir)"]
+    AdapterDispatch --> GoAdapter["GoAdapter"]
+    AdapterDispatch --> TSAdapter["TypeScriptAdapter"]
+    AdapterDispatch --> PyAdapter["PythonAdapter"]
+    AdapterDispatch --> JavaAdapter["JavaAdapter"]
+    AdapterDispatch --> RustAdapter["RustAdapter"]
+    GoAdapter -->|"Go artifacts"| Merge
+    TSAdapter -->|"TypeScript artifacts"| Merge
+    PyAdapter -->|"Python artifacts"| Merge
+    JavaAdapter -->|"Java artifacts"| Merge
+    RustAdapter -->|"Rust artifacts"| Merge
+    Merge --> Output["Final Artifacts"]
+```
+
 ```
                     ┌───────────────────────────────────────┐
                     │           Pipeline.Run()               │

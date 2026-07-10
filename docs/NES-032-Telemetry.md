@@ -11,6 +11,32 @@ Reference for NAEOS telemetry, metrics, and observability.
 
 NAEOS provides telemetry through the kernel system. Telemetry events track pipeline execution, kernel lifecycle, and component activity.
 
+```mermaid
+flowchart LR
+    subgraph Components
+        PIPELINE["Pipeline"]
+        KERNEL["Kernel Lifecycle"]
+        CUSTOM["Custom Components"]
+    end
+
+    subgraph Kernel
+        EB["Event Bus"]
+        RECORDER["Event Recorder"]
+    end
+
+    subgraph Metrics
+        MET["Metrics Collector"]
+        STORE["Event Store"]
+    end
+
+    PIPELINE -->|"pipeline.validate\npipeline.run"| EB
+    KERNEL -->|"kernel.start\nkernel.stop"| EB
+    CUSTOM -->|"custom.event"| EB
+    EB --> RECORDER
+    RECORDER --> MET
+    RECORDER --> STORE
+```
+
 ---
 
 ## TelemetryEvent

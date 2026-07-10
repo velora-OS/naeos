@@ -35,6 +35,17 @@ The bootstrap process covers:
 
 NAEOS provides two distinct bootstrap modes:
 
+```mermaid
+flowchart TD
+    U[User] --> BM{Bootstrap Mode}
+    BM -->|naeos init| CB[Config Bootstrap]
+    BM -->|naeos scaffold| SB[Scaffold Bootstrap]
+    BM -->|runtime| PB[Pipeline Bootstrap]
+    CB --> CF[config.yaml]
+    SB --> WS[Full Workspace]
+    PB --> PL["Pipeline → Kernel.Start() → Ready"]
+```
+
 ### 5.1 Config Bootstrap (`naeos init`)
 Generates a minimal pipeline configuration file.
 

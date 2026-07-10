@@ -69,6 +69,23 @@ automation.
 
 Metadata menjadi pintu masuk seluruh proses.
 
+```mermaid
+graph TB
+    A[Specification YAML] --> A1["metadata:
+    id / title / type / version
+    owner / status / tags"]
+    A --> A2["automation:
+    compile / validate / generate"]
+    A --> A3["generation:
+    languages / output_dir"]
+    A --> B[Compiler]
+    A --> C[Validator]
+    A --> D[AI Agent]
+    B --> E[Generated Artifacts]
+    C --> F[Validation Report]
+    D --> G[Prompt Context]
+```
+
 3. Metadata Categories
 
 Metadata dibagi menjadi delapan kategori utama.

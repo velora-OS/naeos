@@ -85,6 +85,27 @@ GenerationConfig is populated from the `generation:` section of the spec YAML or
 
 ## 7. Pipeline Integration
 
+```mermaid
+flowchart TD
+    SpecYAML["Specification YAML"] --> Parser
+    Parser --> SpecDocument["SpecDocument\n(with Generation)"]
+    SpecDocument --> Normalizer
+    Normalizer --> NormalizedSpec["NormalizedSpec\n(with generation map)"]
+    NormalizedSpec --> Resolver
+    Resolver --> ResolvedSpec["ResolvedSpec\n(context generation)"]
+    ResolvedSpec --> Builder
+    Builder --> NEIR
+
+    NEIR --> Validator["Validator"]
+    NEIR --> Generator["DefaultEngine\nGenerate"]
+    NEIR --> Adapter["Adapter Layer\nGenerateForNEIR"]
+
+    Validator -->|"validates Generation.Languages"| NEIR
+    Generator -->|"Go artifacts"| Downstream
+    Adapter -->|"per-language artifacts"| Downstream
+    Downstream["Downstream Consumers"]
+```
+
 ```
 Specification YAML
        │

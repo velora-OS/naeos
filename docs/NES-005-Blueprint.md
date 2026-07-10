@@ -27,20 +27,14 @@ The blueprint model covers design patterns, component layout, interface contract
 
 The blueprint is a design-time view of the NEIR model. While NEIR captures the complete engineering representation, the blueprint focuses on structural design decisions.
 
-```
-Specification
-    ↓
-Normalized Spec
-    ↓
-Resolved Spec
-    ↓
-NEIR Model
-    ↓
-Blueprint (Design View)
-    ↓
-Generator Engine
-    ↓
-Artifacts
+```mermaid
+flowchart TD
+    A[Specification] --> B[Normalized Spec]
+    B --> C[Resolved Spec]
+    C --> D[NEIR Model]
+    D --> E[Blueprint]
+    E --> F[Generator Engine]
+    F --> G[Artifacts]
 ```
 
 ### 5.2 Components
@@ -74,6 +68,13 @@ Defines cross-cutting concerns:
 4. Feed design to generator engine for artifact production.
 
 ## 7. Design Patterns
+
+```mermaid
+graph LR
+    LA[Layered Architecture] --> L1["Handler → Service → Repository → Database"]
+    HA[Hexagonal Architecture] --> H1["Port → Adapter → Core"]
+    ED[Event-Driven] --> E1["Producer → Event Bus → Consumer"]
+```
 
 ### 7.1 Layered Architecture
 ```

@@ -19,6 +19,22 @@ Dokumen ini mencakup definisi tipe data, interface, implementasi, dan contoh pen
 
 Event bus internal menyediakan mekanisme pub/sub berbasis topik untuk komunikasi antar komponen.
 
+```mermaid
+sequenceDiagram
+    participant P as Publisher
+    participant B as Bus
+    participant S1 as Subscriber 1
+    participant S2 as Subscriber 2
+    participant S3 as Subscriber 3
+    P->>B: Publish(topic, payload)
+    B->>S1: Handler(event)
+    S1-->>B: processed
+    B->>S2: Handler(event)
+    S2-->>B: processed
+    B->>S3: Handler(event)
+    S3-->>B: processed
+```
+
 ```
 Publisher -> Bus.Publish(topic, payload)
                 |

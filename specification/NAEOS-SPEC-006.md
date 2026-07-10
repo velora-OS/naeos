@@ -79,6 +79,43 @@ Artifact A memerlukan Artifact B agar dapat diproses dengan benar.
 
 3. Graph Architecture
 
+```mermaid
+graph TB
+    subgraph Foundation["Level 0 — Foundation"]
+        Constitution[Constitution]
+        CoreSpec[Core Specification]
+        GOV[GOV Docs]
+    end
+    subgraph Standards["Level 1 — Standards"]
+        APIStd[API Standard]
+        SecurityStd[Security Standard]
+        DBStd[DB Standard]
+    end
+    subgraph Profiles["Level 2 — Profiles & Playbooks"]
+        BackendProfile[Backend Profile]
+        FrontendProfile[Frontend Profile]
+    end
+    subgraph Specs["Level 3 — Specification"]
+        ProjectSpecs[Project Specs]
+        ModuleSpecs[Module Specs]
+        APIContracts[API Contracts]
+    end
+    subgraph Impl["Level 4 — Implementation"]
+        SourceCode[Source Code]
+        Tests[Tests]
+        Config[Config]
+        Dockerfiles[Dockerfiles]
+    end
+    subgraph Generated["Level 5 — Generated Artifacts"]
+        Go[Go Adapter]
+        TS[TypeScript Adapter]
+        Python[Python Adapter]
+        Java[Java Adapter]
+        Rust[Rust Adapter]
+    end
+    Foundation --> Standards --> Profiles --> Specs --> Impl --> Generated
+```
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                 Dependency Graph Architecture            │

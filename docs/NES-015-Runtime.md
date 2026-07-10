@@ -74,6 +74,40 @@ type RuntimeEngine interface {
 func NewEngine() RuntimeEngine
 ```
 
+### 5.5 Runtime Execution Flow
+
+```mermaid
+flowchart TD
+    A[Execute Artifact] --> B[Validate Artifact]
+    B --> C{Is Valid?}
+    C -->|No| D[Return Error]
+    C -->|Yes| E{Already Executed?}
+    E -->|Yes| F[Return Skipped]
+    E -->|No| G[Mark as Executed]
+    G --> H[Execute in Target Environment]
+    H --> I{Execution Success?}
+    I -->|No| J[Record Failure in History]
+    I -->|Yes| K[Record Success in History]
+    J --> L[Return Result]
+    K --> L
+```
+
+### 5.6 Artifact Execution States
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Validating : Validate()
+    Validating --> Pending : Invalid
+    Validating --> Running : Valid
+    Running --> Completed : Success
+    Running --> Failed : Error
+    Running --> Skipped : Already Executed
+    Completed --> [*]
+    Failed --> [*]
+    Skipped --> [*]
+```
+
 ## 6. Operations
 
 ### 6.1 Execute

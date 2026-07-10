@@ -53,6 +53,14 @@ ERG bertujuan untuk:
 
 NAEOS memiliki empat graph inti:
 
+```mermaid
+graph TB
+    KG[Knowledge Graph] --> DG[Dependency Graph]
+    DG --> PG[Policy Graph]
+    PG --> EG[Evidence Graph]
+    EG --> RG[Reasoning Graph]
+```
+
 ```
 Knowledge Graph
         │
@@ -130,6 +138,68 @@ Superseded (optional)
 ```
 
 ## 4. Relationship Types
+
+```mermaid
+classDiagram
+    class ReasoningNode {
+        +String id
+        +String type
+        +String title
+        +String owner
+        +String status
+        +String rationale
+    }
+    class Requirement {
+        +String business_need
+    }
+    class Assumption {
+        +String basis
+    }
+    class Constraint {
+        +String limitation
+    }
+    class Risk {
+        +String severity
+        +String likelihood
+    }
+    class Decision {
+        +String adr_id
+        +String evidence_list
+    }
+    class Alternative {
+        +String reason_rejected
+    }
+    class TradeOff {
+        +String compromise
+    }
+    class Evidence {
+        +String source
+        +String type
+    }
+    class Outcome {
+        +String result
+    }
+    ReasoningNode <|-- Requirement
+    ReasoningNode <|-- Assumption
+    ReasoningNode <|-- Constraint
+    ReasoningNode <|-- Risk
+    ReasoningNode <|-- Decision
+    ReasoningNode <|-- Alternative
+    ReasoningNode <|-- TradeOff
+    ReasoningNode <|-- Evidence
+    ReasoningNode <|-- Outcome
+    Requirement --> Decision : derived_from
+    Assumption --> Decision : justifies
+    Constraint --> Decision : constrains
+    Alternative --> Decision : considered_by
+    TradeOff --> Decision : resolves
+    Evidence --> Decision : supports
+    Risk --> Decision : justifies
+    Decision --> Outcome : results_in
+    Risk --> Decision : conflicts_with
+    Decision --> Decision : depends_on
+    Decision --> Decision : supersedes
+```
 
 Hubungan yang didukung:
 

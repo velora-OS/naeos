@@ -36,6 +36,29 @@ The security layer covers access control, audit logging, secret management, and 
 
 ### 5.2 Security Controls
 
+```mermaid
+graph TB
+    subgraph Code_Level["Code Level"]
+        C1[No Hardcoded Secrets]
+        C2[No Credentials in Artifacts]
+        C3[Input Validation]
+        C4[Output Sanitization]
+    end
+    subgraph Policy_Level["Policy Level"]
+        P1[Security Rules in Policy Engine]
+        P2[License Header Enforcement]
+        P3[No TODO/Placeholder Enforcement]
+        P4[Package Declaration Validation]
+    end
+    subgraph Audit_Level["Audit Level"]
+        A1[Telemetry Events]
+        A2[Provenance Tracking]
+        A3[Review Results Logging]
+    end
+    Code_Level --> Policy_Level
+    Policy_Level --> Audit_Level
+```
+
 #### Code Level
 - Tidak ada hardcoded secrets
 - Tidak ada credential dalam generated artifacts
@@ -63,6 +86,24 @@ The security layer covers access control, audit logging, secret management, and 
 | input-validation | code | warn |
 
 ## 6. Workflow
+
+```mermaid
+flowchart TD
+    A[Developer Writes Specification] --> B[Policy Engine Evaluates Security Rules]
+    B --> C{Policy Compliant?}
+    C -->|No| D[Reject with Details]
+    C -->|Yes| E[Validator Checks Artifacts]
+    E --> F{Security Concerns Found?}
+    F -->|Yes| G[Flag Issues for Review]
+    F -->|No| H[Reviewer Evaluates Compliance]
+    G --> H
+    H --> I{Approved?}
+    I -->|No| J[Return to Developer]
+    I -->|Yes| K[Record Audit Log]
+    J --> A
+    K --> L[Complete]
+```
+
 1. Developer menulis spesifikasi dengan security requirements.
 2. Policy engine mengevaluasi security rules.
 3. Validator memeriksa artefak untuk security concerns.

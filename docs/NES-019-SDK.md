@@ -75,6 +75,30 @@ cfg, err := config.Load("config.yaml")
 
 ## 6. Extension Points
 
+```mermaid
+graph LR
+    subgraph Core Packages
+        KERNEL["pkg/kernel"]
+        PIPELINE["pkg/pipeline"]
+        CONFIG["pkg/config"]
+    end
+
+    subgraph Extension Points
+        CG["Custom Generator"]
+        CV["Custom Validator"]
+        CP["Custom Policy"]
+        CR["Custom Renderer"]
+    end
+
+    CG --> KERNEL
+    CV --> PIPELINE
+    CP --> PIPELINE
+    CR --> KERNEL
+
+    PIPELINE --> KERNEL
+    CONFIG --> PIPELINE
+```
+
 | Extension | Deskripsi |
 |-----------|-----------|
 | Custom Generator | Tambahkan target bahasa baru |

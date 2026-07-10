@@ -65,6 +65,25 @@ Generated `go.mod` files for Go projects, or equivalent dependency files for oth
 
 ## 6. Workflow
 
+```mermaid
+flowchart TD
+    A[Initialize Workspace] --> B[Locate Specification File]
+    B --> C[Load Configuration]
+    C --> D{Config Format?}
+    D -->|YAML| E[Parse YAML]
+    D -->|JSON| F[Parse JSON]
+    E --> G[Parse Specification]
+    F --> G
+    G --> H[Execute Operation]
+    H --> I{Operation Type}
+    I -->|Run| J[Generate Artifacts]
+    I -->|Validate| K[Validate Artifacts]
+    I -->|Inspect| L[Inspect State]
+    J --> M[Persist Output]
+    K --> M
+    L --> M
+```
+
 1. **Initialize** the workspace by locating the specification file.
 2. **Load** the active configuration (YAML or JSON).
 3. **Parse** the specification into internal representation.

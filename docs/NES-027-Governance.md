@@ -184,6 +184,21 @@ for _, c := range result.Comments {
 
 ## 5. Integration with Pipeline
 
+```mermaid
+sequenceDiagram
+    participant Pipeline
+    participant PE as Policy Evaluator
+    participant AR as Artifact Reviewer
+
+    Pipeline->>PE: Evaluate NEIR with policy rules
+    PE->>PE: Check each rule against context
+    PE-->>Pipeline: Return EvaluationResults
+    Pipeline->>AR: Review generated artifacts
+    AR->>AR: Apply review rules per file
+    AR-->>Pipeline: Return ReviewResults
+    Pipeline->>Pipeline: Aggregate results and decide pass/fail
+```
+
 Governance components are automatically integrated into the pipeline:
 
 ```go

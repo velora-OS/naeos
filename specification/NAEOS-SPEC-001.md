@@ -71,6 +71,30 @@ Input yang sama menghasilkan output yang konsisten.
 
 4. Core Architecture
 
+```mermaid
+graph TB
+    subgraph Input
+        Parser --> Normalizer --> Resolver
+    end
+    subgraph CorePipeline[Core Pipeline]
+        Resolver --> Builder
+        Builder --> NEIR
+        NEIR --> Validator
+        NEIR --> Scheduler
+        NEIR --> Evaluator
+    end
+    subgraph Generation
+        Validator --> DefaultEngine[Default Engine - Go Boilerplate]
+        Scheduler --> AdapterLayer[Adapter Layer - Multi-language]
+        Evaluator --> AdapterLayer
+    end
+    subgraph Output
+        DefaultEngine --> Reviewer
+        AdapterLayer --> Reviewer
+        Reviewer --> OutputResult[Output]
+    end
+```
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  NAEOS Architecture                     │

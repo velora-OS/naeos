@@ -16,6 +16,33 @@ NAEOS Pipeline adalah komponen sentral yang mengorkestrasi seluruh alur transfor
 
 ## 2. Architecture
 
+```mermaid
+graph TB
+    subgraph Pipeline["NAEOS Pipeline"]
+        direction TB
+        Parser["Parser"] --> Normalizer["Normalizer"]
+        Normalizer --> Resolver["Resolver"]
+        Resolver --> Builder["Builder"]
+        Builder --> Validator["Validator"]
+        Validator --> GraphNode["Graph (PlannerGraph)"]
+        GraphNode --> Policy["Policy Evaluator"]
+        Policy --> Scheduler["Scheduler"]
+        Scheduler --> Generator["Generator"]
+        Generator --> Reviewer["Reviewer"]
+    end
+
+    subgraph Supporting["Supporting Services"]
+        Kernel["Kernel — lifecycle & telemetry"]
+        GraphService["Graph — dependency DAG"]
+        Registry["Registry — component discovery"]
+    end
+
+    Pipeline --> Supporting
+
+    style Pipeline fill:#e8f4fd,stroke:#2196F3
+    style Supporting fill:#fff3e0,stroke:#FF9800
+```
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     NAEOS Pipeline                               │
@@ -41,6 +68,21 @@ NAEOS Pipeline adalah komponen sentral yang mengorkestrasi seluruh alur transfor
 ## 3. Pipeline Flow
 
 ### 3.1 Run Flow
+
+```mermaid
+flowchart TD
+    Input["Input (YAML/JSON Specification)"] --> Parser["Parser — parse input into SpecDocument"]
+    Parser --> Normalizer["Normalizer — normalize to structured values"]
+    Normalizer --> Resolver["Resolver — resolve references and defaults"]
+    Resolver --> Builder["Builder — build NEIR model"]
+    Builder --> Validator["Validator — validate NEIR model"]
+    Validator --> ExecGraph["Execution Graph — build dependency graph"]
+    ExecGraph --> PolicyEval["Policy Evaluator — evaluate governance rules"]
+    PolicyEval --> Scheduler["Scheduler — generate execution tasks"]
+    Scheduler --> Generator["Generator — generate artifacts"]
+    Generator --> Reviewer["Reviewer — review generated artifacts"]
+    Reviewer --> Output["Output (NEIR + Artifacts + Tasks + Reviews)"]
+```
 
 ```
 Input (YAML/JSON Specification)

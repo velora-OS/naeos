@@ -24,6 +24,19 @@ The cloud layer covers containerization, orchestration, cloud provider integrati
 
 ## 5. Deployment Targets
 
+```mermaid
+graph LR
+    subgraph Pipeline
+        D[Docker] --> K[Kubernetes]
+        K --> C[CI/CD]
+    end
+    subgraph Strategies["Deployment Strategies"]
+        S1[rolling] --> S2[blue-green]
+        S2 --> S3[canary]
+    end
+    Pipeline -->|uses| Strategies
+```
+
 ### 5.1 Docker
 
 Generator menghasilkan:
@@ -58,6 +71,14 @@ Generator menghasilkan:
 | canary | Deploy ke subset users dulu |
 
 ## 7. Workflow
+
+```mermaid
+flowchart TD
+    A[Define deployment config] --> B[NAEOS generate artifacts]
+    B --> C[Review & push to repo]
+    C --> D[CI/CD build & deploy]
+```
+
 1. Developer mendefinisikan deployment config dalam spesifikasi.
 2. NAEOS generate deployment artifacts.
 3. Developer review dan push ke repository.

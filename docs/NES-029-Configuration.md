@@ -74,6 +74,20 @@ pipeline:
 cfg, err := config.LoadFile("config.yaml")
 ```
 
+```mermaid
+flowchart TD
+    A[Config File] --> B[Read File Bytes]
+    B --> C{File Empty?}
+    C -- Yes --> D[Return Error: config is empty]
+    C -- No --> E[Try JSON Unmarshal]
+    E --> F{JSON Success?}
+    F -- Yes --> G[Return Config Struct]
+    F -- No --> H[Try YAML Unmarshal]
+    H --> I{YAML Success?}
+    I -- Yes --> G
+    I -- No --> J[Return Error: parse config]
+```
+
 The loader:
 1. Reads the file bytes
 2. Tries JSON unmarshal

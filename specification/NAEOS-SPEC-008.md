@@ -64,6 +64,15 @@ Compiler bertujuan untuk:
 
 ## 2. Compiler Philosophy
 
+```mermaid
+flowchart TB
+    Knowledge --> Specification
+    Specification --> DefaultEngine[Default Engine - Go Boilerplate]
+    Specification --> AdapterLayer[Adapter Layer - Multi-language]
+    DefaultEngine --> MultipleOutputs[Multiple Outputs]
+    AdapterLayer --> MultipleOutputs
+```
+
 ```
 Knowledge
     │
@@ -86,6 +95,28 @@ Compiler bukan translator. Compiler adalah **knowledge transformation engine**.
 Dengan adanya Adapter Layer, Compiler menjadi **polyglot generator** — satu spesifikasi menghasilkan artefak dalam banyak bahasa pemrograman secara bersamaan.
 
 ## 3. High Level Architecture
+
+```mermaid
+graph TB
+    subgraph Input
+        Parser --> Normalizer --> Resolver
+    end
+    subgraph CorePipeline[Core Pipeline]
+        Resolver --> Builder
+        Builder --> NEIR
+        NEIR --> Validator
+        NEIR --> Scheduler
+    end
+    subgraph Generation
+        Validator --> DefaultEngine[Default Engine - Go Boilerplate]
+        Scheduler --> AdapterLayer[Adapter Layer - Multi-language]
+    end
+    subgraph Output
+        DefaultEngine --> CombinedArtifacts["[]Artifact (combined)"]
+        AdapterLayer --> CombinedArtifacts
+        CombinedArtifacts --> Reviewer
+    end
+```
 
 ```
 ┌─────────────────────────────────────────────────────────┐

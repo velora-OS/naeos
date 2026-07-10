@@ -13,6 +13,59 @@ This draft defines the proposed layout of internal packages and folders that wil
 
 ## 4. Proposed Directory Structure
 
+```mermaid
+graph TB
+    subgraph specification["specification"]
+        Lexer["lexer"]
+        Parser["parser"]
+        Normalizer["normalizer"]
+        Resolver["resolver"]
+    end
+    subgraph neir["neir"]
+        Model["model"]
+        Builder["builder"]
+        Serializer["serializer"]
+        Validator["validator"]
+        Version["version"]
+    end
+    subgraph planner["planner"]
+        Graph["graph"]
+        Scheduler["scheduler"]
+        Optimizer["optimizer"]
+    end
+    subgraph generation["generation"]
+        Engine["engine"]
+        Templates["templates"]
+        Targets["targets"]
+        Renderers["renderers"]
+    end
+    subgraph governance["governance"]
+        Policy["policy"]
+        Review["review"]
+    end
+    subgraph knowledge["knowledge"]
+        KGraph["graph"]
+        Index["index"]
+        Provenance["provenance"]
+    end
+    subgraph runtime["runtime"]
+        REngine["engine"]
+        Lifecycle["lifecycle"]
+        Telemetry["telemetry"]
+    end
+    subgraph kernel["kernel"]
+        Services["services"]
+        Registry["registry"]
+        Events["events"]
+    end
+    subgraph shared["shared"]
+        Errors["errors"]
+        Types["types"]
+        Utils["utils"]
+        Contracts["contracts"]
+    end
+```
+
 ```text
 internal/
 ├── specification/

@@ -17,6 +17,123 @@ Dokumen ini mencakup shared types (`internal/shared/types`) dan shared contracts
 
 ## 5. Shared Types
 
+```mermaid
+classDiagram
+    class ID {
+        <<type>>
+        +string
+    }
+
+    class Reference {
+        +ID id
+        +string name
+    }
+
+    class ErrorInfo {
+        +string Code
+        +string Message
+    }
+
+    class Artifact {
+        +string Path
+        +bytes Content
+    }
+
+    class Task {
+        +string ID
+        +string Name
+        +string[] Dependencies
+        +int Priority
+    }
+
+    class PolicyRule {
+        +string RuleID
+        +string Condition
+        +int Priority
+        +string Action
+        +string Scope
+    }
+
+    class KnowledgeEntry {
+        +string Topic
+        +string Component
+        +string Version
+        +string Rationale
+    }
+
+    class TelemetryEvent {
+        +string Name
+        +int64 Timestamp
+        +map Payload
+    }
+
+    class ValidationResult {
+        +bool Valid
+        +ErrorInfo[] Errors
+    }
+
+    class ReviewResult {
+        +bool Approved
+        +string[] Comments
+    }
+
+    class SpecDocument {
+        +string Raw
+        +string Project
+        +ModuleDef[] Modules
+        +ServiceDef[] Services
+    }
+
+    class ModuleDef {
+        +string Name
+        +string Path
+    }
+
+    class ServiceDef {
+        +string Name
+        +string Kind
+        +int Port
+    }
+
+    class Contract {
+        <<interface>>
+        +Validate() error
+    }
+
+    class SchemaAware {
+        <<interface>>
+        +SchemaVersion() string
+    }
+
+    class Versioned {
+        <<interface>>
+        +Version() string
+    }
+
+    class Identifiable {
+        <<interface>>
+        +ID() string
+    }
+
+    class Named {
+        <<interface>>
+        +Name() string
+    }
+
+    Reference --> ID
+    ValidationResult --> ErrorInfo
+    SpecDocument --> ModuleDef
+    SpecDocument --> ServiceDef
+
+    Kernel ..> TelemetryEvent : emits
+    Pipeline ..> Artifact : produces
+    Pipeline ..> Task : schedules
+    Policy ..> PolicyRule : evaluates
+    Validator ..> ValidationResult : returns
+    Reviewer ..> ReviewResult : returns
+    Parser ..> SpecDocument : creates
+```
+
 Lokasi: `internal/shared/types/types.go`
 
 ### 5.1 ID

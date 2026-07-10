@@ -29,6 +29,23 @@ Dokumen ini mencakup arsitektur adapter, kontrak SDK per bahasa, konfigurasi bah
 
 ## 6. Architecture
 
+```mermaid
+flowchart TD
+    Spec["Specification (YAML/JSON)"] --> NEIR["NEIR Model (with GenerationConfig)"]
+    NEIR --> LangSelector["Language Selector"]
+    LangSelector --> Registry["Output Adapter Registry"]
+    Registry --> Go["GoAdapter"]
+    Registry --> TS["TSAdapter"]
+    Registry --> Py["PyAdapter"]
+    Registry --> Java["JavaAdapter"]
+    Registry --> Rust["RustAdapter"]
+    Go --> Artifacts["Combined Artifacts"]
+    TS --> Artifacts
+    Py --> Artifacts
+    Java --> Artifacts
+    Rust --> Artifacts
+```
+
 ```
 Specification (YAML/JSON)
     ↓

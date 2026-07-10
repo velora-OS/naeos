@@ -72,7 +72,27 @@ Deploy Confidently
 Validasi dilakukan pada setiap perubahan, bukan hanya sebelum rilis.
 
 3. Validation Pipeline
-Diagram tidak valid atau tidak didukung.
+
+```mermaid
+flowchart TD
+    Start([Artifact Submitted]) --> S1[Stage 1: Syntax Validation]
+    S1 -->|Pass| S2[Stage 2: Metadata Validation]
+    S1 -->|Fail| F1[Report Syntax Errors]
+    S2 -->|Pass| S3[Stage 3: Schema Validation]
+    S2 -->|Fail| F2[Report Metadata Errors]
+    S3 -->|Pass| S4[Stage 4: Dependency Validation]
+    S3 -->|Fail| F3[Report Schema Errors]
+    S4 -->|Pass| S5[Stage 5: Rule Evaluation]
+    S4 -->|Fail| F4[Report Dependency Errors]
+    S5 -->|Pass| S6[Stage 6: Knowledge Validation]
+    S5 -->|Fail| F5[Report Rule Violations]
+    S6 -->|Pass| S7[Stage 7: Compliance Validation]
+    S6 -->|Fail| F6[Report Knowledge Errors]
+    S7 -->|Pass| S8[Stage 8: Quality Assessment]
+    S7 -->|Fail| F7[Report Compliance Issues]
+    S8 -->|Pass| Done([Validation Passed])
+    S8 -->|Warning| Warn([Validation Passed with Warnings])
+```
 
 Setiap tahap hanya dijalankan jika tahap sebelumnya berhasil.
 

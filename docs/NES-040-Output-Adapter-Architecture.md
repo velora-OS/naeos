@@ -20,6 +20,17 @@ Dokumen ini mencakup interface adapter, registry, dispatch mechanism, dan pola e
 
 ### 5.1 Adapter Registry Pattern
 
+```mermaid
+graph TD
+    subgraph Registry["Adapter Registry<br/>map[language.Language]OutputAdapter"]
+        GoAdapter["GoAdapter<br/>init() → Register()"]
+        TSAdapter["TSAdapter<br/>init() → Register()"]
+        PyAdapter["PyAdapter<br/>init() → Register()"]
+        More["..."]
+    end
+    OutputAdapter["OutputAdapter Interface"] --> Registry
+```
+
 ```
 OutputAdapter Interface
     ↓
@@ -36,6 +47,16 @@ OutputAdapter Interface
 Setiap adapter di-register secara otomatis melalui `init()` function saat package di-import.
 
 ### 5.2 Dispatch Flow
+
+```mermaid
+flowchart TD
+    NEIR["NEIR Model"] --> Extract["Extract GenerationConfig.Languages"]
+    Extract --> ForEach{"For each language"}
+    ForEach --> GetAdapter["Get adapter from Registry"]
+    GetAdapter --> Generate["Call adapter methods sequentially"]
+    Generate --> Collect["Collect artifacts"]
+    Collect --> AllArtifacts["All artifacts returned"]
+```
 
 ```
 1. NEIR Model diterima

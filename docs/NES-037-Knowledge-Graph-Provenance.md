@@ -20,6 +20,22 @@ Dokumen ini mencakup model graph, tipe node/edge, operasi query, provenance trac
 
 ### 5.1 Architecture
 
+```mermaid
+graph LR
+    D1[decision: Use PostgreSQL] -->|implements| R1[requirement: Support 1000 users]
+    D1 -->|related_to| C1[component: User Service]
+    D1 -->|uses| S1[storage: PostgreSQL users table]
+    C1 -->|exposes| A1[api: GET /api/users]
+    C1 -->|deploys_to| DL1[deployment: Kubernetes]
+    C1 -->|secured_by| SE1[security: JWT auth]
+    C1 -->|tested_by| T1[testing: Unit tests > 80%]
+    P1[policy: All services need health check] -->|contains| C1
+    H1[historical: Migrasi MongoDB ke PostgreSQL] -->|supersedes| D1
+    D1 -->|rationale| RA1[rationale: ACID compliance]
+    C1 -->|depends_on| SV1[service: auth-service]
+    C1 -->|extends| M1[module: user-module]
+```
+
 ```
 KnowledgeGraph
 ├── nodes: map[string]*Node
@@ -166,6 +182,19 @@ Nodes() | Semua node
 Edges() | Semua edge
 
 ## 6. Provenance Store
+
+```mermaid
+flowchart TD
+    A[Artifact Created] --> B[Record Provenance]
+    B --> C{Has Parent?}
+    C -->|Yes| D[Link to Parent Record]
+    C -->|No| E[Root Record]
+    D --> F[Store in Provenance Map]
+    E --> F
+    F --> G[Query Lineage]
+    G --> H[Traverse ParentID Chain]
+    H --> I[Return Lineage: C → B → A]
+```
 
 ### 6.1 Architecture
 

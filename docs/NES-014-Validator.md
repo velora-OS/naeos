@@ -24,6 +24,28 @@ The validator covers NEIR validation, artifact validation, policy evaluation, an
 
 ## 5. Validation Layers
 
+```mermaid
+flowchart TD
+    A[Input: NEIR Model or Artifact] --> B[Layer 1: NEIR Validation]
+    B --> B1[project-exists, project-name]
+    B --> B2[modules-exists, module-names, module-paths]
+    B --> B3[no-duplicate-modules]
+    B --> B4[service-names, service-ports]
+    B --> C[Layer 2: Artifact Validation]
+    C --> C1[.go: content + package declaration]
+    C --> C2[.yaml/.yml: content not empty]
+    C --> C3[.md: content not empty]
+    B --> D[Layer 3: Policy Evaluation]
+    D --> D1[Apply NES-012 policy rules]
+    D --> D2[Evaluate conditions with operators]
+    D --> D3[Determine action: block or warn]
+    D --> E[Layer 4: Artifact Review]
+    E --> E1[no-todo, no-placeholder]
+    E --> E2[has-package-declaration]
+    E --> E3[has-license-header]
+    E --> F[ValidationResult / ReviewResult]
+```
+
 ### 5.1 NEIR Validation
 
 Memvalidasi model NEIR setelah dibangun:

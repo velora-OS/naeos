@@ -88,6 +88,18 @@ menyediakan dasar bagi compliance engine.
 
 Rule menjadi lapisan logika yang menghubungkan spesifikasi dengan implementasi.
 
+```mermaid
+graph TB
+    A[Artifact] --> B[Metadata]
+    B --> C[Rules]
+    C --> D[Validator]
+    C --> E[Policy Engine]
+    D --> F[Compiler / Adapter]
+    E --> F
+    F --> G[AI Review]
+    G --> H[Compliance]
+```
+
 3. Rule Definition
 
 Setiap Rule terdiri dari:

@@ -24,6 +24,20 @@ The compiler covers parsing, semantic binding, transformation, optimization, and
 
 ## 5. Compiler Pipeline
 
+```mermaid
+flowchart TD
+    A["Specification (YAML/JSON)"] --> B["Parser"]
+    B -->|"SpecDocument"| C["Normalizer"]
+    C -->|"NormalizedSpec"| D["Resolver"]
+    D -->|"ResolvedSpec (context map)"| E["Builder"]
+    E -->|"NEIR Model"| F["Validator"]
+    F -->|"Validation Results"| G["Planner"]
+    G -->|"Execution Graph"| H["Scheduler"]
+    H -->|"Task Queue"| I["Generator"]
+    I -->|"Artifacts (code, config, docs)"| J["Reviewer"]
+    J -->|"Review Results"| K["Output"]
+```
+
 ```
 Specification (YAML/JSON)
     ↓

@@ -59,6 +59,16 @@ Test Case
 API Contract
 Deployment Manifest
 3. Artifact Lifecycle
+
+```mermaid
+stateDiagram-v2
+    Draft --> Review
+    Review --> Approved
+    Review --> Draft
+    Approved --> Published
+    Published --> Deprecated
+```
+
 4. Universal Structure
 artifact:
 
@@ -132,6 +142,35 @@ Deployment
 Knowledge
 
 Implementasi dapat menambahkan tipe baru tanpa mengubah spesifikasi inti.
+
+```mermaid
+classDiagram
+    class Artifact {
+        +String id
+        +String type
+        +String title
+        +String summary
+        +String owner
+        +String category
+        +String version
+        +String status
+        +DateTime created_at
+        +DateTime updated_at
+        +List tags
+        +Map labels
+        +List references
+        +List dependencies
+        +Content content
+    }
+
+    Artifact --> "0..*" Artifact : depends_on
+    Artifact --> "0..*" Artifact : references
+    Artifact --> "0..*" Artifact : extends
+    Artifact --> "0..*" Artifact : implements
+    Artifact --> "0..*" Artifact : supersedes
+    Artifact --> "0..*" Artifact : derived_from
+    Artifact --> "0..*" Artifact : generated_by
+```
 
 7. Identity Model
 
