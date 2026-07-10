@@ -223,6 +223,137 @@ func (DefaultEngine) GenerateForLanguage(neir *model.NEIR, lang language.Languag
 	if !language.IsValid(lang) {
 		return nil, fmt.Errorf("unsupported language: %s", lang)
 	}
-	_ = lang
-	return nil, fmt.Errorf("adapter-based generation not yet wired — use adapters.GenerateForNEIR()")
+
+	projectName := ""
+	if neir.Project != nil {
+		projectName = neir.Project.Name
+	}
+	slug := slugify(projectName)
+
+	var artifacts []Artifact
+
+	exts := language.Extensions(lang)
+	ext := ".go"
+	if len(exts) > 0 {
+		ext = exts[0]
+	}
+	buildFile := language.BuildFile(lang)
+
+	if buildFile != "" {
+		artifacts = append(artifacts, Artifact{
+			Path:    buildFile,
+			Content: []byte(generateBuildFile(lang, slug)),
+		})
+	}
+
+	artifacts = append(artifacts, Artifact{
+		Path:    fmt.Sprintf("src/main%s", ext),
+		Content: []byte(generateMainFile(lang, projectName)),
+	})
+
+	artifacts = append(artifacts, Artifact{
+		Path:    "Dockerfile",
+		Content: []byte(generateDockerfile(lang)),
+	})
+
+	for _, m := range neir.Modules {
+		artifacts = append(artifacts, Artifact{
+			Path:    fmt.Sprintf("src/%s/main%s", slugify(m.Name), ext),
+			Content: []byte(generateModuleFile(lang, m.Name, projectName)),
+		})
+	}
+
+	return artifacts, nil
+}
+
+func generateBuildFile(lang language.Language, slug string) string {
+	switch lang {
+	case language.LanguageGo:
+		return fmt.Sprintf("module github.com/example/%s\n\ngo 1.22\n", slug)
+	case language.LanguageTypeScript:
+		return fmt.Sprintf(`{
+  "name": "%s",
+  "version": "1.0.0",
+  "main": "src/main.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js"
+  }
+}
+`, slug)
+	case language.LanguagePython:
+		return fmt.Sprintf(`[project]
+name = "%s"
+version = "1.0.0"
+requires-python = ">=3.10"
+`, slug)
+	case language.LanguageJava:
+		return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <groupId>com.example</groupId>
+  <artifactId>%s</artifactId>
+  <version>1.0.0</version>
+</project>
+`, slug)
+	case language.LanguageRust:
+		return fmt.Sprintf(`[package]
+name = "%s"
+version = "0.1.0"
+edition = "2021"
+`, slug)
+	default:
+		return ""
+	}
+}
+
+func generateMainFile(lang language.Language, projectName string) string {
+	switch lang {
+	case language.LanguageGo:
+		return fmt.Sprintf("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello from %s\")\n}\n", projectName)
+	case language.LanguageTypeScript:
+		return fmt.Sprintf("console.log('hello from %s');\n", projectName)
+	case language.LanguagePython:
+		return fmt.Sprintf("print('hello from %s')\n", projectName)
+	case language.LanguageJava:
+		return fmt.Sprintf("public class App {\n    public static void main(String[] args) {\n        System.out.println(\"hello from %s\");\n    }\n}\n", projectName)
+	case language.LanguageRust:
+		return fmt.Sprintf("fn main() {\n    println!(\"hello from %s\");\n}\n", projectName)
+	default:
+		return ""
+	}
+}
+
+func generateDockerfile(lang language.Language) string {
+	switch lang {
+	case language.LanguageGo:
+		return "FROM golang:1.22-alpine\nWORKDIR /app\nCOPY . .\nRUN go build ./src/main.go\nCMD [\"./main\"]\n"
+	case language.LanguageTypeScript:
+		return "FROM node:20-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install\nCOPY . .\nRUN npm run build\nCMD [\"node\", \"dist/main.js\"]\n"
+	case language.LanguagePython:
+		return "FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\nCMD [\"python\", \"src/main.py\"]\n"
+	case language.LanguageJava:
+		return "FROM eclipse-temurin:21-jdk\nWORKDIR /app\nCOPY . .\nRUN javac src/main.java\nCMD [\"java\", \"src/App\"]\n"
+	case language.LanguageRust:
+		return "FROM rust:1.75-slim\nWORKDIR /app\nCOPY . .\nRUN cargo build --release\nCMD [\"./target/release/app\"]\n"
+	default:
+		return ""
+	}
+}
+
+func generateModuleFile(lang language.Language, moduleName, projectName string) string {
+	pkg := slugify(moduleName)
+	switch lang {
+	case language.LanguageGo:
+		return fmt.Sprintf("package %s\n\n// %s module.\n", pkg, moduleName)
+	case language.LanguageTypeScript:
+		return fmt.Sprintf("// %s module\nexport {};\n", moduleName)
+	case language.LanguagePython:
+		return fmt.Sprintf("# %s module\n", moduleName)
+	case language.LanguageJava:
+		return fmt.Sprintf("public class %s {\n    // %s module\n}\n", strings.Title(moduleName), moduleName)
+	case language.LanguageRust:
+		return fmt.Sprintf("// %s module\n", moduleName)
+	default:
+		return ""
+	}
 }

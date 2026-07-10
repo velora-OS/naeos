@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -167,5 +170,52 @@ func TestFailedCount(t *testing.T) {
 	_, _ = e.Execute(Artifact{Path: "a.go", Content: []byte("package a")})
 	if e.FailedCount() != 0 {
 		t.Fatalf("expected 0 failed, got %d", e.FailedCount())
+	}
+}
+
+func TestExecuteWritesFile(t *testing.T) {
+	dir := t.TempDir()
+	e := NewEngine().(*DefaultRuntimeEngine)
+	e.SetOutputDir(dir)
+
+	result, err := e.Execute(Artifact{Path: "test.txt", Content: []byte("hello")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "completed" {
+		t.Fatalf("expected completed status, got %s", result.Status)
+	}
+	if !strings.Contains(result.Output, dir) {
+		t.Fatalf("expected output to contain dir, got %s", result.Output)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "test.txt"))
+	if err != nil {
+		t.Fatalf("failed to read written file: %v", err)
+	}
+	if string(data) != "hello" {
+		t.Fatalf("expected 'hello', got '%s'", string(data))
+	}
+}
+
+func TestExecuteWritesNestedFile(t *testing.T) {
+	dir := t.TempDir()
+	e := NewEngine().(*DefaultRuntimeEngine)
+	e.SetOutputDir(dir)
+
+	result, err := e.Execute(Artifact{Path: "internal/app/main.go", Content: []byte("package main")})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "completed" {
+		t.Fatalf("expected completed status, got %s", result.Status)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "internal/app/main.go"))
+	if err != nil {
+		t.Fatalf("failed to read written file: %v", err)
+	}
+	if string(data) != "package main" {
+		t.Fatalf("expected 'package main', got '%s'", string(data))
 	}
 }

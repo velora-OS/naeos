@@ -5,12 +5,14 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/neir/model"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/architecture"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/deployment"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/generation"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/language"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/metadata"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/module"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/project"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/service"
+	testingmodel "github.com/NAEOS-foundation/naeos/internal/neir/model/testing"
 	"github.com/NAEOS-foundation/naeos/internal/specification/resolver"
 )
 
@@ -87,6 +89,18 @@ func (DefaultBuilder) Build(resolved any) (*model.NEIR, error) {
 	if rawGen, exists := resolvedSpec.Context["generation"]; exists {
 		if genMap, ok := rawGen.(map[string]any); ok {
 			neir.Generation = extractGeneration(genMap)
+		}
+	}
+
+	if rawDeploy, exists := resolvedSpec.Context["deployment"]; exists {
+		if deployMap, ok := rawDeploy.(map[string]any); ok {
+			neir.Deployment = extractDeployment(deployMap)
+		}
+	}
+
+	if rawTest, exists := resolvedSpec.Context["testing"]; exists {
+		if testMap, ok := rawTest.(map[string]any); ok {
+			neir.Testing = extractTesting(testMap)
 		}
 	}
 
@@ -179,4 +193,44 @@ func extractGeneration(m map[string]any) *generation.GenerationConfig {
 		gen.ModuleDir = moduleDir
 	}
 	return gen
+}
+
+func extractDeployment(m map[string]any) *deployment.Deployment {
+	deploy := &deployment.Deployment{}
+	if strategy, ok := m["strategy"].(string); ok {
+		deploy.Strategy = deployment.Strategy(strategy)
+	}
+	if envs, ok := m["environments"].([]any); ok {
+		for _, e := range envs {
+			if envMap, ok := e.(map[string]any); ok {
+				env := deployment.Environment{}
+				if name, ok := envMap["name"].(string); ok {
+					env.Name = name
+				}
+				deploy.Environments = append(deploy.Environments, env)
+			} else if name, ok := e.(string); ok {
+				deploy.Environments = append(deploy.Environments, deployment.Environment{Name: name})
+			}
+		}
+	}
+	return deploy
+}
+
+func extractTesting(m map[string]any) *testingmodel.Testing {
+	test := &testingmodel.Testing{}
+	if strategy, ok := m["strategy"].(string); ok {
+		test.Strategy = testingmodel.TestingStrategy(strategy)
+	}
+	if coverage, ok := m["coverage"].(string); ok {
+		minPercent := 0.0
+		if coverage == "high" {
+			minPercent = 80.0
+		} else if coverage == "medium" {
+			minPercent = 60.0
+		} else if coverage == "low" {
+			minPercent = 40.0
+		}
+		test.Coverage = &testingmodel.Coverage{MinPercent: minPercent}
+	}
+	return test
 }

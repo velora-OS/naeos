@@ -8,6 +8,7 @@ import (
 
 type Scheduler interface {
 	Schedule(neir any) ([]Task, error)
+	ParallelGroups(tasks []Task) []ParallelGroup
 }
 
 type Task struct {
@@ -15,6 +16,11 @@ type Task struct {
 	Name         string
 	Dependencies []string
 	Priority     int
+}
+
+type ParallelGroup struct {
+	Tasks []Task
+	Level int
 }
 
 type DefaultScheduler struct{}
@@ -102,4 +108,27 @@ func (DefaultScheduler) Schedule(neir any) ([]Task, error) {
 	})
 
 	return tasks, nil
+}
+
+func (DefaultScheduler) ParallelGroups(tasks []Task) []ParallelGroup {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	priorityMap := make(map[int][]Task)
+	for _, t := range tasks {
+		priorityMap[t.Priority] = append(priorityMap[t.Priority], t)
+	}
+
+	var groups []ParallelGroup
+	for level := 0; level <= 5; level++ {
+		if groupTasks, ok := priorityMap[level]; ok && len(groupTasks) > 0 {
+			groups = append(groups, ParallelGroup{
+				Tasks: groupTasks,
+				Level: level,
+			})
+		}
+	}
+
+	return groups
 }

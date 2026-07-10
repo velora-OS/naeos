@@ -255,6 +255,31 @@ func TestHasPath(t *testing.T) {
 	}
 }
 
+func TestFindByContentSubstring(t *testing.T) {
+	kg := New()
+	_ = kg.AddNode(Node{ID: "n1", Type: NodeTypeDecision, Content: "use postgres for persistence"})
+	_ = kg.AddNode(Node{ID: "n2", Type: NodeTypeDecision, Content: "use redis for caching"})
+	_ = kg.AddNode(Node{ID: "n3", Type: NodeTypeComponent, Content: "auth service"})
+
+	nodes := kg.FindByContentSubstring("postgres")
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node with 'postgres', got %d", len(nodes))
+	}
+	if nodes[0].ID != "n1" {
+		t.Fatalf("expected node n1, got %s", nodes[0].ID)
+	}
+
+	nodes = kg.FindByContentSubstring("use")
+	if len(nodes) != 2 {
+		t.Fatalf("expected 2 nodes with 'use', got %d", len(nodes))
+	}
+
+	nodes = kg.FindByContentSubstring("nonexistent")
+	if len(nodes) != 0 {
+		t.Fatalf("expected 0 nodes, got %d", len(nodes))
+	}
+}
+
 func TestNewNodeTypes(t *testing.T) {
 	kg := New()
 	_ = kg.AddNode(Node{ID: "svc1", Type: NodeTypeService, Topic: "api"})

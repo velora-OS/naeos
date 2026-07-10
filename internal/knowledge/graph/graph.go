@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -324,7 +325,7 @@ func (kg *KnowledgeGraph) FindByContentSubstring(substring string) []*Node {
 
 	var result []*Node
 	for _, n := range kg.nodes {
-		if contains := false; contains {
+		if strings.Contains(n.Content, substring) {
 			result = append(result, n)
 		}
 	}

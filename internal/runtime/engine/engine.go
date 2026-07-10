@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,18 +25,26 @@ type RuntimeEngine interface {
 	Execute(artifact Artifact) (*ExecutionResult, error)
 	ExecuteAll(artifacts []Artifact) ([]ExecutionResult, error)
 	Validate(artifact Artifact) error
+	SetOutputDir(dir string)
 }
 
 type DefaultRuntimeEngine struct {
-	mu       sync.Mutex
-	history  []ExecutionResult
-	executed map[string]bool
+	mu        sync.Mutex
+	history   []ExecutionResult
+	executed  map[string]bool
+	outputDir string
 }
 
 func NewEngine() RuntimeEngine {
 	return &DefaultRuntimeEngine{
 		executed: make(map[string]bool),
 	}
+}
+
+func (e *DefaultRuntimeEngine) SetOutputDir(dir string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.outputDir = dir
 }
 
 func (e *DefaultRuntimeEngine) Run(artifact any) error {
@@ -69,8 +78,27 @@ func (e *DefaultRuntimeEngine) Execute(artifact Artifact) (*ExecutionResult, err
 		return result, nil
 	}
 
+	if e.outputDir != "" {
+		fullPath := filepath.Join(e.outputDir, artifact.Path)
+		dir := filepath.Dir(fullPath)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			result.Status = "failed"
+			result.Error = fmt.Errorf("create directory %s: %w", dir, err)
+			e.history = append(e.history, *result)
+			return result, result.Error
+		}
+		if err := os.WriteFile(fullPath, artifact.Content, 0o600); err != nil {
+			result.Status = "failed"
+			result.Error = fmt.Errorf("write file %s: %w", fullPath, err)
+			e.history = append(e.history, *result)
+			return result, result.Error
+		}
+		result.Output = fmt.Sprintf("wrote %s (%d bytes)", fullPath, len(artifact.Content))
+	} else {
+		result.Output = fmt.Sprintf("executed %s (%d bytes)", artifact.Path, len(artifact.Content))
+	}
+
 	e.executed[artifact.Path] = true
-	result.Output = fmt.Sprintf("executed %s (%d bytes)", artifact.Path, len(artifact.Content))
 	e.history = append(e.history, *result)
 	return result, nil
 }

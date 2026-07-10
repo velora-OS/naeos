@@ -13,7 +13,10 @@ import (
 	"github.com/NAEOS-foundation/naeos/pkg/pipeline"
 )
 
-var version = "dev"
+var (
+	version    = "dev"
+	cliVerbose bool
+)
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -29,8 +32,6 @@ func run(args []string) error {
 }
 
 func newRootCommand() *cobra.Command {
-	var rootVerbose bool
-
 	root := &cobra.Command{
 		Use:           "naeos",
 		Short:         "NAEOS CLI",
@@ -38,11 +39,13 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			_ = rootVerbose
+			if cliVerbose {
+				fmt.Fprintln(os.Stderr, "[naeos] verbose mode enabled")
+			}
 		},
 	}
 
-	root.PersistentFlags().BoolVar(&rootVerbose, "verbose", false, "enable verbose logging")
+	root.PersistentFlags().BoolVar(&cliVerbose, "verbose", false, "enable verbose logging")
 
 	root.AddCommand(newInitCommand())
 	root.AddCommand(newRunCommand())
@@ -120,6 +123,9 @@ func newRunCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
+			if cliVerbose {
+				cfg.Verbose = true
+			}
 			if len(languages) > 0 {
 				cfg.Languages = languages
 			}
@@ -189,6 +195,9 @@ func newValidateCommand() *cobra.Command {
 			cfg, err := pipeline.ConfigFromFile(configPath)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
+			}
+			if cliVerbose {
+				cfg.Verbose = true
 			}
 			if len(languages) > 0 {
 				cfg.Languages = languages

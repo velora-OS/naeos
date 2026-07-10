@@ -106,3 +106,64 @@ func TestSchedulerFallbackForNonNEIRInput(t *testing.T) {
 		t.Fatalf("expected fallback bootstrap task, got %v", tasks)
 	}
 }
+
+func TestParallelGroups(t *testing.T) {
+	neir := &model.NEIR{
+		Project: &project.Project{Name: "acme-api"},
+		Modules: []module.Module{
+			{Name: "auth", Path: "./internal/auth"},
+			{Name: "user", Path: "./internal/user"},
+		},
+		Services: []service.Service{
+			{Name: "api", Kind: "http", Port: 8080},
+		},
+	}
+
+	s := NewScheduler()
+	tasks, err := s.Schedule(neir)
+	if err != nil {
+		t.Fatalf("Schedule returned error: %v", err)
+	}
+
+	groups := s.ParallelGroups(tasks)
+	if len(groups) == 0 {
+		t.Fatal("expected at least one parallel group")
+	}
+
+	for _, g := range groups {
+		if len(g.Tasks) == 0 {
+			t.Fatalf("group at level %d has no tasks", g.Level)
+		}
+		for _, task := range g.Tasks {
+			if task.Priority != g.Level {
+				t.Fatalf("task %s has priority %d but is in group level %d", task.Name, task.Priority, g.Level)
+			}
+		}
+	}
+
+	moduleGroups := 0
+	for _, g := range groups {
+		if g.Level == 2 {
+			moduleGroups++
+			if len(g.Tasks) != 2 {
+				t.Fatalf("expected 2 module tasks in parallel group, got %d", len(g.Tasks))
+			}
+		}
+	}
+	if moduleGroups != 1 {
+		t.Fatalf("expected 1 group at level 2, got %d", moduleGroups)
+	}
+}
+
+func TestParallelGroupsEmpty(t *testing.T) {
+	s := NewScheduler()
+	groups := s.ParallelGroups(nil)
+	if groups != nil {
+		t.Fatal("expected nil for nil input")
+	}
+
+	groups = s.ParallelGroups([]Task{})
+	if groups != nil {
+		t.Fatal("expected nil for empty input")
+	}
+}

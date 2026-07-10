@@ -8,6 +8,7 @@ import (
 
 	"github.com/NAEOS-foundation/naeos/internal/generation/adapters"
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
+	"github.com/NAEOS-foundation/naeos/internal/generation/renderers"
 	"github.com/NAEOS-foundation/naeos/internal/governance/policy"
 	"github.com/NAEOS-foundation/naeos/internal/governance/review"
 	"github.com/NAEOS-foundation/naeos/internal/neir/builder"
@@ -38,6 +39,7 @@ type Config struct {
 	Validator  validator.Validator
 	Scheduler  scheduler.Scheduler
 	Generator  engine.GeneratorEngine
+	Renderer   renderers.Renderer
 	Graph      *graph.PlannerGraph
 	Registry   *registry.Registry
 	Evaluator  policy.Evaluator
@@ -54,6 +56,7 @@ type Pipeline struct {
 	validator      validator.Validator
 	scheduler      scheduler.Scheduler
 	generator      engine.GeneratorEngine
+	renderer       renderers.Renderer
 	graph          *graph.PlannerGraph
 	registry       *registry.Registry
 	evaluator      policy.Evaluator
@@ -62,6 +65,7 @@ type Pipeline struct {
 	policies       []policy.Rule
 	outputDirValue string
 	languages      []string
+	verbose        bool
 }
 
 type Result struct {
@@ -96,6 +100,7 @@ func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value
 		validator:      cfg.Validator,
 		scheduler:      cfg.Scheduler,
 		generator:      cfg.Generator,
+		renderer:       cfg.Renderer,
 		graph:          cfg.Graph,
 		registry:       cfg.Registry,
 		evaluator:      cfg.Evaluator,
@@ -104,6 +109,7 @@ func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value
 		policies:       cfg.Policies,
 		outputDirValue: cfg.OutputDir,
 		languages:      cfg.Languages,
+		verbose:        cfg.Verbose,
 	}
 
 	if p.parser == nil {
@@ -126,6 +132,9 @@ func New(cfg Config) (*Pipeline, error) { //nolint:gocritic // Public API, value
 	}
 	if p.generator == nil {
 		p.generator = engine.NewEngine()
+	}
+	if p.renderer == nil {
+		p.renderer = renderers.NewRenderer()
 	}
 	if p.graph == nil {
 		p.graph = graph.New()
@@ -158,6 +167,7 @@ func (p *Pipeline) registerKernelServices() error {
 		"validator":  p.validator,
 		"scheduler":  p.scheduler,
 		"generator":  p.generator,
+		"renderer":   p.renderer,
 		"graph":      p.graph,
 		"registry":   p.registry,
 		"evaluator":  p.evaluator,
@@ -203,6 +213,12 @@ func (p *Pipeline) emitKernelEvent(name string, payload map[string]any) error {
 		Timestamp: time.Now().UnixMilli(),
 		Payload:   payload,
 	})
+}
+
+func (p *Pipeline) logVerbose(format string, args ...any) {
+	if p.verbose {
+		fmt.Fprintf(os.Stderr, "[naeos] "+format+"\n", args...)
+	}
 }
 
 func (p *Pipeline) buildExecutionGraph(neir *model.NEIR) *graph.PlannerGraph {
@@ -264,6 +280,7 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 		return nil, fmt.Errorf("input cannot be empty")
 	}
 
+	p.logVerbose("parsing specification (%d bytes)", len(input))
 	parsed, err := p.parser.Parse(input)
 	if err != nil {
 		return nil, err
@@ -277,16 +294,19 @@ func (p *Pipeline) validateWithoutKernel(input string) (*Result, error) {
 		}
 	}
 
+	p.logVerbose("normalizing specification")
 	normalized, err := p.normalizer.Normalize(parsed)
 	if err != nil {
 		return nil, err
 	}
 
+	p.logVerbose("resolving cross-references")
 	resolved, err := p.resolver.Resolve(normalized)
 	if err != nil {
 		return nil, err
 	}
 
+	p.logVerbose("building NEIR model")
 	neir, err := p.builder.Build(resolved)
 	if err != nil {
 		return nil, err
@@ -327,10 +347,12 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 			return nil, err
 		}
 
+		p.logVerbose("building execution graph")
 		execGraph := p.buildExecutionGraph(result.NEIR)
 		result.Graph = execGraph
 
 		if len(p.policies) > 0 {
+			p.logVerbose("evaluating %d policy rules", len(p.policies))
 			ctx := map[string]any{
 				"project":  result.NEIR.Project.Name,
 				"modules":  len(result.NEIR.Modules),
@@ -341,22 +363,26 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 			}
 		}
 
+		p.logVerbose("scheduling %d tasks", len(result.NEIR.Modules)+len(result.NEIR.Services)+2)
 		tasks, err := p.scheduler.Schedule(result.NEIR)
 		if err != nil {
 			return nil, err
 		}
 
+		p.logVerbose("generating artifacts")
 		artifacts, err := p.generator.Generate(result.NEIR)
 		if err != nil {
 			return nil, err
 		}
 
+		p.logVerbose("running language adapters")
 		adapterArtifacts, err := adapters.GenerateForNEIR(result.NEIR)
 		if err != nil {
 			return nil, fmt.Errorf("adapter generation failed: %w", err)
 		}
 		artifacts = append(artifacts, adapterArtifacts...)
 
+		p.logVerbose("reviewing %d artifacts", len(artifacts))
 		var reviews []*review.ReviewResult
 		for _, artifact := range artifacts {
 			r, err := p.reviewer.ReviewArtifact(artifact.Path, string(artifact.Content), []string{"no-todo", "no-placeholder"})
@@ -367,6 +393,7 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 		result.Reviews = reviews
 
 		if outputDir := p.outputDirValue; outputDir != "" {
+			p.logVerbose("writing %d artifacts to %s", len(artifacts), outputDir)
 			for _, artifact := range artifacts {
 				artifactPath := filepath.Join(outputDir, artifact.Path)
 				if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
@@ -380,6 +407,7 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 
 		result.Tasks = tasks
 		result.Artifacts = artifacts
+		p.logVerbose("pipeline complete: %d artifacts, %d tasks, %d reviews", len(artifacts), len(tasks), len(reviews))
 		_ = p.emitKernelEvent("pipeline.run", map[string]any{
 			"artifacts":   len(artifacts),
 			"tasks":       len(tasks),
@@ -433,4 +461,8 @@ func (p *Pipeline) Registry() *registry.Registry {
 
 func (p *Pipeline) Graph() *graph.PlannerGraph {
 	return p.graph
+}
+
+func (p *Pipeline) Renderer() renderers.Renderer {
+	return p.renderer
 }
