@@ -1,9 +1,11 @@
 package watch
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -15,12 +17,87 @@ type Watcher struct {
 	interval    time.Duration
 	onChange    func(path string)
 	running     bool
+	mu          sync.Mutex
 }
 
 type WatchEvent struct {
 	Path      string
 	Timestamp time.Time
 	EventType string
+}
+
+type PipelineWatcher struct {
+	watcher    *Watcher
+	pipeline   func(ctx context.Context, input string) error
+	specPath   string
+	outputDir  string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	debounceMs int
+}
+
+func NewPipelineWatcher(specPath, outputDir string, pipelineFn func(ctx context.Context, input string) error) *PipelineWatcher {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &PipelineWatcher{
+		specPath:   specPath,
+		outputDir:  outputDir,
+		pipeline:   pipelineFn,
+		ctx:        ctx,
+		cancel:     cancel,
+		debounceMs: 500,
+	}
+}
+
+func (pw *PipelineWatcher) Start() error {
+	specDir := filepath.Dir(pw.specPath)
+
+	pw.watcher = NewWatcher(time.Duration(pw.debounceMs)*time.Millisecond, func(path string) {
+		if pw.shouldProcess(path) {
+			naeoslog.Info("spec change detected, re-running pipeline", "path", path)
+			if err := pw.runPipeline(); err != nil {
+				naeoslog.Error("pipeline re-run failed", "error", err)
+			}
+		}
+	})
+
+	if err := pw.watcher.AddDirectory(specDir); err != nil {
+		return fmt.Errorf("watch spec dir: %w", err)
+	}
+
+	if pw.outputDir != "" {
+		if _, err := os.Stat(pw.outputDir); err == nil {
+			_ = pw.watcher.AddDirectory(pw.outputDir)
+		}
+	}
+
+	return pw.watcher.Run(func() error {
+		return nil
+	})
+}
+
+func (pw *PipelineWatcher) Stop() {
+	pw.cancel()
+	if pw.watcher != nil {
+		pw.watcher.Stop()
+	}
+}
+
+func (pw *PipelineWatcher) shouldProcess(path string) bool {
+	ext := filepath.Ext(path)
+	switch ext {
+	case ".yaml", ".yml", ".json":
+		return true
+	}
+	return false
+}
+
+func (pw *PipelineWatcher) runPipeline() error {
+	data, err := os.ReadFile(pw.specPath)
+	if err != nil {
+		return fmt.Errorf("read spec: %w", err)
+	}
+
+	return pw.pipeline(pw.ctx, string(data))
 }
 
 func NewWatcher(interval time.Duration, onChange func(path string)) *Watcher {
@@ -46,6 +123,8 @@ func (w *Watcher) AddDirectory(dir string) error {
 }
 
 func (w *Watcher) Start() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.running {
 		return fmt.Errorf("watcher already running")
 	}
@@ -54,10 +133,14 @@ func (w *Watcher) Start() error {
 }
 
 func (w *Watcher) Stop() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.running = false
 }
 
 func (w *Watcher) IsRunning() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	return w.running
 }
 
