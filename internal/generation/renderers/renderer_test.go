@@ -1,6 +1,7 @@
 package renderers
 
 import (
+	"strings"
 	"testing"
 	"text/template"
 )
@@ -91,5 +92,136 @@ func TestTemplateData(t *testing.T) {
 	}
 	if string(result) != "acme-api auth :8080" {
 		t.Fatalf("unexpected result: %s", string(result))
+	}
+}
+
+func TestRenderEmptyTemplate(t *testing.T) {
+	r := NewRenderer()
+	result, err := r.Render("", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Fatalf("expected empty result, got '%s'", string(result))
+	}
+}
+
+func TestRenderNilData(t *testing.T) {
+	r := NewRenderer()
+	result, err := r.Render("static text", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result) != "static text" {
+		t.Fatalf("expected 'static text', got '%s'", string(result))
+	}
+}
+
+func TestRenderWithFuncsInvalidTemplate(t *testing.T) {
+	funcs := template.FuncMap{
+		"upper": strings.ToUpper,
+	}
+	_, err := RenderWithFuncs("test", "hello {{.Name", nil, funcs)
+	if err == nil {
+		t.Fatal("expected error for invalid template")
+	}
+}
+
+func TestRenderWithFuncsExecuteError(t *testing.T) {
+	funcs := template.FuncMap{}
+	_, err := RenderWithFuncs("test", "hello {{.Name}}", nil, funcs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRenderWithFuncsNilFuncMap(t *testing.T) {
+	_, err := RenderWithFuncs("test", "hello {{.Name}}", map[string]string{"Name": "world"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRenderNamedEmptyTemplate(t *testing.T) {
+	r := NewRenderer()
+	result, err := r.RenderNamed("empty", "", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Fatalf("expected empty result, got '%s'", string(result))
+	}
+}
+
+func TestRenderNamedInvalidTemplate(t *testing.T) {
+	r := NewRenderer()
+	_, err := r.RenderNamed("bad", "unclosed {{", nil)
+	if err == nil {
+		t.Fatal("expected error for invalid template")
+	}
+}
+
+func TestRenderTemplateDataFull(t *testing.T) {
+	data := TemplateData{
+		Project:  "my-proj",
+		Module:   "auth",
+		Service:  "api",
+		Port:     9090,
+		Kind:     "grpc",
+		Version:  "2.0.0",
+		Package:  "com.example",
+		Language: "go",
+		Attributes: map[string]string{
+			"env": "prod",
+		},
+	}
+	tmpl := "{{.Project}}/{{.Module}} {{.Service}}:{{.Port}} {{.Kind}} {{.Version}} {{.Package}} {{.Language}} env={{index .Attributes \"env\"}}"
+	result, err := RenderTemplate("test", tmpl, data)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := "my-proj/auth api:9090 grpc 2.0.0 com.example go env=prod"
+	if string(result) != expected {
+		t.Fatalf("expected '%s', got '%s'", expected, string(result))
+	}
+}
+
+func TestRenderWithFuncsEmptyFuncMap(t *testing.T) {
+	funcs := template.FuncMap{}
+	result, err := RenderWithFuncs("test", "hello world", nil, funcs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result) != "hello world" {
+		t.Fatalf("expected 'hello world', got '%s'", string(result))
+	}
+}
+
+func TestRenderTemplateConditional(t *testing.T) {
+	type Data struct {
+		Show bool
+		Name string
+	}
+	tmpl := "{{if .Show}}{{.Name}}{{else}}hidden{{end}}"
+	result, err := RenderTemplate("test", tmpl, Data{Show: true, Name: "visible"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result) != "visible" {
+		t.Fatalf("expected 'visible', got '%s'", string(result))
+	}
+	result, err = RenderTemplate("test", tmpl, Data{Show: false, Name: "visible"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result) != "hidden" {
+		t.Fatalf("expected 'hidden', got '%s'", string(result))
+	}
+}
+
+func TestNewRendererReturnsDefaultRenderer(t *testing.T) {
+	r := NewRenderer()
+	if _, ok := r.(DefaultRenderer); !ok {
+		t.Fatal("expected DefaultRenderer type")
 	}
 }

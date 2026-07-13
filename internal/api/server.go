@@ -9,28 +9,39 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/NAEOS-foundation/naeos/internal/artifacts"
+	"github.com/NAEOS-foundation/naeos/internal/cloud"
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
 	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
+	"github.com/NAEOS-foundation/naeos/internal/errors"
+	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
 type Server struct {
-	Addr       string
-	Router     *http.ServeMux
-	server     *http.Server
-	Auth       *AuthConfig
-	Limiter    *RateLimiter
-	jwt        *JWTValidator
-	parser     parser.Parser
-	compiler   *compiler.Compiler
-	bundle     *contextbundle.Generator
-	store      *artifacts.Store
-	pipelines  []pipelineRun
+	Addr        string
+	Router      *http.ServeMux
+	server      *http.Server
+	Auth        *AuthConfig
+	Limiter     *RateLimiter
+	APIKeys     map[string]*RateLimiter
+	apiKeysMu   sync.RWMutex
+	jwt         *JWTValidator
+	parser      parser.Parser
+	compiler    *compiler.Compiler
+	bundle      *contextbundle.Generator
+	store       *artifacts.Store
+	pipelines   []pipelineRun
+	pipelineJobs map[string]*pipelineJob
+	jobsMu      sync.RWMutex
+	deployments []cloudDeployment
+	deployMu    sync.RWMutex
+	plugins     *pluginhost.Manager
 }
 
 type pipelineRun struct {
@@ -40,6 +51,23 @@ type pipelineRun struct {
 	Modules   int    `json:"modules"`
 	Services  int    `json:"services"`
 	CreatedAt string `json:"created_at"`
+}
+
+type pipelineJob struct {
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	Project   string `json:"project"`
+	CreatedAt string `json:"created_at"`
+	Error     string `json:"error,omitempty"`
+}
+
+type cloudDeployment struct {
+	ID        string              `json:"id"`
+	Provider  cloud.CloudProvider `json:"provider"`
+	Project   string              `json:"project"`
+	Status    string              `json:"status"`
+	CreatedAt string              `json:"created_at"`
+	Error     string              `json:"error,omitempty"`
 }
 
 type AuthConfig struct {
@@ -63,13 +91,16 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	_ = store.LoadFromDisk()
 
 	s := &Server{
-		Addr:     addr,
-		Router:   http.NewServeMux(),
-		Auth:     auth,
-		Limiter:  NewRateLimiter(100, time.Minute),
-		parser:   parser.NewParser(),
-		compiler: compiler.New(),
-		store:    store,
+		Addr:        addr,
+		Router:      http.NewServeMux(),
+		Auth:        auth,
+		Limiter:     NewRateLimiter(100, time.Minute),
+		APIKeys:     make(map[string]*RateLimiter),
+		parser:      parser.NewParser(),
+		compiler:    compiler.New(),
+		store:       store,
+		pipelineJobs: make(map[string]*pipelineJob),
+		plugins:     pluginhost.NewManager(".naeos/plugins"),
 	}
 
 	if auth != nil && auth.JWTSecret != "" {
@@ -103,18 +134,58 @@ func (s *Server) setupRoutes() {
 	// MCP endpoints
 	s.Router.HandleFunc("/api/v1/mcp/message", s.handleMCPMessage)
 
+	// Cloud endpoints
+	s.Router.HandleFunc("/api/v1/cloud/plan", s.handleCloudPlan)
+	s.Router.HandleFunc("/api/v1/cloud/deploy", s.handleCloudDeploy)
+	s.Router.HandleFunc("/api/v1/cloud/destroy", s.handleCloudDestroy)
+	s.Router.HandleFunc("/api/v1/cloud/status", s.handleCloudStatus)
+
+	// Plugin endpoints
+	s.Router.HandleFunc("/api/v1/plugins", s.handlePlugins)
+	s.Router.HandleFunc("/api/v1/plugins/execute", s.handlePluginExecute)
+	s.Router.HandleFunc("/api/v1/plugins/uninstall", s.handlePluginUninstall)
+
 	// System endpoints
 	s.Router.HandleFunc("/api/v1/version", s.handleVersion)
 	s.Router.HandleFunc("/api/v1/config/schema", s.handleConfigSchema)
 	s.Router.HandleFunc("/api/v1/pipelines", s.handlePipelines)
 }
 
+func (s *Server) RegisterAPIKey(key string, requestsPerSecond int) {
+	s.apiKeysMu.Lock()
+	defer s.apiKeysMu.Unlock()
+	s.APIKeys[key] = NewRateLimiter(requestsPerSecond, time.Second)
+}
+
 func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Rate limit
-		if !s.Limiter.Allow(r.RemoteAddr) {
-			s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
-			return
+		// Rate limit - check API key first, fall back to IP
+		clientID := r.RemoteAddr
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			clientID = forwarded
+		}
+
+		apiKey := r.Header.Get("X-API-Key")
+		if apiKey != "" {
+			s.apiKeysMu.RLock()
+			limiter, exists := s.APIKeys[apiKey]
+			s.apiKeysMu.RUnlock()
+			if exists {
+				if !limiter.Allow(apiKey) {
+					s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+					return
+				}
+			} else {
+				if !s.Limiter.Allow(clientID) {
+					s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+					return
+				}
+			}
+		} else {
+			if !s.Limiter.Allow(clientID) {
+				s.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+				return
+			}
 		}
 
 		// CORS
@@ -295,24 +366,38 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "parse error: "+err.Error())
 		return
 	}
-	b := s.bundle.GenerateFromSpec(doc)
-	pipelineID := fmt.Sprintf("pipeline-%d", time.Now().UnixNano())
-	run := pipelineRun{
-		ID:        pipelineID,
-		Status:    "completed",
+
+	jobID := fmt.Sprintf("pipeline-%d", time.Now().UnixNano())
+	job := &pipelineJob{
+		ID:        jobID,
+		Status:    "running",
 		Project:   doc.Project,
-		Modules:   len(doc.Modules),
-		Services:  len(doc.Services),
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}
-	s.pipelines = append(s.pipelines, run)
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"pipeline_id": pipelineID,
-		"status":      "completed",
-		"project":     doc.Project,
-		"modules":     len(doc.Modules),
-		"services":    len(doc.Services),
-		"bundle":      b.ToMarkdown(),
+	s.jobsMu.Lock()
+	s.pipelineJobs[jobID] = job
+	s.jobsMu.Unlock()
+
+	go func() {
+		b := s.bundle.GenerateFromSpec(doc)
+		run := pipelineRun{
+			ID:        jobID,
+			Status:    "completed",
+			Project:   doc.Project,
+			Modules:   len(doc.Modules),
+			Services:  len(doc.Services),
+			CreatedAt: time.Now().Format(time.RFC3339),
+		}
+		s.pipelines = append(s.pipelines, run)
+		s.jobsMu.Lock()
+		job.Status = "completed"
+		s.jobsMu.Unlock()
+		_ = b
+	}()
+
+	s.writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"job_id": jobID,
+		"status": "running",
 	})
 }
 
@@ -524,6 +609,281 @@ func (s *Server) handleMCPMessage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleCloudPlan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Provider  string                   `json:"provider"`
+		Project   string                   `json:"project"`
+		Region    string                   `json:"region"`
+		Resources []map[string]interface{} `json:"resources"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Provider == "" || req.Project == "" {
+		s.writeError(w, http.StatusBadRequest, errors.New(errors.ErrValidation, "provider and project are required").Error())
+		return
+	}
+
+	adapter, err := cloud.GetAdapter(cloud.CloudProvider(req.Provider))
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, errors.Wrap(errors.ErrCloud, "invalid provider", err).Error())
+		return
+	}
+
+	var resources []cloud.Resource
+	for _, r := range req.Resources {
+		resources = append(resources, cloud.Resource{
+			Name: fmt.Sprintf("%v", r["name"]),
+			Type: fmt.Sprintf("%v", r["type"]),
+			Spec: r,
+		})
+	}
+
+	config := &cloud.DeployConfig{
+		Provider: cloud.CloudProvider(req.Provider),
+		Region:   req.Region,
+		Project:  req.Project,
+		Resources: resources,
+	}
+
+	if err := adapter.Validate(config); err != nil {
+		s.writeError(w, http.StatusBadRequest, errors.Wrap(errors.ErrCloud, "validation failed", err).Error())
+		return
+	}
+
+	result, err := adapter.ExportTerraform(config)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrCloud, "plan generation failed", err).Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"provider": req.Provider,
+		"project":  req.Project,
+		"hcl":      result,
+	})
+}
+
+func (s *Server) handleCloudDeploy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Provider  string                   `json:"provider"`
+		Project   string                   `json:"project"`
+		Region    string                   `json:"region"`
+		Resources []map[string]interface{} `json:"resources"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Provider == "" || req.Project == "" {
+		s.writeError(w, http.StatusBadRequest, errors.New(errors.ErrValidation, "provider and project are required").Error())
+		return
+	}
+
+	adapter, err := cloud.GetAdapter(cloud.CloudProvider(req.Provider))
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, errors.Wrap(errors.ErrCloud, "invalid provider", err).Error())
+		return
+	}
+
+	var resources []cloud.Resource
+	for _, r := range req.Resources {
+		resources = append(resources, cloud.Resource{
+			Name: fmt.Sprintf("%v", r["name"]),
+			Type: fmt.Sprintf("%v", r["type"]),
+			Spec: r,
+		})
+	}
+
+	config := &cloud.DeployConfig{
+		Provider: cloud.CloudProvider(req.Provider),
+		Region:   req.Region,
+		Project:  req.Project,
+		Resources: resources,
+	}
+
+	result, err := adapter.Deploy(config)
+	if err != nil {
+		deploymentID := fmt.Sprintf("deploy-%d", time.Now().UnixNano())
+		s.deployMu.Lock()
+		s.deployments = append(s.deployments, cloudDeployment{
+			ID:        deploymentID,
+			Provider:  cloud.CloudProvider(req.Provider),
+			Project:   req.Project,
+			Status:    "failed",
+			CreatedAt: time.Now().Format(time.RFC3339),
+			Error:     err.Error(),
+		})
+		s.deployMu.Unlock()
+		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrCloud, "deploy failed", err).Error())
+		return
+	}
+
+	deploymentID := fmt.Sprintf("deploy-%d", time.Now().UnixNano())
+	s.deployMu.Lock()
+	s.deployments = append(s.deployments, cloudDeployment{
+		ID:        deploymentID,
+		Provider:  cloud.CloudProvider(req.Provider),
+		Project:   req.Project,
+		Status:    "completed",
+		CreatedAt: time.Now().Format(time.RFC3339),
+	})
+	s.deployMu.Unlock()
+
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"deployment_id": deploymentID,
+		"provider":      req.Provider,
+		"project":       req.Project,
+		"status":        result.Status,
+		"resources":     result.Resources,
+	})
+}
+
+func (s *Server) handleCloudDestroy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Provider  string                   `json:"provider"`
+		Project   string                   `json:"project"`
+		Region    string                   `json:"region"`
+		Resources []map[string]interface{} `json:"resources"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Provider == "" || req.Project == "" {
+		s.writeError(w, http.StatusBadRequest, errors.New(errors.ErrValidation, "provider and project are required").Error())
+		return
+	}
+
+	adapter, err := cloud.GetAdapter(cloud.CloudProvider(req.Provider))
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, errors.Wrap(errors.ErrCloud, "invalid provider", err).Error())
+		return
+	}
+
+	var resources []cloud.Resource
+	for _, r := range req.Resources {
+		resources = append(resources, cloud.Resource{
+			Name: fmt.Sprintf("%v", r["name"]),
+			Type: fmt.Sprintf("%v", r["type"]),
+			Spec: r,
+		})
+	}
+
+	config := &cloud.DeployConfig{
+		Provider: cloud.CloudProvider(req.Provider),
+		Region:   req.Region,
+		Project:  req.Project,
+		Resources: resources,
+	}
+
+	if err := adapter.Destroy(config); err != nil {
+		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrCloud, "destroy failed", err).Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"provider": req.Provider,
+		"project":  req.Project,
+		"status":   "destroyed",
+	})
+}
+
+func (s *Server) handleCloudStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	s.deployMu.RLock()
+	defer s.deployMu.RUnlock()
+
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"deployments": s.deployments,
+		"count":       len(s.deployments),
+	})
+}
+
+func (s *Server) handlePlugins(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	plugins := s.plugins.List()
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"plugins": plugins,
+		"count":   len(plugins),
+	})
+}
+
+func (s *Server) handlePluginExecute(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Name   string         `json:"name"`
+		Action string         `json:"action"`
+		Params map[string]any `json:"params"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		s.writeError(w, http.StatusBadRequest, errors.New(errors.ErrValidation, "plugin name is required").Error())
+		return
+	}
+	if req.Action == "" {
+		req.Action = "execute"
+	}
+
+	result, err := s.plugins.Execute(context.Background(), req.Name, req.Action, req.Params)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrPlugin, "execution failed", err).Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"plugin": req.Name,
+		"action": req.Action,
+		"result": result,
+	})
+}
+
+func (s *Server) handlePluginUninstall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/plugins/uninstall/")
+	if name == "" {
+		s.writeError(w, http.StatusBadRequest, errors.New(errors.ErrValidation, "plugin name is required").Error())
+		return
+	}
+
+	if err := s.plugins.Uninstall(name); err != nil {
+		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrPlugin, "uninstall failed", err).Error())
+		return
+	}
+
+	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": fmt.Sprintf("plugin %s uninstalled", name),
+	})
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean vet tidy check run help
+.PHONY: build test lint fmt clean vet tidy check run help docker benchmark security e2e
 
 # Variables
 BINARY := naeos
@@ -72,6 +72,25 @@ run: build
 ## init: Initialize project (for new users)
 init: tidy build
 	@echo "Project initialized. Run './$(BINARY) --help' to get started."
+
+## docker: Build docker image with version tag
+docker:
+	@echo "Building docker image $(BINARY):$(VERSION)..."
+	docker build --build-arg VERSION=$(VERSION) -t $(BINARY):$(VERSION) .
+
+## benchmark: Run benchmarks
+benchmark:
+	@echo "Running benchmarks..."
+	go test -bench=. -benchmem -run=^$$ ./...
+
+## security: Run security analysis
+security:
+	@which govulncheck && govulncheck ./... || go vet ./...
+
+## e2e: Build and run end-to-end tests
+e2e:
+	@echo "Building and running e2e tests..."
+	go build ./cmd/naeos/ && go test -tags=e2e -run=TestE2E ./...
 
 ## help: Show this help message
 help:

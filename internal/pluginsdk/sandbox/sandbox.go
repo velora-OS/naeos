@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/NAEOS-foundation/naeos/internal/pluginsdk/wasm"
 )
 
 type Sandbox struct {
@@ -54,6 +56,10 @@ func New(cfg Config) *Sandbox {
 func (s *Sandbox) Exec(ctx context.Context, pluginPath string, req Request) (*Response, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if wasm.IsWASMPath(pluginPath) {
+		return s.execWASM(ctx, pluginPath, req)
+	}
 
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -110,6 +116,56 @@ func (s *Sandbox) Exec(ctx context.Context, pluginPath string, req Request) (*Re
 	return &resp, nil
 }
 
+func (s *Sandbox) execWASM(ctx context.Context, wasmPath string, req Request) (*Response, error) {
+	rt := wasm.NewWASMRuntime(s.timeout, 0)
+	defer rt.Close()
+
+	plugin, err := rt.Load(wasmPath)
+	if err != nil {
+		return nil, fmt.Errorf("load wasm plugin: %w", err)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+
+	type result struct {
+		value interface{}
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		v, err := plugin.Execute(req.Method, req.Params)
+		ch <- result{v, err}
+	}()
+
+	select {
+	case <-reqCtx.Done():
+		return &Response{
+			OK:    false,
+			Error: fmt.Sprintf("wasm plugin execution timed out after %s", s.timeout),
+		}, nil
+	case r := <-ch:
+		if r.err != nil {
+			return &Response{
+				OK:    false,
+				Error: fmt.Sprintf("wasm plugin error: %v", r.err),
+			}, nil
+		}
+		if wasmResp, ok := r.value.(*wasm.Response); ok {
+			return &Response{
+				OK:      wasmResp.OK,
+				Result:  wasmResp.Result,
+				Error:   wasmResp.Error,
+				Elapsed: wasmResp.Elapsed,
+			}, nil
+		}
+		return &Response{
+			OK:     true,
+			Result: r.value,
+		}, nil
+	}
+}
+
 func (s *Sandbox) ExecWASM(ctx context.Context, wasmPath string, req Request) (*Response, error) {
 	data, err := json.Marshal(req)
 	if err != nil {
@@ -142,7 +198,7 @@ func (s *Sandbox) ExecWASM(ctx context.Context, wasmPath string, req Request) (*
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("wasm execution: %v, stderr: %s", err, stderr.String())
+		return nil, fmt.Errorf("wasm execution: %w, stderr: %s", err, stderr.String())
 	}
 
 	outputData, err := os.ReadFile(outputPath)

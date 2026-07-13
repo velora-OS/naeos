@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-13
+
+### Added
+- **Typed error system** (`internal/errors/`):
+  - `NaeosError` struct with `Code`, `Message`, and `Inner` fields.
+  - 12 error codes: `ErrParse`, `ErrValidation`, `ErrCloud`, `ErrPlugin`, `ErrAuth`, `ErrPipeline`, `ErrConfig`, `ErrDatabase`, `ErrNetwork`, `ErrInternal`, `ErrNotFound`, `ErrConflict`.
+  - Helper functions: `New()`, `Wrap()`, `Is()` with full `errors.Is()`/`errors.As()` chain support.
+  - Sentinel errors: `ErrNotConnected`, `ErrInvalidSpec`, `ErrPluginNotFound`, `ErrDeployFailed`.
+- **Terraform CLI integration** (`internal/cloud/terraform.go`):
+  - `TerraformRunner` with `Init()`, `Plan()`, `Apply()`, `Destroy()`, `Output()`.
+  - `CommandRunner` interface for testability.
+  - Real `terraform init` + `terraform apply` in cloud Deploy methods.
+- **Cloud state management** (`internal/cloud/state.go`):
+  - `StateManager` persists deployed resources as JSON in `~/.naeos/cloud/<project>/<provider>/`.
+  - Thread-safe with `sync.RWMutex`, supports `Save()`, `Load()`, `List()`, `Delete()`.
+- **Cloud cost estimation** (`internal/cloud/cost.go`):
+  - `CostEstimator` with hardcoded pricing for all 11 resource types × 3 providers.
+  - `EstimateCost()`, `EstimateCostByType()`, `FormatCost()` methods.
+  - Plan results now include cost estimates in USD.
+- **5 new cloud resource types**: serverless/function, monitoring/alerts, secrets, dns/zone, networking/vpc.
+  - Full HCL generation for AWS (Lambda, CloudWatch, Secrets Manager, Route53, VPC), GCP (Cloud Functions, Monitoring, Secret Manager, Cloud DNS, VPC Network), Azure (Functions, Monitor, Key Vault, DNS Zone, VNet).
+- **WASM plugin runtime** (`internal/pluginsdk/wasm/`):
+  - `WASMRuntime` using wazero for WASM plugin execution.
+  - JSON-over-WASI stdin/stdout protocol.
+  - Sandbox auto-routes `.wasm` files to WASM runtime.
+- **Plugin marketplace signature verification** (`internal/marketplace/signature.go`):
+  - SHA-256 checksum verification after download.
+  - `VerifyPlugin()` and `GenerateChecksum()` functions.
+  - Install method now validates checksum before accepting plugin.
+- **Plugin hot-reload** (`internal/pluginhost/hotreload.go`):
+  - `PluginWatcher` using fsnotify to detect `.so`/`.wasm` file changes.
+  - 500ms debounce, automatic unload/reload cycle.
+- **Plugin event bus** (`internal/pluginhost/events.go`):
+  - `EventBus` with `Subscribe()`, `Unsubscribe()`, `Emit()` for 5 pipeline lifecycle events.
+  - `PluginEventBus` implements `PipelineObserver` interface.
+- **API key rate limiting** (`internal/api/middleware.go`):
+  - `RegisterAPIKey()` for per-key rate limiters.
+  - `X-API-Key` header support with fallback to IP-based limiting.
+- **Cloud API endpoints** (`internal/api/server.go`):
+  - `POST /cloud/plan`, `POST /cloud/deploy`, `POST /cloud/destroy`, `GET /cloud/status`.
+  - `GET /plugins`, `POST /plugins/execute`, `DELETE /plugins/{name}`.
+- **Async pipeline execution**: `POST /pipeline/run` now returns `202 Accepted` with `job_id`.
+- **MCP tools**: `list_artifacts`, `get_pipeline_status`, `export_terraform`, `list_plugins`.
+- **CLI commands**: `cloud plan`, `cloud status`, `ai enrich`, `plugin test`.
+- **Pipeline result cache** (`internal/pipelinecache/`):
+  - SHA-256 spec hashing, LRU-style eviction, disk persistence.
+- **Pipeline middleware chain** (`internal/pipelinemiddleware/`):
+  - `Chain` executor with `LogMiddleware`, `MetricsMiddleware`, `AuthMiddleware`, `CacheMiddleware`.
+- **NEIR structural diff** (`internal/diff/`):
+  - Colorized diff between two NEIR objects with project + service level detection.
+- **Event sourcing** (`internal/eventsourcing/`):
+  - InMemory and FileStore with `Aggregate` and `PipelineRunSnapshot`.
+- **Distributed task execution** (`internal/distributed/`):
+  - Coordinator, round-robin LoadBalancer, ResultAggregator.
+- **Container artifact generation** (`internal/generation/adapters/container/`):
+  - Dockerfiles for Go, Node, Python, Java, Rust + docker-compose + K8s manifests.
+- **Profile detection** (`internal/profiledetect/`):
+  - Auto-detect language/framework from marker files with confidence scoring.
+- **Telemetry tracing** (`internal/telemetry/`):
+  - Spans with parent-child support, batched HTTP export.
+- **Config schema validation** (`internal/configschema/`):
+  - Schema definition with `ValidateConfig`, `ValidateData`, `ValidateFile`.
+- **ADR documents** (`docs/adr/`):
+  - ADR-001: Why Go for Runtime.
+  - ADR-002: Why NEIR as Central Model.
+  - ADR-003: Why MCP for AI Integration.
+- **NES-041 Troubleshooting Guide**: 15 practical troubleshooting scenarios.
+- **Consolidated OpenAPI 3.0 spec** at `docs/openapi.yaml` (v0.8.0) with all endpoints.
+- **NES-028 and NES-030** stabilized with examples for all new commands.
+- **Tests**: 39 new tests across generation/renderers, generation/engine, hcl, cloud, marketplace, api, pluginhost, mcp, errors.
+- **Makefile targets**: `docker`, `benchmark`, `security`, `e2e`.
+
+### Changed
+- Version bumped to 0.8.0.
+- CI: Added golangci-lint step to GitHub Actions workflow.
+- CI: Fixed Go version mismatch (all set to 1.25).
+- CI: Fixed release ldflags to use centralized `internal/version` package.
+- Dockerfile updated to `golang:1.25-alpine`.
+- All `fmt.Errorf` calls audited for `%w` wrapping.
+- Duplicate `newCompletionCommand` registration fixed in `main.go`.
+- Removed `docs/api/` directory (consolidated into single `docs/openapi.yaml`).
+
 ## [0.7.0] - 2026-07-13
 
 ### Added

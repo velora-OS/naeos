@@ -1,7 +1,7 @@
 # NES-028 — CLI Reference
 
-> Status: Draft
-> Last Updated: 2026-07-10
+> Status: Stable
+> Last Updated: 2026-07-13
 
 Complete reference for the `naeos` CLI tool.
 
@@ -255,6 +255,266 @@ naeos preview --config config.yaml --input spec.yaml
 
 ---
 
+### `naeos benchmark`
+
+Run performance benchmarks on the pipeline and generators.
+
+```bash
+naeos benchmark --config config.yaml --input spec.yaml
+naeos benchmark --config config.yaml --input spec.yaml --iterations 100
+naeos benchmark --config config.yaml --input spec.yaml --output json
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--input` | `string` | `""` | One of `--input`/`--input-file` | Inline specification text |
+| `--input-file` | `string` | `""` | One of `--input`/`--input-file` | Path to specification file |
+| `--iterations` | `int` | `10` | No | Number of benchmark iterations |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+
+**Output keys:** `pipeline`, `iterations`, `avg_ms`, `p50_ms`, `p95_ms`, `p99_ms`, `ops_per_sec`
+
+```bash
+# Benchmark with 50 iterations, JSON output
+naeos benchmark --config config.yaml --input-file spec.yaml --iterations 50 --output json
+```
+
+---
+
+### `naeos config`
+
+Manage NAEOS configuration files.
+
+```bash
+naeos config show --config config.yaml
+naeos config validate --config config.yaml
+naeos config set --config config.yaml --key pipeline.mode --value production
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|---|---|
+| `config show` | Display the resolved configuration |
+| `config validate` | Validate configuration file |
+| `config set` | Set a configuration value |
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--key` | `string` | `""` | For `set` | Dot-notation config key |
+| `--value` | `string` | `""` | For `set` | Value to set |
+
+```bash
+# Show resolved config
+naeos config show --config config.yaml
+
+# Validate config syntax
+naeos config validate --config config.yaml
+
+# Set a value
+naeos config set --config config.yaml --key pipeline.verbose --value true
+```
+
+---
+
+### `naeos deploy`
+
+Deploy generated artifacts to a target environment.
+
+```bash
+naeos deploy --config config.yaml --input spec.yaml --environment staging
+naeos deploy --config config.yaml --input spec.yaml --environment production --dry-run
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--input` | `string` | `""` | One of `--input`/`--input-file` | Inline specification text |
+| `--input-file` | `string` | `""` | One of `--input`/`--input-file` | Path to specification file |
+| `--environment` | `string` | `""` | Yes | Target environment: `staging`, `production` |
+| `--dry-run` | `bool` | `false` | No | Preview deployment without executing |
+
+**Output keys:** `deployment_id`, `environment`, `status`, `resources`
+
+```bash
+# Dry-run to preview what would be deployed
+naeos deploy --config config.yaml --input-file spec.yaml --environment production --dry-run
+
+# Actual deployment
+naeos deploy --config config.yaml --input-file spec.yaml --environment staging
+```
+
+---
+
+### `naeos distributed`
+
+Manage distributed pipeline execution across nodes.
+
+```bash
+naeos distributed status --config config.yaml
+naeos distributed nodes --config config.yaml
+naeos distributed schedule --config config.yaml --input spec.yaml --nodes 3
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|---|---|
+| `distributed status` | Show distributed execution status |
+| `distributed nodes` | List connected worker nodes |
+| `distributed schedule` | Schedule a pipeline across nodes |
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--input` | `string` | `""` | For `schedule` | Inline specification text |
+| `--input-file` | `string` | `""` | For `schedule` | Path to specification file |
+| `--nodes` | `int` | `1` | For `schedule` | Number of worker nodes to use |
+
+```bash
+# Check cluster status
+naeos distributed status --config config.yaml
+
+# List available nodes
+naeos distributed nodes --config config.yaml
+
+# Schedule across 3 nodes
+naeos distributed schedule --config config.yaml --input-file spec.yaml --nodes 3
+```
+
+---
+
+### `naeos events`
+
+Manage and inspect the kernel event bus.
+
+```bash
+naeos events list --config config.yaml
+naeos events stream --config config.yaml --topic build.*
+naeos events history --config config.yaml --limit 50
+```
+
+**Subcommands:**
+
+| Subcommand | Description |
+|---|---|
+| `events list` | List available event topics |
+| `events stream` | Stream events in real time |
+| `events history` | Show past events |
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--topic` | `string` | `""` | For `stream` | Topic filter (supports glob patterns) |
+| `--limit` | `int` | `20` | For `history` | Maximum events to show |
+
+```bash
+# List all topics
+naeos events list --config config.yaml
+
+# Stream build events
+naeos events stream --config config.yaml --topic build.*
+
+# Show last 50 events
+naeos events history --config config.yaml --limit 50
+```
+
+---
+
+### `naeos health`
+
+Check health of NAEOS services and dependencies.
+
+```bash
+naeos health --config config.yaml
+naeos health --config config.yaml --output json
+naeos health --config config.yaml --check database --check cache
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--check` | `string` | `""` | No | Specific check to run (repeatable) |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+
+**Output keys:** `status`, `version`, `uptime`, `checks`
+
+```bash
+# Full health check
+naeos health --config config.yaml
+
+# Check specific services
+naeos health --config config.yaml --check database --check cache --output json
+```
+
+---
+
+### `naeos history`
+
+Show pipeline execution history.
+
+```bash
+naeos history --config config.yaml
+naeos history --config config.yaml --limit 20
+naeos history --config config.yaml --status failed
+naeos history --config config.yaml --output json
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--limit` | `int` | `10` | No | Maximum records to show |
+| `--status` | `string` | `""` | No | Filter by status: `succeeded`, `failed`, `running` |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+
+**Output keys:** `runs`, `total`, `filtered`
+
+```bash
+# Last 10 runs
+naeos history --config config.yaml
+
+# Failed runs only
+naeos history --config config.yaml --status failed --limit 20
+
+# JSON output for scripting
+naeos history --config config.yaml --output json
+```
+
+---
+
+### `naeos import`
+
+Import specifications or artifacts from external sources.
+
+```bash
+naeos import --source https://example.com/spec.yaml --output ./specs
+naeos import --source ./archive.tar.gz --output ./imported
+naeos import --source openapi --url https://petstore.swagger.io/v2/swagger.json --output ./specs
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--source` | `string` | `""` | Yes | Source type: `url`, `file`, `openapi`, `swagger` |
+| `--url` | `string` | `""` | For `openapi`/`swagger` | URL to fetch from |
+| `--output` | `string` | `""` | Yes | Output directory |
+
+**Output keys:** `source`, `imported`, `files`
+
+```bash
+# Import from URL
+naeos import --source url --url https://example.com/spec.yaml --output ./specs
+
+# Import OpenAPI spec and convert to NAEOS format
+naeos import --source openapi --url https://petstore.swagger.io/v2/swagger.json --output ./specs
+
+# Import from local archive
+naeos import --source file --url ./archive.tar.gz --output ./imported
+```
+
+---
+
 ### `naeos kernel`
 
 Inspect the NAEOS kernel and service registry. Contains 5 subcommands.
@@ -312,6 +572,133 @@ naeos kernel subscribe --config config.yaml --topic build.start --payload '{"tes
 
 ---
 
+## Cloud Commands
+
+### `naeos cloud plan`
+
+Generate a cloud deployment plan from a specification.
+
+```bash
+naeos cloud plan --config config.yaml --input spec.yaml --provider aws --region us-east-1
+naeos cloud plan --config config.yaml --input spec.yaml --provider gcp --region us-central1 --output json
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--input` | `string` | `""` | One of `--input`/`--input-file` | Inline specification text |
+| `--input-file` | `string` | `""` | One of `--input`/`--input-file` | Path to specification file |
+| `--provider` | `string` | `""` | Yes | Cloud provider: `aws`, `gcp`, `azure`, `digitalocean` |
+| `--region` | `string` | `""` | No | Target region |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+
+**Output keys:** `plan_id`, `provider`, `region`, `resources`, `estimated_monthly_cost`
+
+```bash
+# Plan for AWS
+naeos cloud plan --config config.yaml --input-file spec.yaml --provider aws --region us-east-1
+
+# Plan for GCP with JSON output
+naeos cloud plan --config config.yaml --input-file spec.yaml --provider gcp --region us-central1 --output json
+```
+
+---
+
+### `naeos cloud status`
+
+Check the status of a cloud deployment.
+
+```bash
+naeos cloud status --deployment-id deploy-abc123
+naeos cloud status --deployment-id deploy-abc123 --output json
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--deployment-id` | `string` | `""` | Yes | Deployment identifier |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+
+**Output keys:** `deployment_id`, `provider`, `status`, `resources`, `last_updated`
+
+```bash
+# Check deployment status
+naeos cloud status --deployment-id deploy-abc123
+
+# JSON for scripting
+naeos cloud status --deployment-id deploy-abc123 --output json
+```
+
+---
+
+## AI Commands
+
+### `naeos ai enrich`
+
+Enrich a specification with AI-generated suggestions and best practices.
+
+```bash
+naeos ai enrich --config config.yaml --input spec.yaml
+naeos ai enrich --config config.yaml --input spec.yaml --focus security
+naeos ai enrich --config config.yaml --input spec.yaml --output json --output-file enriched.json
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--config` | `string` | `""` | Yes | Path to config file |
+| `--input` | `string` | `""` | One of `--input`/`--input-file` | Inline specification text |
+| `--input-file` | `string` | `""` | One of `--input`/`--input-file` | Path to specification file |
+| `--focus` | `string` | `""` | No | Enrichment focus: `security`, `performance`, `testing`, `all` |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+| `--output-file` | `string` | `""` | No | Write output to file |
+
+**Output keys:** `spec`, `suggestions`, `focus`, `enriched_at`
+
+```bash
+# General enrichment
+naeos ai enrich --config config.yaml --input-file spec.yaml
+
+# Security-focused
+naeos ai enrich --config config.yaml --input-file spec.yaml --focus security
+
+# Save enriched spec
+naeos ai enrich --config config.yaml --input-file spec.yaml --output yaml --output-file enriched-spec.yaml
+```
+
+---
+
+## Plugin Commands
+
+### `naeos plugin test`
+
+Test a plugin in isolation before installing.
+
+```bash
+naeos plugin test --source ./my-plugin
+naeos plugin test --source ./my-plugin --args '{"key":"value"}'
+naeos plugin test --source https://registry.naeos.dev/plugins/example --output json
+```
+
+| Flag | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `--source` | `string` | `""` | Yes | Plugin path or registry URL |
+| `--args` | `string` | `""` | No | JSON arguments to pass to the plugin |
+| `--output` | `string` | `text` | No | Output format: `text`, `json`, `yaml` |
+
+**Output keys:** `plugin`, `version`, `kind`, `passed`, `tests`, `duration_ms`
+
+```bash
+# Test local plugin
+naeos plugin test --source ./my-plugin
+
+# Test with arguments
+naeos plugin test --source ./my-plugin --args '{"input":"test-spec.yaml"}' --output json
+
+# Test remote plugin
+naeos plugin test --source https://registry.naeos.dev/plugins/example
+```
+
+---
+
 ## Common Workflows
 
 ### Quick Start
@@ -338,6 +725,8 @@ naeos export --config config.yaml --input-file my-app/spec.yaml
 ```bash
 naeos doctor --config config.yaml        # Check config health
 naeos repair --config config.yaml        # Fix output directory
+naeos health --config config.yaml        # Service health check
+naeos config validate --config config.yaml  # Config syntax check
 ```
 
 ### Kernel Inspection
@@ -362,6 +751,36 @@ naeos export --config config.yaml --input-file spec.yaml --language go --languag
 
 # 4. Preview what would be generated
 naeos preview --config config.yaml --input-file spec.yaml --language go
+```
+
+### Cloud Deployment
+
+```bash
+# 1. Generate deployment plan
+naeos cloud plan --config config.yaml --input-file spec.yaml --provider aws --region us-east-1
+
+# 2. Deploy to staging
+naeos deploy --config config.yaml --input-file spec.yaml --environment staging
+
+# 3. Check deployment status
+naeos cloud status --deployment-id deploy-abc123
+
+# 4. Deploy to production
+naeos deploy --config config.yaml --input-file spec.yaml --environment production
+```
+
+### Plugin Workflow
+
+```bash
+# 1. Test plugin before install
+naeos plugin test --source ./my-plugin
+
+# 2. Install plugin
+curl -X POST http://localhost:8080/api/v1/plugins \
+  -d '{"name":"my-plugin","source":"./my-plugin"}'
+
+# 3. Verify installation
+naeos health --config config.yaml --check plugins
 ```
 
 ---

@@ -1,0 +1,162 @@
+package cloud
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+	"time"
+
+	naeoserrors "github.com/NAEOS-foundation/naeos/internal/errors"
+)
+
+type DeploymentRecord struct {
+	Project          string           `json:"project"`
+	Provider         CloudProvider    `json:"provider"`
+	Environment      string           `json:"environment"`
+	Region           string           `json:"region"`
+	Resources        []DeployedResource `json:"resources"`
+	TerraformDir     string           `json:"terraform_dir"`
+	Timestamp        time.Time        `json:"timestamp"`
+	Status           string           `json:"status"`
+}
+
+type StateManager struct {
+	mu      sync.RWMutex
+	baseDir string
+}
+
+func NewStateManager() *StateManager {
+	home, _ := os.UserHomeDir()
+	base := filepath.Join(home, ".naeos", "cloud")
+	return &StateManager{baseDir: base}
+}
+
+func NewStateManagerWithDir(baseDir string) *StateManager {
+	return &StateManager{baseDir: baseDir}
+}
+
+func (s *StateManager) deploymentPath(project, provider string) string {
+	return filepath.Join(s.baseDir, project, string(provider), "deployment.json")
+}
+
+func (s *StateManager) Save(record *DeploymentRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if record.Project == "" {
+		return naeoserrors.New(naeoserrors.ErrValidation, "project name is required")
+	}
+	if record.Provider == "" {
+		return naeoserrors.New(naeoserrors.ErrValidation, "provider is required")
+	}
+
+	if record.Timestamp.IsZero() {
+		record.Timestamp = time.Now()
+	}
+
+	dir := filepath.Dir(s.deploymentPath(record.Project, string(record.Provider)))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to create state directory", err)
+	}
+
+	data, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to marshal deployment record", err)
+	}
+
+	path := s.deploymentPath(record.Project, string(record.Provider))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to write deployment record", err)
+	}
+	return nil
+}
+
+func (s *StateManager) Load(project string, provider CloudProvider) (*DeploymentRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	path := s.deploymentPath(project, string(provider))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, naeoserrors.Wrap(naeoserrors.ErrNotFound, fmt.Sprintf("deployment not found: %s/%s", project, provider), err)
+		}
+		return nil, naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to read deployment record", err)
+	}
+
+	var record DeploymentRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		return nil, naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to parse deployment record", err)
+	}
+	return &record, nil
+}
+
+func (s *StateManager) List() ([]DeploymentRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var records []DeploymentRecord
+
+	projects, err := os.ReadDir(s.baseDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return records, nil
+		}
+		return nil, naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to read state directory", err)
+	}
+
+	for _, projectDir := range projects {
+		if !projectDir.IsDir() {
+			continue
+		}
+		providers, err := os.ReadDir(filepath.Join(s.baseDir, projectDir.Name()))
+		if err != nil {
+			continue
+		}
+		for _, providerDir := range providers {
+			if !providerDir.IsDir() {
+				continue
+			}
+			recordPath := filepath.Join(s.baseDir, projectDir.Name(), providerDir.Name(), "deployment.json")
+			data, err := os.ReadFile(recordPath)
+			if err != nil {
+				continue
+			}
+			var record DeploymentRecord
+			if err := json.Unmarshal(data, &record); err != nil {
+				continue
+			}
+			records = append(records, record)
+		}
+	}
+
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Timestamp.After(records[j].Timestamp)
+	})
+
+	return records, nil
+}
+
+func (s *StateManager) Delete(project string, provider CloudProvider) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dir := filepath.Join(s.baseDir, project, string(provider))
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return naeoserrors.Wrap(naeoserrors.ErrNotFound, fmt.Sprintf("deployment not found: %s/%s", project, provider), err)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to delete deployment state", err)
+	}
+
+	parent := filepath.Join(s.baseDir, project)
+	entries, _ := os.ReadDir(parent)
+	if len(entries) == 0 {
+		os.Remove(parent)
+	}
+
+	return nil
+}

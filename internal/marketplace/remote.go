@@ -108,12 +108,20 @@ func (r *RemoteRegistry) Install(name, version string) (string, error) {
 		return "", fmt.Errorf("download plugin: %w", err)
 	}
 
+	if plugin.SHA256 != "" {
+		if err := VerifyPlugin(destPath, plugin.SHA256); err != nil {
+			os.Remove(destPath)
+			return "", fmt.Errorf("verify plugin checksum: %w", err)
+		}
+	}
+
 	metaPath := filepath.Join(r.installDir, name+".meta.json")
 	meta := map[string]interface{}{
 		"name":        plugin.Name,
 		"version":     plugin.Version,
 		"description": plugin.Description,
 		"author":      plugin.Author,
+		"checksum":    plugin.SHA256,
 		"installed_at": time.Now().Format(time.RFC3339),
 	}
 	metaData, _ := json.MarshalIndent(meta, "", "  ")

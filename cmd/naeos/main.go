@@ -94,7 +94,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newSecurityCommand())
 	root.AddCommand(newPerfCommand())
 	root.AddCommand(newDXCommand())
-	root.AddCommand(newCompletionCommand())
 	root.AddCommand(newDistributedCommand())
 	root.AddCommand(newEventsCommand())
 	root.AddCommand(newImportCommand())

@@ -6,17 +6,35 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/NAEOS-foundation/naeos/internal/artifacts"
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
 	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
+	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
+type PipelineJob struct {
+	ID        string         `json:"id"`
+	Status    string         `json:"status"`
+	StartedAt time.Time      `json:"started_at"`
+	EndedAt   *time.Time     `json:"ended_at,omitempty"`
+	Artifacts int            `json:"artifacts"`
+	Error     string         `json:"error,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
 type Server struct {
-	mux      *http.ServeMux
-	compiler *compiler.Compiler
-	bundle   *contextbundle.Generator
+	mux           *http.ServeMux
+	compiler      *compiler.Compiler
+	bundle        *contextbundle.Generator
+	store         *artifacts.Store
+	pluginMgr     *pluginhost.Manager
+	pipelineJobs  map[string]*PipelineJob
+	mu            sync.RWMutex
 }
 
 type JSONRPCRequest struct {
@@ -56,13 +74,28 @@ type ContentBlock struct {
 
 func NewServer(c *compiler.Compiler, bg *contextbundle.Generator) *Server {
 	s := &Server{
-		mux:      http.NewServeMux(),
-		compiler: c,
-		bundle:   bg,
+		mux:          http.NewServeMux(),
+		compiler:     c,
+		bundle:       bg,
+		pipelineJobs: make(map[string]*PipelineJob),
 	}
 	s.mux.HandleFunc("/mcp", s.handleMCP)
 	s.mux.HandleFunc("/health", s.handleHealth)
 	return s
+}
+
+func (s *Server) SetArtifactStore(store *artifacts.Store) {
+	s.store = store
+}
+
+func (s *Server) SetPluginManager(mgr *pluginhost.Manager) {
+	s.pluginMgr = mgr
+}
+
+func (s *Server) TrackPipelineJob(job *PipelineJob) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pipelineJobs[job.ID] = job
 }
 
 func (s *Server) Handler() http.Handler {
@@ -217,6 +250,50 @@ func (s *Server) listTools() []Tool {
 				"required": []string{"concept"},
 			},
 		},
+		{
+			Name:        "list_artifacts",
+			Description: "List all generated artifacts from the artifact store",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			Name:        "get_pipeline_status",
+			Description: "Get the status of a pipeline job by ID",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"job_id": map[string]any{
+						"type":        "string",
+						"description": "Pipeline job ID",
+					},
+				},
+				"required": []string{"job_id"},
+			},
+		},
+		{
+			Name:        "export_terraform",
+			Description: "Export Terraform HCL configuration for a given specification",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"spec": map[string]any{
+						"type":        "string",
+						"description": "YAML/JSON specification content",
+					},
+				},
+				"required": []string{"spec"},
+			},
+		},
+		{
+			Name:        "list_plugins",
+			Description: "List all installed plugins and their status",
+			InputSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
 	}
 }
 
@@ -321,9 +398,162 @@ func (s *Server) callTool(name string, args map[string]any) (*CallResult, error)
 			Content: []ContentBlock{{Type: "text", Text: explanation}},
 		}, nil
 
+	case "list_artifacts":
+		return s.handleListArtifacts()
+
+	case "get_pipeline_status":
+		jobID, _ := args["job_id"].(string)
+		if jobID == "" {
+			return nil, fmt.Errorf("job_id is required")
+		}
+		return s.handleGetPipelineStatus(jobID)
+
+	case "export_terraform":
+		if spec == "" {
+			return nil, fmt.Errorf("spec is required")
+		}
+		return s.handleExportTerraform(spec)
+
+	case "list_plugins":
+		return s.handleListPlugins()
+
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
+}
+
+func (s *Server) handleListArtifacts() (*CallResult, error) {
+	if s.store == nil {
+		return &CallResult{
+			Content: []ContentBlock{{Type: "text", Text: "No artifact store configured"}},
+		}, nil
+	}
+	arts := s.store.List()
+	if len(arts) == 0 {
+		return &CallResult{
+			Content: []ContentBlock{{Type: "text", Text: "No artifacts found"}},
+		}, nil
+	}
+	type artifactSummary struct {
+		ID   string `json:"id"`
+		Path string `json:"path"`
+		Kind string `json:"kind"`
+		Size int64  `json:"size"`
+	}
+	summaries := make([]artifactSummary, len(arts))
+	for i, a := range arts {
+		summaries[i] = artifactSummary{
+			ID:   a.ID,
+			Path: a.Path,
+			Kind: string(a.Kind),
+			Size: a.Size,
+		}
+	}
+	data, err := json.MarshalIndent(summaries, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal artifacts: %w", err)
+	}
+	return &CallResult{
+		Content: []ContentBlock{{Type: "text", Text: string(data)}},
+	}, nil
+}
+
+func (s *Server) handleGetPipelineStatus(jobID string) (*CallResult, error) {
+	s.mu.RLock()
+	job, ok := s.pipelineJobs[jobID]
+	s.mu.RUnlock()
+	if !ok {
+		return &CallResult{
+			Content: []ContentBlock{{Type: "text", Text: fmt.Sprintf("Job %s not found", jobID)}},
+			IsError: true,
+		}, nil
+	}
+	data, err := json.MarshalIndent(job, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal job: %w", err)
+	}
+	return &CallResult{
+		Content: []ContentBlock{{Type: "text", Text: string(data)}},
+	}, nil
+}
+
+func (s *Server) handleExportTerraform(spec string) (*CallResult, error) {
+	p := parser.NewParser()
+	doc, err := p.Parse(spec)
+	if err != nil {
+		return nil, fmt.Errorf("parse failed: %w", err)
+	}
+
+	var b strings.Builder
+	b.WriteString("# Auto-generated by NAEOS\n")
+	b.WriteString("# Specification: ")
+	if doc.Project != "" {
+		b.WriteString(doc.Project)
+	} else {
+		b.WriteString("unnamed")
+	}
+	b.WriteString("\n\n")
+
+	b.WriteString("terraform {\n")
+	b.WriteString("  required_version = \">= 1.0\"\n")
+	b.WriteString("}\n\n")
+
+	for _, svc := range doc.Services {
+		b.WriteString(fmt.Sprintf("resource \"null_resource\" \"%s\" {\n", svc.Name))
+		b.WriteString("  triggers = {\n")
+		b.WriteString(fmt.Sprintf("    name    = \"%s\"\n", svc.Name))
+		if svc.Kind != "" {
+			b.WriteString(fmt.Sprintf("    kind    = \"%s\"\n", svc.Kind))
+		}
+		b.WriteString("  }\n")
+		b.WriteString("}\n\n")
+	}
+
+	if len(doc.Services) == 0 {
+		b.WriteString("# No services defined in specification\n")
+	}
+
+	return &CallResult{
+		Content: []ContentBlock{{Type: "text", Text: b.String()}},
+	}, nil
+}
+
+func (s *Server) handleListPlugins() (*CallResult, error) {
+	if s.pluginMgr == nil {
+		return &CallResult{
+			Content: []ContentBlock{{Type: "text", Text: "No plugin manager configured"}},
+		}, nil
+	}
+	plugins := s.pluginMgr.List()
+	if len(plugins) == 0 {
+		return &CallResult{
+			Content: []ContentBlock{{Type: "text", Text: "No plugins installed"}},
+		}, nil
+	}
+	type pluginSummary struct {
+		Name        string `json:"name"`
+		Version     string `json:"version"`
+		Description string `json:"description"`
+		Enabled     bool   `json:"enabled"`
+		State       string `json:"state"`
+	}
+	summaries := make([]pluginSummary, len(plugins))
+	for i, p := range plugins {
+		summaries[i] = pluginSummary{
+			Name:        p.Name,
+			Version:     p.Version,
+			Description: p.Description,
+			Enabled:     p.Enabled,
+			State:       string(p.State),
+		}
+	}
+	data, err := json.MarshalIndent(summaries, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal plugins: %w", err)
+	}
+	return &CallResult{
+		Content: []ContentBlock{{Type: "text", Text: string(data)}},
+	}, nil
 }
 
 func (s *Server) explainConcept(concept string) string {

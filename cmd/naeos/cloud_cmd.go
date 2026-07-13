@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/NAEOS-foundation/naeos/internal/cloud"
 	"github.com/spf13/cobra"
@@ -97,6 +100,7 @@ func newCloudCommand() *cobra.Command {
 
 	cmd.AddCommand(newCloudDeployCommand())
 	cmd.AddCommand(newCloudPlanCommand())
+	cmd.AddCommand(newCloudStatusCommand())
 	cmd.AddCommand(newCloudExportCommand())
 	cmd.AddCommand(newCloudTypesCommand())
 
@@ -146,6 +150,7 @@ func newCloudPlanCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "plan",
 		Short: "Plan cloud deployment",
+		Long:  `Generate HCL and show resources that would be created without applying.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config, err := resolveCloudConfig()
 			if err != nil {
@@ -161,18 +166,121 @@ func newCloudPlanCommand() *cobra.Command {
 				return err
 			}
 
-			plan, err := adapter.Plan(config)
+			planResult, err := adapter.Plan(config)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Plan: %d resources to deploy (%s/%s)\n", len(plan), config.Provider, config.Region)
-			for _, res := range plan {
+			tf, err := adapter.ExportTerraform(config)
+			if err != nil {
+				return fmt.Errorf("generate HCL: %w", err)
+			}
+
+			fmt.Printf("Plan: %d resources to deploy (%s/%s)\n", len(planResult.Resources), config.Provider, config.Region)
+			for _, res := range planResult.Resources {
 				fmt.Printf("  - %s (%s)\n", res.Name, res.Type)
+			}
+
+			fmt.Println("\n--- Cost Estimate ---")
+			fmt.Print(planResult.CostEstimate.FormatCost())
+
+			fmt.Println("\n--- Generated HCL ---")
+			fmt.Println(tf)
+			return nil
+		},
+	}
+}
+
+func newCloudStatusCommand() *cobra.Command {
+	var statusProject string
+
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show deployed resource status",
+		Long:  `List deployed resources from the cloud state store (~/.naeos/cloud/).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("resolve home dir: %w", err)
+			}
+			stateDir := filepath.Join(home, ".naeos", "cloud")
+
+			entries, err := os.ReadDir(stateDir)
+			if err != nil {
+				if os.IsNotExist(err) {
+					fmt.Println("No deployments found. State store is empty.")
+					return nil
+				}
+				return fmt.Errorf("read state store: %w", err)
+			}
+
+			filterProvider := cloud.CloudProvider(cloudProvider)
+			if cloudProvider == "" {
+				filterProvider = ""
+			}
+
+			found := false
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				if !strings.HasSuffix(entry.Name(), ".json") {
+					continue
+				}
+
+				data, err := os.ReadFile(filepath.Join(stateDir, entry.Name()))
+				if err != nil {
+					continue
+				}
+
+				var state struct {
+					Provider   string                   `json:"provider"`
+					Project    string                   `json:"project"`
+					Region     string                   `json:"region"`
+					Status     string                   `json:"status"`
+					Timestamp  string                   `json:"timestamp"`
+					Resources  []cloud.DeployedResource  `json:"resources"`
+				}
+				if err := json.Unmarshal(data, &state); err != nil {
+					continue
+				}
+
+				if filterProvider != "" && state.Provider != string(filterProvider) {
+					continue
+				}
+				if statusProject != "" && state.Project != statusProject {
+					continue
+				}
+
+				if !found {
+					fmt.Println("Deployed resources:")
+					fmt.Println("──────────────────────────────────────────────────────")
+					found = true
+				}
+
+				fmt.Printf("  Provider:   %s\n", state.Provider)
+				fmt.Printf("  Project:    %s\n", state.Project)
+				fmt.Printf("  Region:     %s\n", state.Region)
+				fmt.Printf("  Status:     %s\n", state.Status)
+				fmt.Printf("  Deployed:   %s\n", state.Timestamp)
+				if len(state.Resources) > 0 {
+					fmt.Printf("  Resources:\n")
+					for _, r := range state.Resources {
+						fmt.Printf("    - %s (%s) -> %s\n", r.Name, r.Type, r.ID)
+					}
+				}
+				fmt.Println("──────────────────────────────────────────────────────")
+			}
+
+			if !found {
+				fmt.Println("No deployments found matching the given filters.")
 			}
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&statusProject, "project", "", "Filter by project name")
+	return cmd
 }
 
 func newCloudExportCommand() *cobra.Command {

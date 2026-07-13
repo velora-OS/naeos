@@ -15,12 +15,17 @@ const (
 
 // ResourceTypes maps abstract resource types to supported kinds.
 const (
-	ResourceStorage  = "storage"
-	ResourceCompute  = "compute"
-	ResourceDatabase = "database"
-	ResourceCache    = "cache"
-	ResourceQueue    = "queue"
-	ResourceCDN      = "cdn"
+	ResourceStorage     = "storage"
+	ResourceCompute     = "compute"
+	ResourceDatabase    = "database"
+	ResourceCache       = "cache"
+	ResourceQueue       = "queue"
+	ResourceCDN         = "cdn"
+	ResourceServerless  = "serverless"
+	ResourceMonitoring  = "monitoring"
+	ResourceSecrets     = "secrets"
+	ResourceDNS         = "dns"
+	ResourceNetworking  = "networking"
 )
 
 var SupportedResourceTypes = []string{
@@ -30,6 +35,11 @@ var SupportedResourceTypes = []string{
 	ResourceCache,
 	ResourceQueue,
 	ResourceCDN,
+	ResourceServerless,
+	ResourceMonitoring,
+	ResourceSecrets,
+	ResourceDNS,
+	ResourceNetworking,
 }
 
 type DeployConfig struct {
@@ -61,11 +71,16 @@ type DeployedResource struct {
 	ARN  string
 }
 
+type PlanResult struct {
+	Resources     []Resource   `json:"resources"`
+	CostEstimate  CostEstimate `json:"cost_estimate"`
+}
+
 type CloudAdapter interface {
 	Name() string
 	Provider() CloudProvider
 	Validate(config *DeployConfig) error
-	Plan(config *DeployConfig) ([]Resource, error)
+	Plan(config *DeployConfig) (*PlanResult, error)
 	Deploy(config *DeployConfig) (*DeployResult, error)
 	Destroy(config *DeployConfig) error
 	ExportTerraform(config *DeployConfig) (string, error)

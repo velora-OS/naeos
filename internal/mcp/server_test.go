@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
 	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
@@ -137,8 +138,8 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("expected tools array")
 	}
-	if len(tools) != 5 {
-		t.Errorf("expected 5 tools, got %d", len(tools))
+	if len(tools) != 9 {
+		t.Errorf("expected 9 tools, got %d", len(tools))
 	}
 }
 
@@ -291,6 +292,195 @@ func TestCallToolExplainConcept(t *testing.T) {
 	}
 }
 
+func TestCallToolListArtifactsNoStore(t *testing.T) {
+	s := newTestServer()
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "list_artifacts",
+			"arguments": map[string]any{},
+		}),
+		ID: 12,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error.Message)
+	}
+}
+
+func TestCallToolGetPipelineStatusMissingJob(t *testing.T) {
+	s := newTestServer()
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "get_pipeline_status",
+			"arguments": map[string]any{"job_id": "nonexistent"},
+		}),
+		ID: 13,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected JSONRPC error: %v", resp.Error.Message)
+	}
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatal("expected map result")
+	}
+	if isError, ok := resultMap["isError"].(bool); !ok || !isError {
+		t.Error("expected isError=true for missing job")
+	}
+}
+
+func TestCallToolGetPipelineStatusFound(t *testing.T) {
+	s := newTestServer()
+	now := time.Now()
+	s.TrackPipelineJob(&PipelineJob{
+		ID:        "job-1",
+		Status:    "completed",
+		StartedAt: now,
+		Artifacts: 5,
+	})
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "get_pipeline_status",
+			"arguments": map[string]any{"job_id": "job-1"},
+		}),
+		ID: 14,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error.Message)
+	}
+}
+
+func TestCallToolGetPipelineStatusNoJobID(t *testing.T) {
+	s := newTestServer()
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "get_pipeline_status",
+			"arguments": map[string]any{},
+		}),
+		ID: 15,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error == nil {
+		t.Error("expected error for missing job_id")
+	}
+}
+
+func TestCallToolExportTerraform(t *testing.T) {
+	s := newTestServer()
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "export_terraform",
+			"arguments": map[string]any{"spec": "project: test\nservices:\n  - name: api\n    kind: http\n"},
+		}),
+		ID: 16,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error.Message)
+	}
+}
+
+func TestCallToolExportTerraformNoSpec(t *testing.T) {
+	s := newTestServer()
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "export_terraform",
+			"arguments": map[string]any{},
+		}),
+		ID: 17,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error == nil {
+		t.Error("expected error for missing spec")
+	}
+}
+
+func TestCallToolListPluginsNoManager(t *testing.T) {
+	s := newTestServer()
+	body, _ := json.Marshal(JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "tools/call",
+		Params: mustMarshal(map[string]any{
+			"name":      "list_plugins",
+			"arguments": map[string]any{},
+		}),
+		ID: 18,
+	})
+	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error.Message)
+	}
+}
+
 func TestCallToolUnknownTool(t *testing.T) {
 	s := newTestServer()
 	body, _ := json.Marshal(JSONRPCRequest{
@@ -370,7 +560,7 @@ func TestListTools(t *testing.T) {
 	for _, tool := range tools {
 		names[tool.Name] = true
 	}
-	expected := []string{"parse_spec", "validate_spec", "generate_context", "compile_spec", "explain_concept"}
+	expected := []string{"parse_spec", "validate_spec", "generate_context", "compile_spec", "explain_concept", "list_artifacts", "get_pipeline_status", "export_terraform", "list_plugins"}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("expected tool '%s' to be listed", name)

@@ -99,3 +99,29 @@ Prioritas utama adalah menjaga kualitas, konsistensi, dan keterpahaman dokumen b
 - [x] Config schema validation (schema definition, YAML/JSON validation)
 - [x] WebSocket observer (PipelineObserver → EventBroadcaster bridge)
 - [x] Pipeline adapter (middleware chain, event sourcing, telemetry integration)
+
+### v0.8.0 — Quality, Security & Ecosystem
+- [x] Typed error system with 12 error codes and sentinel errors
+- [x] Terraform CLI integration (Init, Plan, Apply, Destroy via exec)
+- [x] Cloud state management (JSON persistence, thread-safe StateManager)
+- [x] Cloud cost estimation (hardcoded pricing for 11 types × 3 providers)
+- [x] 5 new cloud resource types (serverless, monitoring, secrets, DNS, VPC)
+- [x] WASM plugin runtime (wazero, JSON-over-WASI protocol)
+- [x] Plugin marketplace SHA-256 signature verification
+- [x] Plugin hot-reload via fsnotify file watcher
+- [x] Plugin event bus (5 pipeline lifecycle events, PipelineObserver bridge)
+- [x] API key rate limiting (X-API-Key header, per-key limiters)
+- [x] Cloud API endpoints (plan, deploy, destroy, status)
+- [x] Plugin API endpoints (list, execute, uninstall)
+- [x] Async pipeline execution (202 Accepted + job_id)
+- [x] MCP tools (list_artifacts, get_pipeline_status, export_terraform, list_plugins)
+- [x] CLI commands (cloud plan/status, ai enrich, plugin test)
+- [x] Consolidated OpenAPI 3.0 spec (v0.8.0, all endpoints)
+- [x] ADR documents (ADR-001 Go, ADR-002 NEIR, ADR-003 MCP)
+- [x] NES-041 Troubleshooting Guide (15 scenarios)
+- [x] NES-028 and NES-030 stabilized with examples
+- [x] golangci-lint added to CI
+- [x] CI Go version fixed (1.25), Dockerfile updated to golang:1.25-alpine
+- [x] fmt.Errorf %w audit and fix
+- [x] Tests for generation/renderers, generation/engine, hcl, cloud, marketplace, api, pluginhost, mcp, errors
+- [x] Makefile targets: docker, benchmark, security, e2e

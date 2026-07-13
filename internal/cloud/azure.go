@@ -8,7 +8,9 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
-type AzureAdapter struct{}
+type AzureAdapter struct {
+	Runner CommandRunner
+}
 
 func (a *AzureAdapter) Name() string {
 	return "Azure"
@@ -28,7 +30,7 @@ func (a *AzureAdapter) Validate(config *DeployConfig) error {
 	return nil
 }
 
-func (a *AzureAdapter) Plan(config *DeployConfig) ([]Resource, error) {
+func (a *AzureAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 	resources := []Resource{}
 	for _, res := range config.Resources {
 		switch res.Type {
@@ -77,27 +79,98 @@ func (a *AzureAdapter) Plan(config *DeployConfig) ([]Resource, error) {
 					"location": config.Region,
 				},
 			})
-		case ResourceCDN:
-			resources = append(resources, Resource{
-				Name: res.Name,
-				Type: "azurerm_cdn_frontdoor_profile",
-				Spec: map[string]interface{}{
-					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-				},
-			})
-		}
+	case ResourceCDN:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "azurerm_cdn_frontdoor_profile",
+			Spec: map[string]interface{}{
+				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceServerless:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "azurerm_linux_function_app",
+			Spec: map[string]interface{}{
+				"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				"location": config.Region,
+			},
+		})
+	case ResourceMonitoring:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "azurerm_monitor_action_group",
+			Spec: map[string]interface{}{
+				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceSecrets:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "azurerm_key_vault",
+			Spec: map[string]interface{}{
+				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceDNS:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "azurerm_dns_zone",
+			Spec: map[string]interface{}{
+				"name": res.Name,
+			},
+		})
+	case ResourceNetworking:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "azurerm_virtual_network",
+			Spec: map[string]interface{}{
+				"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				"location": config.Region,
+			},
+		})
 	}
-	return resources, nil
+}
+
+	estimator := NewCostEstimator()
+	cost := estimator.EstimateCost(string(config.Provider), resources)
+
+	return &PlanResult{
+		Resources:    resources,
+		CostEstimate: cost,
+	}, nil
 }
 
 func (a *AzureAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
-	plan, err := a.Plan(config)
+	if err := a.Validate(config); err != nil {
+		return nil, err
+	}
+
+	planResult, err := a.Plan(config)
 	if err != nil {
 		return nil, err
 	}
 
+	tf, err := a.ExportTerraform(config)
+	if err != nil {
+		return nil, err
+	}
+
+	workDir, err := TempWorkDir("naeos-azure")
+	if err != nil {
+		return nil, err
+	}
+
+	tr := NewTerraformRunner(workDir)
+	if a.Runner != nil {
+		tr.Runner = a.Runner
+	}
+	if err := tr.Deploy(tf); err != nil {
+		return nil, err
+	}
+
 	deployed := []DeployedResource{}
-	for _, res := range plan {
+	for _, res := range planResult.Resources {
 		deployed = append(deployed, DeployedResource{
 			Name: res.Name,
 			Type: res.Type,
@@ -105,30 +178,74 @@ func (a *AzureAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		})
 	}
 
-	tf, _ := a.ExportTerraform(config)
-
-	return &DeployResult{
+	result := &DeployResult{
 		Provider:  Azure,
 		Resources: deployed,
 		Terraform: tf,
 		Status:    "deployed",
 		Timestamp: time.Now(),
-	}, nil
+	}
+
+	sm := NewStateManager()
+	sm.Save(&DeploymentRecord{
+		Project:      config.Project,
+		Provider:     Azure,
+		Environment:  config.Environment,
+		Region:       config.Region,
+		Resources:    deployed,
+		TerraformDir: workDir,
+		Timestamp:    result.Timestamp,
+		Status:       "deployed",
+	})
+
+	return result, nil
 }
 
 func (a *AzureAdapter) Destroy(config *DeployConfig) error {
-	plan, err := a.Plan(config)
+	sm := NewStateManager()
+	record, err := sm.Load(config.Project, Azure)
+	if err == nil && record.TerraformDir != "" {
+		tr := NewTerraformRunner(record.TerraformDir)
+		if a.Runner != nil {
+			tr.Runner = a.Runner
+		}
+		if derr := tr.DestroyAll(); derr == nil {
+			sm.Delete(config.Project, Azure)
+			return nil
+		}
+	}
+
+	planResult, err := a.Plan(config)
 	if err != nil {
 		return err
 	}
-	if len(plan) == 0 {
+	if len(planResult.Resources) == 0 {
 		return fmt.Errorf("no resources to destroy")
 	}
-	var resources []string
-	for _, r := range plan {
-		resources = append(resources, r.Type+"."+r.Name)
+
+	tf, err := a.ExportTerraform(config)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("terraform destroy planned: %d Azure resources would be destroyed: %s", len(resources), strings.Join(resources, ", "))
+
+	workDir, werr := TempWorkDir("naeos-azure-destroy")
+	if werr != nil {
+		return werr
+	}
+
+	tr := NewTerraformRunner(workDir)
+	if a.Runner != nil {
+		tr.Runner = a.Runner
+	}
+	if err := tr.writeHCL(tf); err != nil {
+		return err
+	}
+	if err := tr.DestroyAll(); err != nil {
+		return err
+	}
+
+	sm.Delete(config.Project, Azure)
+	return nil
 }
 
 func (a *AzureAdapter) ExportTerraform(config *DeployConfig) (string, error) {
@@ -381,6 +498,152 @@ resource "azurerm_cdn_frontdoor_route" "%s" {
 			res.Name, res.Name, res.Name,
 			res.Name, res.Name, res.Name,
 			res.Name, res.Name, res.Name, res.Name))
+
+		case ResourceServerless:
+			funcAppName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "azurerm_linux_function_app" "%s" {
+  name                       = "%s"
+  resource_group_name        = azurerm_resource_group.main.name
+  location                   = azurerm_resource_group.main.location
+  storage_account_name       = azurerm_storage_account.%s.name
+  storage_account_access_key = azurerm_storage_account.%s.primary_access_key
+  service_plan_id            = azurerm_service_plan.%s.id
+
+  site_config {}
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+resource "azurerm_service_plan" "%s" {
+  name                = "%s-plan"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  os_type             = "Linux"
+  sku_name            = "Y1"
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+`, res.Name, funcAppName,
+			res.Name, res.Name,
+			res.Name,
+			config.Environment, config.Project,
+			res.Name, res.Name,
+			config.Environment, config.Project))
+
+		case ResourceMonitoring:
+			sb.WriteString(fmt.Sprintf(`resource "azurerm_monitor_action_group" "%s" {
+  name                = "%s"
+  resource_group_name = azurerm_resource_group.main.name
+  short_name          = "%s"
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+resource "azurerm_monitor_metric_alert" "%s" {
+  name                = "%s-alert"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = []
+  description         = "%s %s %s alert"
+  severity            = 3
+  frequency           = "PT1M"
+  window_size         = "PT5M"
+
+  criteria {
+    metric_namespace = "Microsoft.Compute/virtualMachines"
+    metric_name      = "Percentage CPU"
+    aggregation      = "Average"
+    operator         = "GreaterThan"
+    threshold        = 80
+  }
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+`, res.Name, res.Name, res.Name,
+			config.Environment, config.Project,
+			res.Name, res.Name,
+			config.Project, config.Environment, res.Name,
+			config.Environment, config.Project))
+
+		case ResourceSecrets:
+			vaultName := fmt.Sprintf("%s%s%s", config.Project, config.Environment, res.Name)
+			vaultName = strings.ToLower(strings.ReplaceAll(vaultName, "-", ""))
+			if len(vaultName) > 24 {
+				vaultName = vaultName[:24]
+			}
+			sb.WriteString(fmt.Sprintf(`resource "azurerm_key_vault" "%s" {
+  name                = "%s"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+  sku_name            = "standard"
+
+  enabled_for_deployment          = true
+  enabled_for_template_deployment = true
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+data "azurerm_client_config" "current" {}
+
+`, res.Name, vaultName,
+			config.Environment, config.Project))
+
+		case ResourceDNS:
+			sb.WriteString(fmt.Sprintf(`resource "azurerm_dns_zone" "%s" {
+  name                = "%s"
+  resource_group_name = azurerm_resource_group.main.name
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+`, res.Name, res.Name,
+			config.Environment, config.Project))
+
+		case ResourceNetworking:
+			vnetName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "azurerm_virtual_network" "%s" {
+  name                = "%s"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  address_space       = ["10.0.0.0/16"]
+
+  tags = {
+    environment = "%s"
+    project     = "%s"
+  }
+}
+
+resource "azurerm_subnet" "%s" {
+  name                 = "%s-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.%s.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+`, res.Name, vnetName,
+			config.Environment, config.Project,
+			res.Name, res.Name, res.Name))
+
 		}
 	}
 

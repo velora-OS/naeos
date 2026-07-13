@@ -20,6 +20,7 @@ type Manager struct {
 	info      map[string]*PluginInfo
 	config    PluginConfig
 	sandbox   *Sandbox
+	events    *EventBus
 	mu        sync.RWMutex
 }
 
@@ -36,6 +37,7 @@ func NewManager(pluginDir string) *Manager {
 		plugins:   make(map[string]Plugin),
 		info:      make(map[string]*PluginInfo),
 		sandbox:   NewSandbox(SandboxConfig{}),
+		events:    NewEventBus(),
 	}
 }
 
@@ -70,6 +72,11 @@ func (m *Manager) SaveConfig() error {
 		return err
 	}
 	return os.WriteFile(m.configPath(), data, 0o600)
+}
+
+// EventBus returns the plugin event bus for subscribing to pipeline events.
+func (m *Manager) EventBus() *EventBus {
+	return m.events
 }
 
 // List returns metadata for all configured plugins.

@@ -1,7 +1,7 @@
 # NES-030 — Specification Language
 
-> Status: Draft
-> Last Updated: 2026-07-10
+> Status: Stable
+> Last Updated: 2026-07-13
 
 Complete reference for the NAEOS Specification Language (spec.yaml).
 
@@ -23,6 +23,9 @@ The NAEOS specification is a YAML or JSON document that describes a software pro
 | `architecture` | `Architecture` | No | Architecture pattern |
 | `deployment` | `Deployment` | No | Deployment strategy |
 | `testing` | `Testing` | No | Testing strategy |
+| `cloud` | `Cloud` | No | Cloud deployment configuration |
+| `plugins` | `[]Plugin` | No | Plugin extensions |
+| `ai` | `AI` | No | AI integration settings |
 
 ---
 
@@ -177,6 +180,120 @@ testing:
 
 ---
 
+## Cloud
+
+Defines cloud provider deployment configuration.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `provider` | `string` | Yes | Cloud provider: `aws`, `gcp`, `azure`, `digitalocean` |
+| `region` | `string` | No | Target region |
+| `services` | `[]CloudService` | No | Cloud-managed services to provision |
+| `scaling` | `Scaling` | No | Auto-scaling configuration |
+
+### CloudService
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Service instance name |
+| `type` | `string` | Yes | Service type: `compute`, `storage`, `database`, `cache`, `queue` |
+| `tier` | `string` | No | Service tier: `small`, `medium`, `large` |
+
+### Scaling
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `min_replicas` | `int` | No | Minimum replicas |
+| `max_replicas` | `int` | No | Maximum replicas |
+| `target_cpu` | `string` | No | CPU utilization target (e.g., `"70%"`) |
+
+```yaml
+cloud:
+  provider: aws
+  region: us-east-1
+  services:
+    - name: api-server
+      type: compute
+      tier: medium
+    - name: main-db
+      type: database
+      tier: small
+    - name: session-cache
+      type: cache
+      tier: small
+  scaling:
+    min_replicas: 2
+    max_replicas: 10
+    target_cpu: "70%"
+```
+
+---
+
+## Plugins
+
+Defines plugin extensions for the pipeline.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Plugin name |
+| `source` | `string` | Yes | Plugin source: registry name, local path, or URL |
+| `version` | `string` | No | Plugin version constraint |
+| `config` | `map` | No | Plugin-specific configuration |
+
+```yaml
+plugins:
+  - name: terraform-generator
+    source: naeos-terraform
+    version: ">=1.0.0"
+    config:
+      provider: aws
+      state_backend: s3
+  - name: custom-validator
+    source: ./plugins/custom-validator
+    config:
+      rules:
+        - require-description
+        - max-endpoints-50
+```
+
+---
+
+## AI
+
+Defines AI integration settings for context generation and enrichment.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `context_type` | `string` | No | Context bundle type: `full`, `summary`, `dependencies` |
+| `enrichment` | `[]string` | No | Enrichment focus areas: `security`, `performance`, `testing` |
+| `mcp_tools` | `[]MCPTool` | No | Custom MCP tool definitions |
+
+### MCPTool
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Tool name |
+| `description` | `string` | Yes | Tool description |
+| `parameters` | `map` | No | JSON Schema for parameters |
+
+```yaml
+ai:
+  context_type: full
+  enrichment:
+    - security
+    - performance
+  mcp_tools:
+    - name: deploy_preview
+      description: Deploy a preview environment for the spec
+      parameters:
+        type: object
+        properties:
+          environment:
+            type: string
+```
+
+---
+
 ## Full Example
 
 ```yaml
@@ -237,6 +354,34 @@ deployment:
 testing:
   strategy: unit
   coverage: "85%"
+
+cloud:
+  provider: aws
+  region: us-east-1
+  services:
+    - name: api-server
+      type: compute
+      tier: medium
+    - name: main-db
+      type: database
+      tier: small
+  scaling:
+    min_replicas: 2
+    max_replicas: 8
+    target_cpu: "70%"
+
+plugins:
+  - name: terraform-generator
+    source: naeos-terraform
+    version: ">=1.0.0"
+    config:
+      provider: aws
+
+ai:
+  context_type: full
+  enrichment:
+    - security
+    - performance
 ```
 
 ---
@@ -250,6 +395,8 @@ When fields are omitted, the parser applies defaults:
 | `project` is empty | Slugified from input or `"default-project"` |
 | `modules` is empty | Single module: name=`"default-module"`, path=`"./default"` |
 | `module.path` is empty | `"./<slugified-name>"` |
+| `cloud.region` is empty | Provider's default region |
+| `cloud.scaling` is empty | `min_replicas=1`, `max_replicas=3`, `target_cpu="80%"` |
 
 ---
 
@@ -276,3 +423,5 @@ The NEIR validator checks:
 | Module path required | `"module[i] path must not be empty"` |
 | No duplicate module names | `"module name is duplicated"` |
 | Service port 0-65535 | `"port must be between 0 and 65535"` |
+| Cloud provider required | `"cloud.provider must be specified when cloud section is present"` |
+| Plugin source required | `"plugin[i] source must not be empty"` |

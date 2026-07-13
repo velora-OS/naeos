@@ -8,7 +8,9 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
-type GCPAdapter struct{}
+type GCPAdapter struct {
+	Runner CommandRunner
+}
 
 func (a *GCPAdapter) Name() string {
 	return "GCP"
@@ -28,7 +30,7 @@ func (a *GCPAdapter) Validate(config *DeployConfig) error {
 	return nil
 }
 
-func (a *GCPAdapter) Plan(config *DeployConfig) ([]Resource, error) {
+func (a *GCPAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 	resources := []Resource{}
 	for _, res := range config.Resources {
 		switch res.Type {
@@ -77,27 +79,98 @@ func (a *GCPAdapter) Plan(config *DeployConfig) ([]Resource, error) {
 					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
 				},
 			})
-		case ResourceCDN:
-			resources = append(resources, Resource{
-				Name: res.Name,
-				Type: "google_compute_backend_bucket",
-				Spec: map[string]interface{}{
-					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-				},
-			})
-		}
+	case ResourceCDN:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "google_compute_backend_bucket",
+			Spec: map[string]interface{}{
+				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceServerless:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "google_cloudfunctions2_function",
+			Spec: map[string]interface{}{
+				"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				"location": config.Region,
+			},
+		})
+	case ResourceMonitoring:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "google_monitoring_alert_policy",
+			Spec: map[string]interface{}{
+				"display_name": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceSecrets:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "google_secret_manager_secret",
+			Spec: map[string]interface{}{
+				"secret_id": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceDNS:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "google_dns_managed_zone",
+			Spec: map[string]interface{}{
+				"name":        res.Name,
+				"dns_name":    fmt.Sprintf("%s.", res.Name),
+			},
+		})
+	case ResourceNetworking:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "google_compute_network",
+			Spec: map[string]interface{}{
+				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
 	}
-	return resources, nil
+}
+
+	estimator := NewCostEstimator()
+	cost := estimator.EstimateCost(string(config.Provider), resources)
+
+	return &PlanResult{
+		Resources:    resources,
+		CostEstimate: cost,
+	}, nil
 }
 
 func (a *GCPAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
-	plan, err := a.Plan(config)
+	if err := a.Validate(config); err != nil {
+		return nil, err
+	}
+
+	planResult, err := a.Plan(config)
 	if err != nil {
 		return nil, err
 	}
 
+	tf, err := a.ExportTerraform(config)
+	if err != nil {
+		return nil, err
+	}
+
+	workDir, err := TempWorkDir("naeos-gcp")
+	if err != nil {
+		return nil, err
+	}
+
+	tr := NewTerraformRunner(workDir)
+	if a.Runner != nil {
+		tr.Runner = a.Runner
+	}
+	if err := tr.Deploy(tf); err != nil {
+		return nil, err
+	}
+
 	deployed := []DeployedResource{}
-	for _, res := range plan {
+	for _, res := range planResult.Resources {
 		deployed = append(deployed, DeployedResource{
 			Name: res.Name,
 			Type: res.Type,
@@ -105,30 +178,74 @@ func (a *GCPAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		})
 	}
 
-	tf, _ := a.ExportTerraform(config)
-
-	return &DeployResult{
+	result := &DeployResult{
 		Provider:  GCP,
 		Resources: deployed,
 		Terraform: tf,
 		Status:    "deployed",
 		Timestamp: time.Now(),
-	}, nil
+	}
+
+	sm := NewStateManager()
+	sm.Save(&DeploymentRecord{
+		Project:      config.Project,
+		Provider:     GCP,
+		Environment:  config.Environment,
+		Region:       config.Region,
+		Resources:    deployed,
+		TerraformDir: workDir,
+		Timestamp:    result.Timestamp,
+		Status:       "deployed",
+	})
+
+	return result, nil
 }
 
 func (a *GCPAdapter) Destroy(config *DeployConfig) error {
-	plan, err := a.Plan(config)
+	sm := NewStateManager()
+	record, err := sm.Load(config.Project, GCP)
+	if err == nil && record.TerraformDir != "" {
+		tr := NewTerraformRunner(record.TerraformDir)
+		if a.Runner != nil {
+			tr.Runner = a.Runner
+		}
+		if derr := tr.DestroyAll(); derr == nil {
+			sm.Delete(config.Project, GCP)
+			return nil
+		}
+	}
+
+	planResult, err := a.Plan(config)
 	if err != nil {
 		return err
 	}
-	if len(plan) == 0 {
+	if len(planResult.Resources) == 0 {
 		return fmt.Errorf("no resources to destroy")
 	}
-	var resources []string
-	for _, r := range plan {
-		resources = append(resources, r.Type+"."+r.Name)
+
+	tf, err := a.ExportTerraform(config)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("terraform destroy planned: %d GCP resources would be destroyed: %s", len(resources), strings.Join(resources, ", "))
+
+	workDir, werr := TempWorkDir("naeos-gcp-destroy")
+	if werr != nil {
+		return werr
+	}
+
+	tr := NewTerraformRunner(workDir)
+	if a.Runner != nil {
+		tr.Runner = a.Runner
+	}
+	if err := tr.writeHCL(tf); err != nil {
+		return err
+	}
+	if err := tr.DestroyAll(); err != nil {
+		return err
+	}
+
+	sm.Delete(config.Project, GCP)
+	return nil
 }
 
 func (a *GCPAdapter) ExportTerraform(config *DeployConfig) (string, error) {
@@ -382,6 +499,107 @@ resource "google_compute_global_forwarding_rule" "%s" {
 			res.Name, res.Name, res.Name,
 			res.Name, res.Name, res.Name,
 			res.Name, res.Name, res.Name))
+
+		case ResourceServerless:
+			funcName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "google_cloudfunctions2_function" "%s" {
+  name     = "%s"
+  location = "%s"
+
+  build_config {
+    runtime     = "python312"
+    entry_point = "handler"
+    source {
+      storage_source {
+        bucket = "%s"
+        object = "%s.zip"
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count = 100
+    available_memory   = "256M"
+    timeout_seconds    = 60
+
+    environment_variables = {
+      ENVIRONMENT = "%s"
+    }
+  }
+
+  labels = local.common_labels
+}
+
+`, res.Name, funcName, config.Region,
+			config.Project, res.Name,
+			config.Environment))
+
+		case ResourceMonitoring:
+			displayName := fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "google_monitoring_alert_policy" "%s" {
+  display_name = "%s"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "%s condition"
+    condition_threshold {
+      filter     = "resource.type = \"gce_instance\""
+      duration   = "300s"
+      comparison = "COMPARISON_GT"
+      threshold_value = 80
+
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  notification_channels = []
+
+  labels = local.common_labels
+}
+
+`, res.Name, displayName, displayName))
+
+		case ResourceSecrets:
+			secretID := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "google_secret_manager_secret" "%s" {
+  secret_id = "%s"
+
+  replication {
+    auto {}
+  }
+
+  labels = local.common_labels
+}
+
+`, res.Name, secretID))
+
+		case ResourceDNS:
+			sb.WriteString(fmt.Sprintf(`resource "google_dns_managed_zone" "%s" {
+  name        = "%s"
+  dns_name    = "%s."
+  description = "%s DNS zone"
+
+  labels = local.common_labels
+}
+
+`, res.Name, res.Name, res.Name,
+			fmt.Sprintf("%s-%s", config.Project, res.Name)))
+
+		case ResourceNetworking:
+			networkName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "google_compute_network" "%s" {
+  name                    = "%s"
+  auto_create_subnetworks = true
+  routing_mode            = "REGIONAL"
+
+  labels = local.common_labels
+}
+
+`, res.Name, networkName))
+
 		}
 	}
 

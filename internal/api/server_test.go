@@ -125,8 +125,11 @@ func TestPipelineRunEndpoint(t *testing.T) {
 
 	s.handlePipelineRun(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
+	if w.Code != http.StatusAccepted {
+		t.Errorf("expected status 202, got %d", w.Code)
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("job_id")) {
+		t.Errorf("expected job_id in response, got %s", w.Body.String())
 	}
 }
 

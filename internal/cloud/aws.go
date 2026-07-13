@@ -8,7 +8,10 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
-type AWSAdapter struct{}
+
+type AWSAdapter struct {
+	Runner CommandRunner
+}
 
 func (a *AWSAdapter) Name() string {
 	return "AWS"
@@ -42,7 +45,7 @@ func (a *AWSAdapter) Validate(config *DeployConfig) error {
 	return nil
 }
 
-func (a *AWSAdapter) Plan(config *DeployConfig) ([]Resource, error) {
+func (a *AWSAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 	resources := []Resource{}
 	for _, res := range config.Resources {
 		switch res.Type {
@@ -90,27 +93,97 @@ func (a *AWSAdapter) Plan(config *DeployConfig) ([]Resource, error) {
 					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
 				},
 			})
-		case ResourceCDN:
-			resources = append(resources, Resource{
-				Name: res.Name,
-				Type: "aws_cloudfront_distribution",
-				Spec: map[string]interface{}{
-					"comment": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
-				},
-			})
-		}
+	case ResourceCDN:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "aws_cloudfront_distribution",
+			Spec: map[string]interface{}{
+				"comment": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceServerless:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "aws_lambda_function",
+			Spec: map[string]interface{}{
+				"function_name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				"runtime":       "python3.12",
+			},
+		})
+	case ResourceMonitoring:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "aws_cloudwatch_metric_alarm",
+			Spec: map[string]interface{}{
+				"alarm_name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceSecrets:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "aws_secretsmanager_secret",
+			Spec: map[string]interface{}{
+				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+	case ResourceDNS:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "aws_route53_zone",
+			Spec: map[string]interface{}{
+				"name": res.Name,
+			},
+		})
+	case ResourceNetworking:
+		resources = append(resources, Resource{
+			Name: res.Name,
+			Type: "aws_vpc",
+			Spec: map[string]interface{}{
+				"cidr_block": "10.0.0.0/16",
+			},
+		})
 	}
-	return resources, nil
+}
+
+	estimator := NewCostEstimator()
+	cost := estimator.EstimateCost(string(config.Provider), resources)
+
+	return &PlanResult{
+		Resources:    resources,
+		CostEstimate: cost,
+	}, nil
 }
 
 func (a *AWSAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
-	plan, err := a.Plan(config)
+	if err := a.Validate(config); err != nil {
+		return nil, err
+	}
+
+	planResult, err := a.Plan(config)
 	if err != nil {
 		return nil, err
 	}
 
+	tf, err := a.ExportTerraform(config)
+	if err != nil {
+		return nil, err
+	}
+
+	workDir, err := TempWorkDir("naeos-aws")
+	if err != nil {
+		return nil, err
+	}
+
+	tr := NewTerraformRunner(workDir)
+	if a.Runner != nil {
+		tr.Runner = a.Runner
+	}
+	if err := tr.Deploy(tf); err != nil {
+		return nil, err
+	}
+
 	deployed := []DeployedResource{}
-	for _, res := range plan {
+	for _, res := range planResult.Resources {
 		deployed = append(deployed, DeployedResource{
 			Name: res.Name,
 			Type: res.Type,
@@ -118,30 +191,74 @@ func (a *AWSAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 		})
 	}
 
-	tf, _ := a.ExportTerraform(config)
-
-	return &DeployResult{
+	result := &DeployResult{
 		Provider:  AWS,
 		Resources: deployed,
 		Terraform: tf,
 		Status:    "deployed",
 		Timestamp: time.Now(),
-	}, nil
+	}
+
+	sm := NewStateManager()
+	sm.Save(&DeploymentRecord{
+		Project:     config.Project,
+		Provider:    AWS,
+		Environment: config.Environment,
+		Region:      config.Region,
+		Resources:   deployed,
+		TerraformDir: workDir,
+		Timestamp:   result.Timestamp,
+		Status:      "deployed",
+	})
+
+	return result, nil
 }
 
 func (a *AWSAdapter) Destroy(config *DeployConfig) error {
-	plan, err := a.Plan(config)
+	sm := NewStateManager()
+	record, err := sm.Load(config.Project, AWS)
+	if err == nil && record.TerraformDir != "" {
+		tr := NewTerraformRunner(record.TerraformDir)
+		if a.Runner != nil {
+			tr.Runner = a.Runner
+		}
+		if derr := tr.DestroyAll(); derr == nil {
+			sm.Delete(config.Project, AWS)
+			return nil
+		}
+	}
+
+	planResult, err := a.Plan(config)
 	if err != nil {
 		return err
 	}
-	if len(plan) == 0 {
+	if len(planResult.Resources) == 0 {
 		return fmt.Errorf("no resources to destroy")
 	}
-	var resources []string
-	for _, r := range plan {
-		resources = append(resources, r.Type+"."+r.Name)
+
+	tf, err := a.ExportTerraform(config)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("terraform destroy planned: %d AWS resources would be destroyed: %s", len(resources), strings.Join(resources, ", "))
+
+	workDir, werr := TempWorkDir("naeos-aws-destroy")
+	if werr != nil {
+		return werr
+	}
+
+	tr := NewTerraformRunner(workDir)
+	if a.Runner != nil {
+		tr.Runner = a.Runner
+	}
+	if err := tr.writeHCL(tf); err != nil {
+		return err
+	}
+	if err := tr.DestroyAll(); err != nil {
+		return err
+	}
+
+	sm.Delete(config.Project, AWS)
+	return nil
 }
 
 func (a *AWSAdapter) ExportTerraform(config *DeployConfig) (string, error) {
@@ -416,7 +533,106 @@ resource "aws_sqs_queue_policy" "%s_policy" {
   tags = local.common_tags
 }
 
-`, res.Name, fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name)))
+			`, res.Name, fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name)))
+
+		case ResourceServerless:
+			funcName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "aws_lambda_function" "%s" {
+  function_name = "%s"
+  runtime       = "python3.12"
+  handler       = "index.handler"
+  role          = aws_iam_role.%s_lambda.arn
+  memory_size   = 256
+  timeout       = 30
+
+  environment {
+    variables = {
+      ENVIRONMENT = "%s"
+    }
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role" "%s_lambda" {
+  name = "%s-lambda"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "lambda.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = local.common_tags
+}
+
+`, res.Name, funcName,
+			res.Name, config.Environment,
+			res.Name, res.Name))
+
+		case ResourceMonitoring:
+			alarmName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "aws_cloudwatch_metric_alarm" "%s" {
+  alarm_name          = "%s"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 80
+  alarm_description   = "%s %s %s alarm"
+
+  tags = local.common_tags
+}
+
+`, res.Name, alarmName,
+			config.Project, config.Environment, res.Name))
+
+		case ResourceSecrets:
+			secretName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
+			sb.WriteString(fmt.Sprintf(`resource "aws_secretsmanager_secret" "%s" {
+  name = "%s"
+
+  tags = local.common_tags
+}
+
+`, res.Name, secretName))
+
+		case ResourceDNS:
+			sb.WriteString(fmt.Sprintf(`resource "aws_route53_zone" "%s" {
+  name = "%s"
+
+  tags = local.common_tags
+}
+
+`, res.Name, res.Name))
+
+		case ResourceNetworking:
+			sb.WriteString(fmt.Sprintf(`resource "aws_vpc" "%s" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = local.common_tags
+}
+
+resource "aws_subnet" "%s" {
+  vpc_id            = aws_vpc.%s.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "%sa"
+
+  tags = local.common_tags
+}
+
+`, res.Name, res.Name,
+			res.Name, res.Name))
+
 		}
 	}
 

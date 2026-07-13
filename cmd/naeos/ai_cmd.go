@@ -69,7 +69,45 @@ Example:
 
 	aiSuggest.Flags().String("input-file", "", "path to specification file")
 
+	aiEnrich := &cobra.Command{
+		Use:   "enrich",
+		Short: "Enrich a specification with AI-powered best practices",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			inputFile, _ := cmd.Flags().GetString("input-file")
+			if inputFile == "" {
+				return fmt.Errorf("missing required --input-file")
+			}
+
+			data, err := os.ReadFile(inputFile)
+			if err != nil {
+				return err
+			}
+
+			apiKey := os.Getenv("NAEOS_LLM_API_KEY")
+			provider := ai.ProviderOpenAI
+			if p := os.Getenv("NAEOS_LLM_PROVIDER"); p != "" {
+				provider = ai.LLMProvider(p)
+			}
+
+			llm := ai.NewLLMService(ai.LLMConfig{
+				Provider: provider,
+				APIKey:   apiKey,
+			})
+
+			enriched, err := llm.EnrichSpec(string(data))
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintln(cmd.OutOrStdout(), enriched)
+			return nil
+		},
+	}
+
+	aiEnrich.Flags().String("input-file", "", "path to specification file")
+
 	cmd.AddCommand(aiSuggest)
 	cmd.AddCommand(aiExplain)
+	cmd.AddCommand(aiEnrich)
 	return cmd
 }

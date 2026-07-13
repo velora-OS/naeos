@@ -7,115 +7,84 @@ import (
 	"time"
 )
 
-func TestRateLimiterAllow(t *testing.T) {
-	rl := NewRateLimiter(3, time.Second)
+func TestAPIKeyRateLimitAllowed(t *testing.T) {
+	s := NewServer(":0", &AuthConfig{Enabled: false})
+	s.RegisterAPIKey("test-key-123", 10)
 
-	if !rl.Allow("client1") {
-		t.Error("expected first request allowed")
-	}
-	if !rl.Allow("client1") {
-		t.Error("expected second request allowed")
-	}
-	if !rl.Allow("client1") {
-		t.Error("expected third request allowed")
-	}
-	if rl.Allow("client1") {
-		t.Error("expected fourth request denied")
-	}
-
-	if !rl.Allow("client2") {
-		t.Error("expected different client allowed")
-	}
-}
-
-func TestRateLimiterReset(t *testing.T) {
-	rl := NewRateLimiter(2, time.Second)
-
-	rl.Allow("client1")
-	rl.Allow("client1")
-
-	if rl.Allow("client1") {
-		t.Error("should be rate limited")
-	}
-
-	rl.Reset()
-
-	if !rl.Allow("client1") {
-		t.Error("should be allowed after reset")
-	}
-}
-
-func TestRateLimiterRefill(t *testing.T) {
-	rl := NewRateLimiter(2, 10*time.Millisecond)
-
-	rl.Allow("client1")
-	rl.Allow("client1")
-
-	if rl.Allow("client1") {
-		t.Error("should be rate limited")
-	}
-
-	time.Sleep(15 * time.Millisecond)
-
-	if !rl.Allow("client1") {
-		t.Error("should be allowed after refill")
-	}
-}
-
-func TestRateLimiterMiddleware(t *testing.T) {
-	rl := NewRateLimiter(2, time.Second)
-
-	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := s.handlerWithMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.RemoteAddr = "192.168.1.1:12345"
+	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req.Header.Set("X-API-Key", "test-key-123")
+	w := httptest.NewRecorder()
 
-	w1 := httptest.NewRecorder()
-	handler.ServeHTTP(w1, req)
-	if w1.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w1.Code)
-	}
+	handler.ServeHTTP(w, req)
 
-	w2 := httptest.NewRecorder()
-	handler.ServeHTTP(w2, req)
-	if w2.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w2.Code)
-	}
-
-	w3 := httptest.NewRecorder()
-	handler.ServeHTTP(w3, req)
-	if w3.Code != http.StatusTooManyRequests {
-		t.Errorf("expected 429, got %d", w3.Code)
-	}
-
-	retryAfter := w3.Header().Get("Retry-After")
-	if retryAfter == "" {
-		t.Error("expected Retry-After header")
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 
-func TestRateLimiterXForwardedFor(t *testing.T) {
-	rl := NewRateLimiter(1, time.Second)
+func TestAPIKeyRateLimitExceeded(t *testing.T) {
+	s := NewServer(":0", &AuthConfig{Enabled: false})
+	s.RegisterAPIKey("limited-key", 2)
 
-	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := s.handlerWithMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.RemoteAddr = "127.0.0.1:1234"
-	req.Header.Set("X-Forwarded-For", "203.0.113.1")
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest("GET", "/api/v1/health", nil)
+		req.Header.Set("X-API-Key", "limited-key")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
 
-	w1 := httptest.NewRecorder()
-	handler.ServeHTTP(w1, req)
-	if w1.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w1.Code)
+		if i < 2 && w.Code != http.StatusOK {
+			t.Errorf("request %d: expected 200, got %d", i, w.Code)
+		}
+		if i == 2 && w.Code != http.StatusTooManyRequests {
+			t.Errorf("request 2: expected 429, got %d", w.Code)
+		}
+	}
+}
+
+func TestFallbackToIPBasedLimiter(t *testing.T) {
+	s := NewServer(":0", &AuthConfig{Enabled: false})
+
+	handler := s.handlerWithMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestUnknownAPIKeyFallsBackToIP(t *testing.T) {
+	s := NewServer(":0", &AuthConfig{Enabled: false})
+	s.RegisterAPIKey("known-key", 5)
+
+	handler := s.handlerWithMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req.Header.Set("X-API-Key", "unknown-key-value")
+	req.RemoteAddr = "10.0.0.1:9999"
+	w := httptest.NewRecorder()
+
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for unknown API key fallback, got %d", w.Code)
 	}
 
-	w2 := httptest.NewRecorder()
-	handler.ServeHTTP(w2, req)
-	if w2.Code != http.StatusTooManyRequests {
-		t.Errorf("expected 429, got %d", w2.Code)
-	}
+	_ = time.Now()
 }

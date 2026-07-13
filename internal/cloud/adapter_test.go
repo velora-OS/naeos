@@ -52,7 +52,7 @@ func TestGetAdapterInvalid(t *testing.T) {
 }
 
 func TestSupportedResourceTypes(t *testing.T) {
-	expected := []string{"storage", "compute", "database", "cache", "queue", "cdn"}
+	expected := []string{"storage", "compute", "database", "cache", "queue", "cdn", "serverless", "monitoring", "secrets", "dns", "networking"}
 	if len(SupportedResourceTypes) != len(expected) {
 		t.Fatalf("expected %d resource types, got %d", len(expected), len(SupportedResourceTypes))
 	}
@@ -112,13 +112,13 @@ func TestAWSPlanAllResourceTypes(t *testing.T) {
 		},
 	}
 
-	plan, err := adapter.Plan(config)
+	planResult, err := adapter.Plan(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(plan) != 6 {
-		t.Errorf("expected 6 resources, got %d", len(plan))
+	if len(planResult.Resources) != 6 {
+		t.Errorf("expected 6 resources, got %d", len(planResult.Resources))
 	}
 
 	expectedTypes := []string{
@@ -126,9 +126,13 @@ func TestAWSPlanAllResourceTypes(t *testing.T) {
 		"aws_elasticache_cluster", "aws_sqs_queue", "aws_cloudfront_distribution",
 	}
 	for i, expected := range expectedTypes {
-		if plan[i].Type != expected {
-			t.Errorf("resource %d: expected %s, got %s", i, expected, plan[i].Type)
+		if planResult.Resources[i].Type != expected {
+			t.Errorf("resource %d: expected %s, got %s", i, expected, planResult.Resources[i].Type)
 		}
+	}
+
+	if planResult.CostEstimate.TotalMonthlyUSD <= 0 {
+		t.Errorf("expected positive cost estimate, got %f", planResult.CostEstimate.TotalMonthlyUSD)
 	}
 }
 
@@ -188,7 +192,7 @@ func TestAWSTerraformExportAllTypes(t *testing.T) {
 }
 
 func TestAWSDeploy(t *testing.T) {
-	adapter := &AWSAdapter{}
+	adapter := &AWSAdapter{Runner: &mockRunner{stdout: []byte("ok")}}
 	config := &DeployConfig{
 		Provider:    AWS,
 		Region:      "us-east-1",
@@ -267,13 +271,13 @@ func TestGCPPlanAllResourceTypes(t *testing.T) {
 		},
 	}
 
-	plan, err := adapter.Plan(config)
+	planResult, err := adapter.Plan(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(plan) != 6 {
-		t.Errorf("expected 6 resources, got %d", len(plan))
+	if len(planResult.Resources) != 6 {
+		t.Errorf("expected 6 resources, got %d", len(planResult.Resources))
 	}
 
 	expectedTypes := []string{
@@ -281,8 +285,8 @@ func TestGCPPlanAllResourceTypes(t *testing.T) {
 		"google_redis_instance", "google_pubsub_topic", "google_compute_backend_bucket",
 	}
 	for i, expected := range expectedTypes {
-		if plan[i].Type != expected {
-			t.Errorf("resource %d: expected %s, got %s", i, expected, plan[i].Type)
+		if planResult.Resources[i].Type != expected {
+			t.Errorf("resource %d: expected %s, got %s", i, expected, planResult.Resources[i].Type)
 		}
 	}
 }
@@ -338,7 +342,7 @@ func TestGCPTerraformExportAllTypes(t *testing.T) {
 }
 
 func TestGCPDeploy(t *testing.T) {
-	adapter := &GCPAdapter{}
+	adapter := &GCPAdapter{Runner: &mockRunner{stdout: []byte("ok")}}
 	config := &DeployConfig{
 		Provider:    GCP,
 		Region:      "us-central1",
@@ -413,13 +417,13 @@ func TestAzurePlanAllResourceTypes(t *testing.T) {
 		},
 	}
 
-	plan, err := adapter.Plan(config)
+	planResult, err := adapter.Plan(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(plan) != 6 {
-		t.Errorf("expected 6 resources, got %d", len(plan))
+	if len(planResult.Resources) != 6 {
+		t.Errorf("expected 6 resources, got %d", len(planResult.Resources))
 	}
 
 	expectedTypes := []string{
@@ -427,8 +431,8 @@ func TestAzurePlanAllResourceTypes(t *testing.T) {
 		"azurerm_redis_cache", "azurerm_servicebus_queue", "azurerm_cdn_frontdoor_profile",
 	}
 	for i, expected := range expectedTypes {
-		if plan[i].Type != expected {
-			t.Errorf("resource %d: expected %s, got %s", i, expected, plan[i].Type)
+		if planResult.Resources[i].Type != expected {
+			t.Errorf("resource %d: expected %s, got %s", i, expected, planResult.Resources[i].Type)
 		}
 	}
 }
@@ -486,7 +490,7 @@ func TestAzureTerraformExportAllTypes(t *testing.T) {
 }
 
 func TestAzureDeploy(t *testing.T) {
-	adapter := &AzureAdapter{}
+	adapter := &AzureAdapter{Runner: &mockRunner{stdout: []byte("ok")}}
 	config := &DeployConfig{
 		Provider:    Azure,
 		Region:      "eastus",
@@ -587,13 +591,13 @@ func TestAWSUnknownResourceTypeSkipped(t *testing.T) {
 		},
 	}
 
-	plan, err := adapter.Plan(config)
+	planResult, err := adapter.Plan(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(plan) != 0 {
-		t.Errorf("expected 0 resources for unknown type, got %d", len(plan))
+	if len(planResult.Resources) != 0 {
+		t.Errorf("expected 0 resources for unknown type, got %d", len(planResult.Resources))
 	}
 }
 

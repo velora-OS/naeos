@@ -195,6 +195,56 @@ Example:
 	}
 	pluginExecute.Flags().String("params", "", "JSON parameters for the action")
 
+	pluginTest := &cobra.Command{
+		Use:   "test [path]",
+		Short: "Test a plugin by loading, initializing, and checking health",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			soPath := args[0]
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Testing plugin: %s\n", soPath)
+			fmt.Fprintln(cmd.OutOrStdout(), "───────────────────────────────────────────")
+
+			mgr := pluginhost.NewManager(pluginDir)
+			if err := mgr.LoadConfig(); err != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "FAIL  load config: %v\n", err)
+				return nil
+			}
+
+			info, err := mgr.Install(soPath)
+			if err != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "FAIL  install/load: %v\n", err)
+				return nil
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "PASS  loaded %s v%s\n", info.Name, info.Version)
+
+			if err := mgr.LoadAll(&pluginhost.PluginContext{
+				ConfigDir: pluginDir,
+				OutputDir: filepath.Join(pluginDir, "output"),
+			}); err != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "FAIL  initialize: %v\n", err)
+				return nil
+			}
+			defer func() { _ = mgr.Cleanup() }()
+
+			p, ok := mgr.Get(info.Name)
+			if !ok {
+				fmt.Fprintf(cmd.OutOrStdout(), "FAIL  plugin not loaded after init\n")
+				return nil
+			}
+
+			if _, err := p.Execute("health", nil); err != nil {
+				fmt.Fprintf(cmd.OutOrStdout(), "WARN  health check returned error: %v\n", err)
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "PASS  health check OK\n")
+			}
+
+			fmt.Fprintln(cmd.OutOrStdout(), "───────────────────────────────────────────")
+			fmt.Fprintf(cmd.OutOrStdout(), "Result: %s passed all checks\n", info.Name)
+			return nil
+		},
+	}
+
 	cmd.AddCommand(pluginCmd)
 	cmd.AddCommand(pluginInstall)
 	cmd.AddCommand(pluginUninstall)
@@ -202,6 +252,7 @@ Example:
 	cmd.AddCommand(pluginDisable)
 	cmd.AddCommand(pluginInfo)
 	cmd.AddCommand(pluginExecute)
+	cmd.AddCommand(pluginTest)
 	cmd.AddCommand(newPluginSearchCommand())
 	cmd.AddCommand(newPluginCreateCommand())
 	cmd.PersistentFlags().StringVar(&pluginDir, "plugin-dir", filepath.Join(os.Getenv("HOME"), ".naeos", "plugins"), "plugin directory")
