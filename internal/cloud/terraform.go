@@ -224,8 +224,8 @@ func poolKey(project string, provider CloudProvider) string {
 }
 
 func (p *RunnerPool) Get(project string, provider CloudProvider) (*TerraformRunner, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	key := poolKey(project, provider)
 	entry, ok := p.entries[key]

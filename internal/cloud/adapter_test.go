@@ -276,13 +276,14 @@ func TestGCPPlanAllResourceTypes(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(planResult.Resources) != 6 {
-		t.Errorf("expected 6 resources, got %d", len(planResult.Resources))
+	if len(planResult.Resources) != 7 {
+		t.Errorf("expected 7 resources, got %d", len(planResult.Resources))
 	}
 
 	expectedTypes := []string{
 		"google_storage_bucket", "google_cloud_run_service", "google_sql_database_instance",
 		"google_redis_instance", "google_pubsub_topic", "google_compute_backend_bucket",
+		"google_storage_bucket",
 	}
 	for i, expected := range expectedTypes {
 		if planResult.Resources[i].Type != expected {

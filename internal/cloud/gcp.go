@@ -80,11 +80,20 @@ func (a *GCPAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 				},
 			})
 	case ResourceCDN:
+		bucketName := fmt.Sprintf("%s-%s-%s-cdn", config.Project, config.Environment, res.Name)
 		resources = append(resources, Resource{
 			Name: res.Name,
 			Type: "google_compute_backend_bucket",
 			Spec: map[string]interface{}{
 				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+			},
+		})
+		resources = append(resources, Resource{
+			Name: res.Name + "-cdn-bucket",
+			Type: "google_storage_bucket",
+			Spec: map[string]interface{}{
+				"name":     bucketName,
+				"location": config.Region,
 			},
 		})
 	case ResourceServerless:
@@ -378,7 +387,13 @@ resource "google_cloud_run_service_iam_member" "%s_invoker" {
 		case ResourceDatabase:
 			instanceName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
 			dbName := strings.ReplaceAll(res.Name, "-", "_")
-			sb.WriteString(fmt.Sprintf(`resource "google_sql_database_instance" "%s" {
+			sb.WriteString(fmt.Sprintf(`resource "random_password" "%s_db" {
+  length           = 32
+  special          = true
+  override_special = "!#$%%^&*()-_=+[]{}<>:?"
+}
+
+resource "google_sql_database_instance" "%s" {
   name             = "%s"
   database_version = "POSTGRES_15"
   region           = "%s"
@@ -417,12 +432,13 @@ resource "google_sql_database" "%s" {
 resource "google_sql_user" "%s" {
   name     = "app"
   instance = google_sql_database_instance.%s.name
-  password = ""
+  password = random_password.%s_db.result
 }
 
-`, res.Name, instanceName, config.Region,
+`, res.Name,
+			res.Name, instanceName, config.Region,
 			res.Name, dbName, res.Name,
-			res.Name, res.Name))
+			res.Name, res.Name, res.Name))
 
 		case ResourceCache:
 			instanceName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)

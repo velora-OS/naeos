@@ -410,7 +410,13 @@ resource "aws_ecs_service" "%s" {
 
 		case ResourceDatabase:
 			identifier := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_db_subnet_group" "%s" {
+			sb.WriteString(fmt.Sprintf(`resource "random_password" "%s_db" {
+  length           = 32
+  special          = true
+  override_special = "!#$%%^&*()-_=+[]{}<>:?"
+}
+
+resource "aws_db_subnet_group" "%s" {
   name       = "%s-subnet"
   subnet_ids = []
 
@@ -437,7 +443,7 @@ resource "aws_rds_instance" "%s" {
 
   db_name  = "%s"
   username = "admin"
-  password = ""
+  password = random_password.%s_db.result
 
   db_subnet_group_name   = aws_db_subnet_group.%s.name
   vpc_security_group_ids = [aws_security_group.%s.id]
@@ -449,10 +455,11 @@ resource "aws_rds_instance" "%s" {
   tags = local.common_tags
 }
 
-`, res.Name, identifier,
+`, res.Name,
+			res.Name, identifier,
 			res.Name, identifier, res.Name,
 			res.Name, identifier, res.Name,
-			res.Name, res.Name))
+			res.Name, res.Name, res.Name))
 
 		case ResourceCache:
 			clusterID := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)

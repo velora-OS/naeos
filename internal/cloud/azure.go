@@ -371,7 +371,13 @@ resource "azurerm_storage_container" "%s" {
 			// Azure server names: lowercase alphanumeric and hyphens
 			serverName = strings.ToLower(serverName)
 			dbName := strings.ReplaceAll(res.Name, "-", "_")
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_postgresql_flexible_server" "%s" {
+			sb.WriteString(fmt.Sprintf(`resource "random_password" "%s_db" {
+  length           = 32
+  special          = true
+  override_special = "!#$%%^&*()-_=+[]{}<>:?"
+}
+
+resource "azurerm_postgresql_flexible_server" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -383,7 +389,7 @@ resource "azurerm_storage_container" "%s" {
   geo_redundant_backup_enabled = false
 
   admin_login    = "psqladmin"
-  admin_password = ""
+  admin_password = random_password.%s_db.result
 
   tags = {
     environment = "%s"
@@ -399,13 +405,15 @@ resource "azurerm_postgresql_flexible_server_database" "%s" {
 }
 
 resource "azurerm_postgresql_flexible_server_firewall_rule" "%s" {
-  name             = "allow-all"
+  name             = "allow-azure-services"
   server_id        = azurerm_postgresql_flexible_server.%s.id
   start_ip_address = "0.0.0.0"
-  end_ip_address   = "255.255.255.255"
+  end_ip_address   = "0.0.0.0"
 }
 
-`, res.Name, serverName,
+`, res.Name,
+			res.Name, serverName,
+			res.Name,
 			config.Environment, config.Project,
 			res.Name, dbName, res.Name,
 			res.Name, res.Name))

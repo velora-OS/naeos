@@ -14,6 +14,7 @@ const (
 	EventBeforeGenerate     PipelineEvent = "before_generate"
 	EventAfterGenerate      PipelineEvent = "after_generate"
 	EventOnPipelineComplete PipelineEvent = "on_pipeline_complete"
+	EventOnPipelineFailed   PipelineEvent = "on_pipeline_failed"
 )
 
 // EventData holds contextual data passed with pipeline events.
@@ -128,7 +129,7 @@ func (p *PluginEventBus) OnPipelineComplete(pipelineID string, artifacts int, du
 
 // OnPipelineFailed implements PipelineObserver.
 func (p *PluginEventBus) OnPipelineFailed(pipelineID string, errMsg string) {
-	p.bus.Emit(EventOnPipelineComplete, &EventData{
+	p.bus.Emit(EventOnPipelineFailed, &EventData{
 		PipelineID: pipelineID,
 		Error:      errMsg,
 	})

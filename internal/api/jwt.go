@@ -98,7 +98,6 @@ type OIDCDiscovery struct {
 	Issuer                            string   `json:"issuer"`
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
 	TokenEndpoint                     string   `json:"token_endpoint"`
-	JWKSURI                           string   `json:"jwks_uri"`
 	ResponseTypesSupported            []string `json:"response_types_supported"`
 	SubjectTypesSupported             []string `json:"subject_types_supported"`
 	IDTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
@@ -109,30 +108,9 @@ func (j *JWTValidator) OIDCDiscoveryDocument(issuer string) *OIDCDiscovery {
 		Issuer:                            issuer,
 		AuthorizationEndpoint:             issuer + "/authorize",
 		TokenEndpoint:                     issuer + "/token",
-		JWKSURI:                           issuer + "/.well-known/jwks.json",
 		ResponseTypesSupported:            []string{"code"},
 		SubjectTypesSupported:             []string{"public"},
 		IDTokenSigningAlgValuesSupported:  []string{"HS256"},
-	}
-}
-
-type JWKS struct {
-	Keys []JWK `json:"keys"`
-}
-
-type JWK struct {
-	Kty string `json:"kty"`
-	Alg string `json:"alg"`
-	Use string `json:"use"`
-	K   string `json:"k"`
-}
-
-func (j *JWTValidator) JWKS() *JWK {
-	return &JWK{
-		Kty: "oct",
-		Alg: "HS256",
-		Use: "sig",
-		K:   baseURLRawEncode(j.secret),
 	}
 }
 

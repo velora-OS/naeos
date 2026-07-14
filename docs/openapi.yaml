@@ -3,7 +3,7 @@ openapi: "3.0.3"
 info:
   title: NAEOS API
   description: Neural Architecture Engine for Orchestration & Synthesis
-  version: "0.8.0"
+  version: "1.0.0"
   contact:
     name: NAEOS Foundation
     url: https://github.com/NAEOS-foundation/naeos
@@ -419,6 +419,97 @@ paths:
                 $ref: "#/components/schemas/MCPMessageResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
+  /version:
+    get:
+      operationId: getVersion
+      summary: Get API version
+      tags: [System]
+      responses:
+        "200":
+          description: Version info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionResponse"
+
+  /config/schema:
+    get:
+      operationId: getConfigSchema
+      summary: Get configuration schema
+      tags: [System]
+      responses:
+        "200":
+          description: Config schema
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /pipelines:
+    get:
+      operationId: listPipelines
+      summary: List pipeline runs
+      tags: [Pipeline]
+      responses:
+        "200":
+          description: Pipeline runs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  runs:
+                    type: array
+                    items:
+                      type: object
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Prometheus metrics
+      tags: [System]
+      responses:
+        "200":
+          description: Metrics in Prometheus format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /healthz:
+    get:
+      operationId: healthz
+      summary: Liveness probe
+      tags: [System]
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  healthy:
+                    type: boolean
+
+  /readyz:
+    get:
+      operationId: readyz
+      summary: Readiness probe
+      tags: [System]
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
 
 components:
   responses:
@@ -854,6 +945,20 @@ components:
           oneOf:
             - type: string
             - type: integer
+
+    VersionResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          example: "1.0.0"
+        platform:
+          type: string
+          example: naeos-api
+        go_version:
+          type: string
+        git_commit:
+          type: string
 
     ErrorResponse:
       type: object

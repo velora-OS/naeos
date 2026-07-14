@@ -1,0 +1,87 @@
+# Event‑driven microservice example
+# Demonstrates a typical order‑processing system that communicates via events.
+
+project: order-processing-system
+
+modules:
+  - name: order
+    path: ./internal/order
+    description: Domain logic for orders, emits OrderCreated events.
+    dependencies:
+      - core
+  - name: inventory
+    path: ./internal/inventory
+    description: Updates inventory when OrderCreated event is received.
+    dependencies:
+      - core
+  - name: payment
+    path: core
+  - name: payment
+    path: ./internal/payment
+    description: Processes payments for orders.
+    dependencies:
+      - core
+  - name: core
+    path: ./internal/core
+    description: Shared kernels, contracts, and utility code.
+
+services:
+  - name: api-gateway
+    kind: http
+    port: 8080
+    description: Exposes REST API for creating orders.
+    endpoints:
+      - method: POST
+        path: /orders
+        action: createOrder
+      - method: GET
+        path: /orders/{id}
+        action: getOrder
+  - name: order-worker
+    kind: worker
+    port: 8081
+    description: Consumes OrderCreated events and initiates payment.
+    endpoints:
+      - method: POST
+        path: /events/order-created
+        action: handleOrderCreated
+  - name: inventory-worker
+    kind: worker
+    port: 8082
+    description: Listens to OrderCreated events and updates inventory.
+    endpoints:
+      - method: POST
+        path: /events/order-created
+        action: handleOrderCreated
+
+architecture:
+  pattern: event-driven
+  description: |
+    Services communicate asynchronously via an event broker (e.g., NATS, RabbitMQ).
+    The API gateway validates and persists orders, then publishes an OrderCreated event.
+    Workers consume the event to perform side‑effects (payment, inventory).
+  principles:
+    - Loose coupling via asynchronous messaging.
+    - Each service owns its data and exposes it only through well‑defined events.
+    - Event schemas are versioned and stored in the core module.
+    - Idempotent event handling to guarantee exactly‑once semantics.
+
+deployment:
+  strategy: rolling-update
+  environments:
+    - development
+    - staging
+    - production
+
+testing:
+  strategy: integration
+  coverage: "80%"
+
+generation:
+  languages:
+    - go
+    - typescript
+    - python
+    - rust
+  output_dir: ./out
+  module_dir: ./internal

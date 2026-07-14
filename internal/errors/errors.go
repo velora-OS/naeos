@@ -1,3 +1,6 @@
+// Package errors provides a typed error system for NAEOS with structured
+// error codes, sentinel errors, and unwrapping support for use across the
+// pipeline, API, cloud, and plugin subsystems.
 package errors
 
 import (

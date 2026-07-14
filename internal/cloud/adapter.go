@@ -86,15 +86,15 @@ type CloudAdapter interface {
 	ExportTerraform(config *DeployConfig) (string, error)
 }
 
+var adapterCache = map[CloudProvider]CloudAdapter{
+	AWS:   &AWSAdapter{},
+	GCP:   &GCPAdapter{},
+	Azure: &AzureAdapter{},
+}
+
 func GetAdapter(provider CloudProvider) (CloudAdapter, error) {
-	switch provider {
-	case AWS:
-		return &AWSAdapter{}, nil
-	case GCP:
-		return &GCPAdapter{}, nil
-	case Azure:
-		return &AzureAdapter{}, nil
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", provider)
+	if adapter, ok := adapterCache[provider]; ok {
+		return adapter, nil
 	}
+	return nil, fmt.Errorf("unsupported provider: %s", provider)
 }

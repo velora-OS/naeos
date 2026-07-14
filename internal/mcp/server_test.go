@@ -57,8 +57,18 @@ func TestHandleMCPMethodNotAllowed(t *testing.T) {
 
 	s.handleMCP(w, req)
 
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("expected 405, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Error == nil {
+		t.Fatal("expected JSON-RPC error")
+	}
+	if resp.Error.Code != -32600 {
+		t.Errorf("expected error code -32600, got %d", resp.Error.Code)
 	}
 }
 
@@ -69,8 +79,18 @@ func TestHandleMCPInvalidJSON(t *testing.T) {
 
 	s.handleMCP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	var resp JSONRPCResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Error == nil {
+		t.Fatal("expected JSON-RPC error")
+	}
+	if resp.Error.Code != -32700 {
+		t.Errorf("expected error code -32700, got %d", resp.Error.Code)
 	}
 }
 
@@ -579,4 +599,35 @@ func TestHandler(t *testing.T) {
 func mustMarshal(v any) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return b
+}
+
+func FuzzHandleMCP(f *testing.F) {
+	f.Add(`{"jsonrpc":"2.0","method":"initialize","id":1}`)
+	f.Add(`{"jsonrpc":"2.0","method":"tools/list","id":2}`)
+	f.Add(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"parse_spec","arguments":{"spec":"project: test"}},"id":3}`)
+	f.Add(`not json`)
+	f.Add(`{}`)
+	f.Add(`{"jsonrpc":"2.0","method":"unknown","id":4}`)
+	f.Add(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"parse_spec","arguments":{}},"id":5}`)
+
+	f.Fuzz(func(t *testing.T, input string) {
+		s := newTestServer()
+		req := httptest.NewRequest("POST", "/mcp", strings.NewReader(input))
+		w := httptest.NewRecorder()
+
+		s.handleMCP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+
+		var resp JSONRPCResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+
+		if resp.JSONRPC != "2.0" {
+			t.Errorf("expected jsonrpc 2.0, got %s", resp.JSONRPC)
+		}
+	})
 }

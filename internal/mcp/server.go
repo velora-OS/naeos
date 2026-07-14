@@ -102,6 +102,19 @@ func (s *Server) Handler() http.Handler {
 	return s.mux
 }
 
+func (s *Server) writeJSONRPCError(w http.ResponseWriter, id any, code int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(JSONRPCResponse{
+		JSONRPC: "2.0",
+		Error:   &JSONRPCError{Code: code, Message: message},
+		ID:      id,
+	})
+}
+
+func (s *Server) HandleMCP(w http.ResponseWriter, r *http.Request) {
+	s.handleMCP(w, r)
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -109,19 +122,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		s.writeJSONRPCError(w, nil, -32600, "method not allowed")
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "read body failed", http.StatusBadRequest)
+		s.writeJSONRPCError(w, nil, -32700, "read body failed")
 		return
 	}
 
 	var req JSONRPCRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		s.writeJSONRPCError(w, nil, -32700, "parse error: invalid JSON")
 		return
 	}
 

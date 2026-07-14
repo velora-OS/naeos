@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [1.0.0] - 2026-07-14
+
+### Added
+- **Test coverage improvements** across 12 packages:
+  - `internal/pluginsdk`: New test suite for deprecated wrapper package (type aliases, state constants, factory functions).
+  - `internal/database`: Expanded tests for MySQL, SQLite full lifecycle, transaction rollback, Pool overflow, Manager edge cases (15 new tests).
+  - `internal/websocket`: Server register/unregister, broadcast to clients, full channel handling, EventBroadcaster and WSObserver full coverage, WebSocket integration tests (13 new tests).
+  - `internal/migration`: MigrationEngine full lifecycle, VersionBetween, FormatMigrationPlan, builtin transforms, MigrationPlanner with custom steps (15 new tests, coverage 33.1% → 90.8%).
+  - `internal/marketplace`: Install, Publish update, Search limit/no-match, contains edge cases, corrupted cache (12 new tests).
+  - `internal/api`: All handler endpoints tested (pipeline/status, artifacts, context/generate, mcp/message, cloud/plan/deploy/destroy/status, plugins, version, config/schema, pipelines, metrics, healthz, readyz) (32 new tests).
+  - `internal/configschema`: ValidateFile (YAML/JSON/unknown/not-found), ValidateData invalid YAML, validateType edge cases (8 new tests).
+  - `internal/telemetry`: HTTPExporter (new, flush empty, export spans, export error), Service defaults, generateID counter, SpanCount (7 new tests, coverage 48.1% → 94.2%).
+  - `internal/testrunner`: Language detection for all 5 languages, language-specific runner tests, pnpm detection (15 new tests, coverage 41.6% → 98.2%).
+  - `internal/watch`: PipelineWatcher shouldProcess, Start/Stop, DetectChanges modified/empty, fsnotify debounce (7 new tests, coverage 41.7% → 84.5%).
+
+### Changed
+- Version bumped to 1.0.0.
+- CodeQL workflow Go version fixed (1.22 → 1.25).
+- OpenAPI 3.0 spec updated to v1.0.0 with missing endpoints (/version, /config/schema, /pipelines, /metrics, /healthz, /readyz).
+- Overall test coverage improved from 61.6% to 65.4%.
 
 ## [0.9.0] - 2026-07-13
 

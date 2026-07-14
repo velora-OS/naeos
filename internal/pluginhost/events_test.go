@@ -189,7 +189,7 @@ func TestPluginEventBusOnPipelineFailed(t *testing.T) {
 	bus := NewEventBus()
 	peb := NewPluginEventBus(bus)
 	called := false
-	bus.Subscribe(EventOnPipelineComplete, "obs", func(_ string, data *EventData) error {
+	bus.Subscribe(EventOnPipelineFailed, "obs", func(_ string, data *EventData) error {
 		called = true
 		if data.Error != "something broke" {
 			t.Errorf("expected error msg, got %s", data.Error)

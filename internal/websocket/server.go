@@ -10,18 +10,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
+var defaultUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 type Server struct {
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
-	mu         sync.RWMutex
+	clients         map[*Client]bool
+	broadcast       chan []byte
+	register        chan *Client
+	unregister      chan *Client
+	mu              sync.RWMutex
+	allowedOrigins  []string
+	upgrader        websocket.Upgrader
 }
 
 type Client struct {
@@ -39,12 +41,35 @@ type Message struct {
 }
 
 func NewServer() *Server {
-	return &Server{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
+	s := &Server{
+		clients:   make(map[*Client]bool),
+		broadcast: make(chan []byte, 256),
+		register:  make(chan *Client),
 		unregister: make(chan *Client),
 	}
+	s.upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     s.checkOrigin,
+	}
+	return s
+}
+
+func (s *Server) SetAllowedOrigins(origins []string) {
+	s.allowedOrigins = origins
+}
+
+func (s *Server) checkOrigin(r *http.Request) bool {
+	if len(s.allowedOrigins) == 0 {
+		return true
+	}
+	origin := r.Header.Get("Origin")
+	for _, allowed := range s.allowedOrigins {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) Run() {
@@ -80,7 +105,7 @@ func (s *Server) Run() {
 }
 
 func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("websocket upgrade failed", "error", err)
 		return
@@ -128,22 +153,6 @@ func (s *Server) Stop() {
 		delete(s.clients, client)
 	}
 	s.mu.Unlock()
-
-	deadline := time.After(5 * time.Second)
-	for {
-		s.mu.RLock()
-		count := len(s.clients)
-		s.mu.RUnlock()
-		if count == 0 {
-			return
-		}
-		select {
-		case <-deadline:
-			return
-		default:
-			time.Sleep(50 * time.Millisecond)
-		}
-	}
 }
 
 func (c *Client) readPump() {

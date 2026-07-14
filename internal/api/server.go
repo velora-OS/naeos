@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -19,6 +20,7 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
 	contextbundle "github.com/NAEOS-foundation/naeos/internal/context/bundle"
 	"github.com/NAEOS-foundation/naeos/internal/errors"
+	"github.com/NAEOS-foundation/naeos/internal/mcp"
 	"github.com/NAEOS-foundation/naeos/internal/monitoring"
 	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
@@ -50,6 +52,7 @@ type Server struct {
 	metricsRegistry *monitoring.Registry
 	auditor        audit.Auditor
 	wsServer       *naeosws.Server
+	mcpServer      *mcp.Server
 }
 
 type pipelineRun struct {
@@ -139,6 +142,9 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 		s.jwt = NewJWTValidator(auth.JWTSecret)
 	}
 	s.bundle = contextbundle.NewGenerator(s.compiler)
+	s.mcpServer = mcp.NewServer(s.compiler, s.bundle)
+	s.mcpServer.SetArtifactStore(store)
+	s.mcpServer.SetPluginManager(s.plugins)
 
 	s.metricsRegistry = metrics.Registry()
 	s.auditor = audit.NewMemoryAuditor()
@@ -163,7 +169,7 @@ func (s *Server) auditEvent(r *http.Request, action, resource, resourceID, statu
 		}
 		ua = r.UserAgent()
 	}
-	_ = s.auditor.Log(audit.AuditEvent{
+	if err := s.auditor.Log(audit.AuditEvent{
 		UserID:     userID,
 		Action:     action,
 		Resource:   resource,
@@ -172,7 +178,10 @@ func (s *Server) auditEvent(r *http.Request, action, resource, resourceID, statu
 		UserAgent:  ua,
 		Status:     status,
 		Details:    details,
-	})
+	}); err != nil {
+		slog.Error("failed to write audit event", "error", err,
+			"action", action, "resource", resource)
+	}
 }
 
 func (s *Server) setupRoutes() {
@@ -220,7 +229,6 @@ func (s *Server) setupRoutes() {
 
 	// OIDC discovery
 	s.Router.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
-	s.Router.HandleFunc("/.well-known/jwks.json", s.handleJWKS)
 }
 
 func (s *Server) SetWebSocketServer(ws *naeosws.Server) {
@@ -470,7 +478,8 @@ func (s *Server) handleSpecCompile(w http.ResponseWriter, r *http.Request) {
 	b := s.bundle.GenerateFromSpec(doc)
 	targets := s.compiler.Targets()
 	if len(targets) == 0 {
-		targets = []compiler.Target{"copilot", "claude", "cursor", "gemini", "codex", "opencode"}
+		s.writeError(w, http.StatusServiceUnavailable, "no compiler targets available; check compiler configuration")
+		return
 	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"compiled":  true,
@@ -560,9 +569,21 @@ func (s *Server) handleArtifacts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		list := s.store.List()
+		offset, limit := parsePagination(r, 50, 200)
+		total := len(list)
+		start := offset
+		if start > total {
+			start = total
+		}
+		end := start + limit
+		if end > total {
+			end = total
+		}
 		s.writeJSON(w, http.StatusOK, map[string]interface{}{
-			"artifacts": list,
-			"count":     len(list),
+			"artifacts": list[start:end],
+			"count":     total,
+			"page":      offset/limit + 1,
+			"limit":     limit,
 		})
 	case "POST":
 		var req struct {
@@ -635,114 +656,7 @@ func (s *Server) handleContextGenerate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMCPMessage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	var req struct {
-		JSONRPC string          `json:"jsonrpc"`
-		Method  string          `json:"method"`
-		Params  json.RawMessage `json:"params,omitempty"`
-		ID      any             `json:"id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "invalid JSON-RPC request")
-		return
-	}
-
-	type jsonRPCResponse struct {
-		JSONRPC string `json:"jsonrpc"`
-		Result  any    `json:"result,omitempty"`
-		Error   any    `json:"error,omitempty"`
-		ID      any    `json:"id"`
-	}
-	resp := jsonRPCResponse{JSONRPC: "2.0", ID: req.ID}
-
-	switch req.Method {
-	case "initialize":
-		resp.Result = map[string]any{
-			"protocolVersion": "2024-11-05",
-			"serverInfo":      map[string]any{"name": "naeos-api-mcp", "version": version.String()},
-		}
-	case "tools/list":
-		resp.Result = map[string]any{
-			"tools": []map[string]any{
-				{"name": "parse_spec", "description": "Parse a NAEOS specification"},
-				{"name": "validate_spec", "description": "Validate a specification"},
-				{"name": "compile_spec", "description": "Compile specification to AI instructions"},
-			},
-		}
-	case "tools/call":
-		var params struct {
-			Name      string         `json:"name"`
-			Arguments map[string]any `json:"arguments"`
-		}
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			resp.Error = map[string]any{"code": -32602, "message": "invalid params"}
-		} else {
-			spec, _ := params.Arguments["spec"].(string)
-			switch params.Name {
-			case "parse_spec":
-				if spec == "" {
-					resp.Error = map[string]any{"code": -32000, "message": "spec is required"}
-				} else {
-					doc, err := s.parser.Parse(spec)
-					if err != nil {
-						resp.Error = map[string]any{"code": -32000, "message": err.Error()}
-					} else {
-						resp.Result = map[string]any{
-							"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Project: %s\nModules: %d\nServices: %d", doc.Project, len(doc.Modules), len(doc.Services))}},
-						}
-					}
-				}
-			case "validate_spec":
-				if spec == "" {
-					resp.Error = map[string]any{"code": -32000, "message": "spec is required"}
-				} else {
-					doc, err := s.parser.Parse(spec)
-					if err != nil {
-						resp.Result = map[string]any{
-							"isError": true,
-							"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Validation error: %v", err)}},
-						}
-					} else {
-						status := "PASS"
-						if len(doc.Modules) == 0 {
-							status = "WARN"
-						}
-						resp.Result = map[string]any{
-							"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Status: %s\nProject: %s\nModules: %d\nServices: %d", status, doc.Project, len(doc.Modules), len(doc.Services))}},
-						}
-					}
-				}
-			case "compile_spec":
-				if spec == "" {
-					resp.Error = map[string]any{"code": -32000, "message": "spec is required"}
-				} else {
-					doc, err := s.parser.Parse(spec)
-					if err != nil {
-						resp.Error = map[string]any{"code": -32000, "message": err.Error()}
-					} else {
-						b := s.bundle.GenerateFromSpec(doc)
-						target, _ := params.Arguments["target"].(string)
-						if target == "" {
-							target = "copilot"
-						}
-						resp.Result = map[string]any{
-							"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Compiled for target: %s\n\n%s", target, b.ToMarkdown())}},
-						}
-					}
-				}
-			default:
-				resp.Error = map[string]any{"code": -32601, "message": "method not found"}
-			}
-		}
-	default:
-		resp.Error = map[string]any{"code": -32601, "message": "method not found"}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	s.mcpServer.HandleMCP(w, r)
 }
 
 func (s *Server) handleCloudPlan(w http.ResponseWriter, r *http.Request) {
@@ -946,9 +860,21 @@ func (s *Server) handleCloudStatus(w http.ResponseWriter, r *http.Request) {
 	s.deployMu.RLock()
 	defer s.deployMu.RUnlock()
 
+	offset, limit := parsePagination(r, 50, 200)
+	total := len(s.deployments)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
 	s.writeJSON(w, http.StatusOK, map[string]interface{}{
-		"deployments": s.deployments,
-		"count":       len(s.deployments),
+		"deployments": s.deployments[start:end],
+		"count":       total,
+		"page":        offset/limit + 1,
+		"limit":       limit,
 	})
 }
 
@@ -956,9 +882,21 @@ func (s *Server) handlePlugins(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		plugins := s.plugins.List()
+		offset, limit := parsePagination(r, 50, 200)
+		total := len(plugins)
+		start := offset
+		if start > total {
+			start = total
+		}
+		end := start + limit
+		if end > total {
+			end = total
+		}
 		s.writeJSON(w, http.StatusOK, map[string]interface{}{
-			"plugins": plugins,
-			"count":   len(plugins),
+			"plugins": plugins[start:end],
+			"count":   total,
+			"page":    offset/limit + 1,
+			"limit":   limit,
 		})
 	case "POST":
 		var req struct {
@@ -1083,9 +1021,21 @@ func (s *Server) handleConfigSchema(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
+	offset, limit := parsePagination(r, 50, 200)
+	total := len(s.pipelines)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
-		"pipelines": s.pipelines,
-		"total":     len(s.pipelines),
+		"pipelines": s.pipelines[start:end],
+		"total":     total,
+		"page":      offset/limit + 1,
+		"limit":     limit,
 	})
 }
 
@@ -1106,15 +1056,6 @@ func (s *Server) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) {
 	doc := s.jwt.OIDCDiscoveryDocument(issuer)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(doc)
-}
-
-func (s *Server) handleJWKS(w http.ResponseWriter, r *http.Request) {
-	if s.jwt == nil {
-		s.writeError(w, http.StatusNotFound, "JWKS not configured")
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(JWKS{Keys: []JWK{*s.jwt.JWKS()}})
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -1150,6 +1091,22 @@ func joinStrings(ss []string) string {
 		result += s
 	}
 	return result
+}
+
+func parsePagination(r *http.Request, defaultLimit, maxLimit int) (offset, limit int) {
+	limit = defaultLimit
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= maxLimit {
+			limit = v
+		}
+	}
+	offset = 0
+	if p := r.URL.Query().Get("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			offset = (v - 1) * limit
+		}
+	}
+	return
 }
 
 var startTime = time.Now()

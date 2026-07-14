@@ -23,9 +23,11 @@ Thank you for your interest in contributing to NAEOS! This document provides gui
 
 ### Prerequisites
 
-- Go 1.22 or later
+- Go 1.25 or later
 - Git
-- golangci-lint (optional, for linting)
+- Make (for build targets)
+- golangci-lint (required — runs in CI and will block PRs)
+- Docker (optional, for container builds)
 
 ### Setup
 

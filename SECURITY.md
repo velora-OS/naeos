@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 1.0.x   | :white_check_mark: |
+| 0.9.x   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
@@ -36,6 +37,7 @@ When using NAEOS:
 3. **Review generated code** — always review AI-generated artifacts before deployment.
 4. **Keep dependencies updated** — use `go get -u` and monitor for vulnerabilities.
 5. **Follow least privilege** — run NAEOS with minimum required permissions.
+6. **Use generated passwords** — NAEOS generates random passwords for cloud databases. Always rotate them after deployment.
 
 ## Security Features
 
@@ -45,5 +47,8 @@ NAEOS includes the following security controls:
 - **Artifact Review** — check for TODOs, placeholders, and license headers.
 - **Provenance Tracking** — trace artifacts back to source specifications.
 - **Input Validation** — validate all specification inputs before processing.
+- **WebSocket Origin Validation** — configurable allowed origins for WebSocket connections.
+- **Rate Limiting** — IP-based and API key-based rate limiting.
+- **Audit Logging** — track all API operations for security review.
 
 For detailed security specifications, see [docs/NES-020-Security.md](docs/NES-020-Security.md).

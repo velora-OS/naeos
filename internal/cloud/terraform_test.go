@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type mockRunner struct {
@@ -243,5 +244,129 @@ func TestDeployError(t *testing.T) {
 	err := tr.Deploy(`resource "null_resource" "test" {}`)
 	if err == nil {
 		t.Error("expected error from Deploy")
+	}
+}
+
+func TestRunnerPoolGetPutRemove(t *testing.T) {
+	pool := NewRunnerPool(10, time.Minute)
+	tr := NewTerraformRunner(t.TempDir())
+
+	pool.Put("proj1", AWS, tr, true)
+
+	got, ok := pool.Get("proj1", AWS)
+	if !ok {
+		t.Fatal("expected to find runner")
+	}
+	if got != tr {
+		t.Error("expected same runner instance")
+	}
+
+	pool.Remove("proj1", AWS)
+	_, ok = pool.Get("proj1", AWS)
+	if ok {
+		t.Error("expected runner to be removed")
+	}
+}
+
+func TestRunnerPoolEviction(t *testing.T) {
+	pool := NewRunnerPool(2, time.Minute)
+
+	tr1 := NewTerraformRunner(t.TempDir())
+	tr2 := NewTerraformRunner(t.TempDir())
+	tr3 := NewTerraformRunner(t.TempDir())
+
+	pool.Put("p1", AWS, tr1, true)
+	pool.Put("p2", GCP, tr2, true)
+	pool.Put("p3", Azure, tr3, true)
+
+	if pool.Size() > 2 {
+		t.Errorf("expected pool size <= 2, got %d", pool.Size())
+	}
+}
+
+func TestRunnerPoolNotFound(t *testing.T) {
+	pool := NewRunnerPool(10, time.Minute)
+	_, ok := pool.Get("nonexistent", AWS)
+	if ok {
+		t.Error("expected not found")
+	}
+}
+
+func TestParsePlanJSONEmpty(t *testing.T) {
+	output, err := parsePlanJSON([]byte{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.Changes.Add != 0 || output.Changes.Change != 0 || output.Changes.Destroy != 0 {
+		t.Errorf("expected zero changes, got add=%d change=%d destroy=%d", output.Changes.Add, output.Changes.Change, output.Changes.Destroy)
+	}
+}
+
+func TestParsePlanJSONNoSummary(t *testing.T) {
+	input := []byte(`{"@message":"Creating..."}
+{"@message":"Still creating..."}`)
+	output, err := parsePlanJSON(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.Changes.Add != 0 || output.Changes.Change != 0 || output.Changes.Destroy != 0 {
+		t.Errorf("expected zero changes, got add=%d change=%d destroy=%d", output.Changes.Add, output.Changes.Change, output.Changes.Destroy)
+	}
+}
+
+func TestParsePlanJSONMalformed(t *testing.T) {
+	input := []byte(`not json
+{broken json
+{"@message":"test"}`)
+	output, err := parsePlanJSON(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.Changes.Add != 0 || output.Changes.Change != 0 || output.Changes.Destroy != 0 {
+		t.Errorf("expected zero changes, got add=%d change=%d destroy=%d", output.Changes.Add, output.Changes.Change, output.Changes.Destroy)
+	}
+}
+
+func TestParsePlanJSONValid(t *testing.T) {
+	input := []byte(`{"@message":"Planning..."}
+{"@message":"Plan: 2 to add, 0 to change, 1 to destroy.","changes":{"add":2,"change":0,"destroy":1}}`)
+	output, err := parsePlanJSON(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.Changes.Add != 2 {
+		t.Errorf("expected 2 adds, got %d", output.Changes.Add)
+	}
+	if output.Changes.Destroy != 1 {
+		t.Errorf("expected 1 destroy, got %d", output.Changes.Destroy)
+	}
+}
+
+func TestConcurrentStateAccess(t *testing.T) {
+	sm := NewStateManager()
+	record := &DeploymentRecord{
+		Project:     "test",
+		Provider:    AWS,
+		Environment: "dev",
+		Region:      "us-east-1",
+		Status:      "deployed",
+		TerraformDir: t.TempDir(),
+	}
+
+	done := make(chan bool, 20)
+	for i := 0; i < 10; i++ {
+		go func() {
+			sm.Save(record)
+			done <- true
+		}()
+	}
+	for i := 0; i < 10; i++ {
+		go func() {
+			sm.Load("test", AWS)
+			done <- true
+		}()
+	}
+	for i := 0; i < 20; i++ {
+		<-done
 	}
 }

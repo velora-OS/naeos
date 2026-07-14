@@ -55,6 +55,7 @@ type WASMPlugin struct {
 	name        string
 	version     string
 	description string
+	compiled    wazero.CompiledModule
 }
 
 func (w *WASMRuntime) Load(wasmPath string) (*WASMPlugin, error) {
@@ -68,7 +69,6 @@ func (w *WASMRuntime) Load(wasmPath string) (*WASMPlugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile wasm module: %w", err)
 	}
-	compiled.Close(ctx)
 
 	name := filepath.Base(wasmPath)
 	name = name[:len(name)-len(filepath.Ext(name))]
@@ -77,6 +77,7 @@ func (w *WASMRuntime) Load(wasmPath string) (*WASMPlugin, error) {
 		wasmRuntime: w,
 		wasmPath:    wasmPath,
 		name:        name,
+		compiled:    compiled,
 	}, nil
 }
 
@@ -101,16 +102,6 @@ func (p *WASMPlugin) Execute(action string, params map[string]any) (any, error) 
 	ctx, cancel := context.WithTimeout(context.Background(), p.wasmRuntime.timeout)
 	defer cancel()
 
-	wasmBytes, err := os.ReadFile(p.wasmPath)
-	if err != nil {
-		return nil, fmt.Errorf("read wasm: %w", err)
-	}
-
-	compiled, err := p.wasmRuntime.rt.CompileModule(ctx, wasmBytes)
-	if err != nil {
-		return nil, fmt.Errorf("compile wasm: %w", err)
-	}
-
 	var stdout, stderr bytes.Buffer
 
 	cfg := wazero.NewModuleConfig().
@@ -121,7 +112,7 @@ func (p *WASMPlugin) Execute(action string, params map[string]any) (any, error) 
 		WithStartFunctions("_start")
 
 	start := time.Now()
-	mod, err := p.wasmRuntime.rt.InstantiateModule(ctx, compiled, cfg)
+	mod, err := p.wasmRuntime.rt.InstantiateModule(ctx, p.compiled, cfg)
 	elapsed := time.Since(start)
 
 	if err != nil {

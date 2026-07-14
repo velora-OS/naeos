@@ -1,6 +1,7 @@
 package configschema
 
 import (
+	"os"
 	"encoding/json"
 	"testing"
 )
@@ -88,5 +89,139 @@ func TestDefaultSchema(t *testing.T) {
 	}
 	if _, ok := s.Properties["name"]; !ok {
 		t.Error("expected 'name' property")
+	}
+}
+
+func TestValidateFileYAML(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/config.yaml"
+	data := []byte("name: test\nversion: \"1.0\"\nverbose: true")
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	errs, err := ValidateFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(errs) > 0 {
+		t.Errorf("expected no validation errors, got %v", errs)
+	}
+}
+
+func TestValidateFileJSON(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/config.json"
+	data := []byte(`{"name": "test", "version": "1.0", "verbose": true}`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	errs, err := ValidateFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(errs) > 0 {
+		t.Errorf("expected no validation errors, got %v", errs)
+	}
+}
+
+func TestValidateFileUnknown(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/config.txt"
+	data := []byte(`{"name": "test"}`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	// .txt falls through to JSON validation by default
+	errs, err := ValidateFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(errs) > 0 {
+		t.Errorf("expected no validation errors, got %v", errs)
+	}
+}
+
+func TestValidateFileNotFound(t *testing.T) {
+	_, err := ValidateFile("/nonexistent/path/config.json")
+	if err == nil {
+		t.Error("expected error for non-existent file, got nil")
+	}
+}
+
+func TestValidateDataInvalidYAML(t *testing.T) {
+	data := []byte("{{invalid yaml: [}")
+	errs := ValidateData(data, "yaml")
+	if len(errs) == 0 {
+		t.Error("expected errors for invalid YAML")
+	}
+	if errs[0].Field != "_root" {
+		t.Errorf("expected field '_root', got %s", errs[0].Field)
+	}
+}
+
+func TestValidateTypeNumber(t *testing.T) {
+	schema := DefaultSchema()
+	// int type
+	if !validateType(42, "number") {
+		t.Error("expected int to be valid for 'number'")
+	}
+	// int64 type
+	if !validateType(int64(100), "number") {
+		t.Error("expected int64 to be valid for 'number'")
+	}
+	// float64 type
+	if !validateType(float64(3.14), "number") {
+		t.Error("expected float64 to be valid for 'number'")
+	}
+	// string should not be valid for number
+	if validateType("not a number", "number") {
+		t.Error("expected string to be invalid for 'number'")
+	}
+	// exercise ValidateConfig with number-typed value in a known property
+	config := map[string]interface{}{
+		"name":    "project",
+		"verbose": float64(1),
+	}
+	errs := ValidateConfig(config)
+	// verbose expects boolean; number(1) is not boolean
+	found := false
+	for _, e := range errs {
+		if e.Field == "verbose" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected type error for verbose with numeric value, got %v", errs)
+	}
+	_ = schema
+}
+
+func TestValidateTypeObject(t *testing.T) {
+	// map[string]interface{} should be valid for "object" type
+	obj := map[string]interface{}{"key": "value"}
+	if !validateType(obj, "object") {
+		t.Error("expected map[string]interface{} to be valid for 'object'")
+	}
+	// a slice should not be valid for "object"
+	slice := []interface{}{"a", "b"}
+	if validateType(slice, "object") {
+		t.Error("expected []interface{} to be invalid for 'object'")
+	}
+	// string should not be valid for "object"
+	if validateType("string", "object") {
+		t.Error("expected string to be invalid for 'object'")
+	}
+}
+
+func TestValidateTypeUnknown(t *testing.T) {
+	// Unknown type should always return true (no validation applied)
+	if !validateType(123, "unknown_type") {
+		t.Error("expected any value to be valid for unknown type")
+	}
+	if !validateType("hello", "custom") {
+		t.Error("expected any value to be valid for custom type")
+	}
+	if !validateType(nil, "nonexistent") {
+		t.Error("expected nil to be valid for nonexistent type")
 	}
 }
