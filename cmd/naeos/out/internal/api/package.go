@@ -1,3 +1,3 @@
 package api
 
-// api module placeholder.
+// api module.

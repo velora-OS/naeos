@@ -108,8 +108,9 @@ func (k *Kernel) Stop() error {
 }
 
 func (k *Kernel) Subscribe(topic string, handler func(any)) error {
-	return k.bus.Subscribe(topic, func(event events.Event) {
+	return k.bus.Subscribe(topic, func(event events.Event) error {
 		handler(event.Payload)
+		return nil
 	})
 }
 

@@ -1,12 +1,11 @@
 package performance
 
 import (
+	"github.com/NAEOS-foundation/naeos/internal/cache"
 	"sync"
 	"sync/atomic"
 	"time"
 )
-
-// Connection Pool
 
 type Connection struct {
 	ID        string
@@ -103,8 +102,6 @@ func (p *ConnectionPool) Close() {
 	p.conns = nil
 	p.available = nil
 }
-
-// Batch Processor
 
 type BatchItem struct {
 	ID      string
@@ -225,7 +222,9 @@ func (bp *BatchProcessor) GetBatchByID(id string) *Batch {
 	return nil
 }
 
-// Cache
+type Cache struct {
+	inner *cache.Cache
+}
 
 type CacheEntry struct {
 	Key       string
@@ -233,83 +232,35 @@ type CacheEntry struct {
 	ExpiresAt time.Time
 }
 
-type Cache struct {
-	name    string
-	entries map[string]*CacheEntry
-	mu      sync.RWMutex
-}
-
 func NewCache(name string) *Cache {
 	return &Cache{
-		name:    name,
-		entries: make(map[string]*CacheEntry),
+		inner: cache.New(1000, 5*time.Minute),
 	}
 }
 
 func (c *Cache) Set(key string, value any, ttl time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.entries[key] = &CacheEntry{
-		Key:       key,
-		Value:     value,
-		ExpiresAt: time.Now().Add(ttl),
-	}
+	c.inner.SetWithTTL(key, value, ttl)
 }
 
 func (c *Cache) Get(key string) (any, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	entry, ok := c.entries[key]
-	if !ok {
-		return nil, false
-	}
-
-	if time.Now().After(entry.ExpiresAt) {
-		delete(c.entries, key)
-		return nil, false
-	}
-
-	return entry.Value, true
+	return c.inner.Get(key)
 }
 
 func (c *Cache) Delete(key string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if _, ok := c.entries[key]; ok {
-		delete(c.entries, key)
-		return true
-	}
-	return false
+	return c.inner.Delete(key)
 }
 
 func (c *Cache) Clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.entries = make(map[string]*CacheEntry)
+	c.inner.Clear()
 }
 
 func (c *Cache) Size() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return len(c.entries)
+	return c.inner.Size()
 }
 
 func (c *Cache) Cleanup() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	now := time.Now()
-	for key, entry := range c.entries {
-		if now.After(entry.ExpiresAt) {
-			delete(c.entries, key)
-		}
-	}
+	c.inner.Cleanup()
 }
-
-// Helpers
 
 func generateConnID() string {
 	return time.Now().Format("20060102150405.000000000")

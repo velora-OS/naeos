@@ -1,11 +1,20 @@
 package observability
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// Tracing
+var idCounter atomic.Int64
+
+func generateID() string {
+	id := idCounter.Add(1)
+	return fmt.Sprintf("%016x", id)
+}
 
 type Span struct {
 	TraceID    string
@@ -37,6 +46,330 @@ const (
 	SpanStatusOK    SpanStatusCode = 1
 	SpanStatusError SpanStatusCode = 2
 )
+
+type Exporter interface {
+	ExportSpans(spans []*Span) error
+	ExportMetrics(metrics []*Metric) error
+	ExportLogs(entries []LogEntry) error
+}
+
+type JSONExporter struct {
+	mu      sync.Mutex
+	spans   []*Span
+	metrics []*Metric
+	logs    []LogEntry
+}
+
+func NewJSONExporter() *JSONExporter {
+	return &JSONExporter{}
+}
+
+func (e *JSONExporter) ExportSpans(spans []*Span) error {
+	e.mu.Lock()
+	e.spans = append(e.spans, spans...)
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *JSONExporter) ExportMetrics(metrics []*Metric) error {
+	e.mu.Lock()
+	e.metrics = append(e.metrics, metrics...)
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *JSONExporter) ExportLogs(entries []LogEntry) error {
+	e.mu.Lock()
+	e.logs = append(e.logs, entries...)
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *JSONExporter) Flush() ([]byte, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	data := map[string]any{
+		"spans":   e.spans,
+		"metrics": e.metrics,
+		"logs":    e.logs,
+	}
+	return json.MarshalIndent(data, "", "  ")
+}
+
+type FileExporter struct {
+	path   string
+	mu     sync.Mutex
+	file   *os.File
+}
+
+func NewFileExporter(path string) (*FileExporter, error) {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open file: %w", err)
+	}
+	return &FileExporter{path: path, file: f}, nil
+}
+
+func (e *FileExporter) ExportSpans(spans []*Span) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, span := range spans {
+		data, err := json.Marshal(span)
+		if err != nil {
+			continue
+		}
+		e.file.Write(append(data, '\n'))
+	}
+	return nil
+}
+
+func (e *FileExporter) ExportMetrics(metrics []*Metric) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, m := range metrics {
+		data, err := json.Marshal(m)
+		if err != nil {
+			continue
+		}
+		e.file.Write(append(data, '\n'))
+	}
+	return nil
+}
+
+func (e *FileExporter) ExportLogs(entries []LogEntry) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, entry := range entries {
+		data, err := json.Marshal(entry)
+		if err != nil {
+			continue
+		}
+		e.file.Write(append(data, '\n'))
+	}
+	return nil
+}
+
+func (e *FileExporter) Close() error {
+	return e.file.Close()
+}
+
+type MemoryCleanup struct {
+	tracer     *Tracer
+	maxAge     time.Duration
+	stopCh     chan struct{}
+	running    bool
+	mu         sync.Mutex
+}
+
+func NewMemoryCleanup(tracer *Tracer, maxAge time.Duration) *MemoryCleanup {
+	return &MemoryCleanup{
+		tracer: tracer,
+		maxAge: maxAge,
+		stopCh: make(chan struct{}),
+	}
+}
+
+func (mc *MemoryCleanup) Start() {
+	mc.mu.Lock()
+	if mc.running {
+		mc.mu.Unlock()
+		return
+	}
+	mc.running = true
+	mc.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				mc.cleanup()
+			case <-mc.stopCh:
+				return
+			}
+		}
+	}()
+}
+
+func (mc *MemoryCleanup) Stop() {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	if mc.running {
+		close(mc.stopCh)
+		mc.running = false
+	}
+}
+
+func (mc *MemoryCleanup) cleanup() {
+	cutoff := time.Now().Add(-mc.maxAge)
+	mc.tracer.mu.Lock()
+	defer mc.tracer.mu.Unlock()
+
+	var remaining []*Span
+	for _, span := range mc.tracer.spans {
+		if span.EndTime.IsZero() || span.EndTime.After(cutoff) {
+			remaining = append(remaining, span)
+		}
+	}
+	mc.tracer.spans = remaining
+}
+
+type HistogramValue struct {
+	Count  int64
+	Sum    float64
+	Min    float64
+	Max    float64
+	Buckets []HistogramBucket
+}
+
+type HistogramBucket struct {
+	UpperBound float64
+	Count      int64
+}
+
+type MetricsCollector struct {
+	name        string
+	metrics     map[string]*Metric
+	histograms  map[string]*HistogramValue
+	mu          sync.RWMutex
+}
+
+func NewMetricsCollector(name string) *MetricsCollector {
+	return &MetricsCollector{
+		name:       name,
+		metrics:    make(map[string]*Metric),
+		histograms: make(map[string]*HistogramValue),
+	}
+}
+
+func (mc *MetricsCollector) Counter(name string, labels map[string]string) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
+	key := name + labelsKey(labels)
+	if m, ok := mc.metrics[key]; ok {
+		m.Value++
+	} else {
+		mc.metrics[key] = &Metric{
+			Name:   name,
+			Type:   MetricCounter,
+			Value:  1,
+			Labels: labels,
+		}
+	}
+}
+
+func (mc *MetricsCollector) Gauge(name string, value float64, labels map[string]string) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
+	key := name + labelsKey(labels)
+	mc.metrics[key] = &Metric{
+		Name:   name,
+		Type:   MetricGauge,
+		Value:  value,
+		Labels: labels,
+	}
+}
+
+func (mc *MetricsCollector) Histogram(name string, value float64, labels map[string]string) {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+
+	key := name + labelsKey(labels)
+	h, ok := mc.histograms[key]
+	if !ok {
+		h = &HistogramValue{
+			Buckets: []HistogramBucket{
+				{UpperBound: 0.01},
+				{UpperBound: 0.05},
+				{UpperBound: 0.1},
+				{UpperBound: 0.5},
+				{UpperBound: 1.0},
+				{UpperBound: 5.0},
+				{UpperBound: 10.0},
+				{UpperBound: 50.0},
+				{UpperBound: 100.0},
+			},
+		}
+		mc.histograms[key] = h
+	}
+
+	h.Count++
+	h.Sum += value
+	if h.Count == 1 || value < h.Min {
+		h.Min = value
+	}
+	if h.Count == 1 || value > h.Max {
+		h.Max = value
+	}
+
+	for i := range h.Buckets {
+		if value <= h.Buckets[i].UpperBound {
+			h.Buckets[i].Count++
+		}
+	}
+
+	mc.metrics[key] = &Metric{
+		Name:   name,
+		Type:   MetricHistogram,
+		Value:  value,
+		Labels: labels,
+	}
+}
+
+func (mc *MetricsCollector) GetMetrics() []*Metric {
+	mc.mu.RLock()
+	defer mc.mu.RUnlock()
+
+	metrics := make([]*Metric, 0, len(mc.metrics))
+	for _, m := range mc.metrics {
+		metrics = append(metrics, m)
+	}
+	return metrics
+}
+
+func (mc *MetricsCollector) GetHistogram(name string) *HistogramValue {
+	mc.mu.RLock()
+	defer mc.mu.RUnlock()
+
+	h, ok := mc.histograms[name]
+	if !ok {
+		return nil
+	}
+	return h
+}
+
+func (mc *MetricsCollector) Reset() {
+	mc.mu.Lock()
+	defer mc.mu.Unlock()
+	mc.metrics = make(map[string]*Metric)
+	mc.histograms = make(map[string]*HistogramValue)
+}
+
+func (l *Logger) SetLevel(level LogLevel) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.level = level
+}
+
+func (l *Logger) GetLevel() LogLevel {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.level
+}
+
+func (l *Logger) Clear() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.entries = nil
+}
 
 type Tracer struct {
 	name  string
@@ -139,7 +472,17 @@ func (t *Tracer) SetStatus(span *Span, code SpanStatusCode, message string) {
 	}
 }
 
-// Logging
+func (t *Tracer) SpanCount() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.spans)
+}
+
+func (t *Tracer) Clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.spans = nil
+}
 
 type LogLevel int
 
@@ -226,8 +569,6 @@ func (l *Logger) GetEntriesByLevel(level LogLevel) []LogEntry {
 	return entries
 }
 
-// Metrics
-
 type MetricType string
 
 const (
@@ -243,87 +584,10 @@ type Metric struct {
 	Labels map[string]string
 }
 
-type MetricsCollector struct {
-	name    string
-	metrics map[string]*Metric
-	mu      sync.RWMutex
-}
-
-func NewMetricsCollector(name string) *MetricsCollector {
-	return &MetricsCollector{
-		name:    name,
-		metrics: make(map[string]*Metric),
-	}
-}
-
-func (mc *MetricsCollector) Counter(name string, labels map[string]string) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	key := name + labelsKey(labels)
-	if m, ok := mc.metrics[key]; ok {
-		m.Value++
-	} else {
-		mc.metrics[key] = &Metric{
-			Name:   name,
-			Type:   MetricCounter,
-			Value:  1,
-			Labels: labels,
-		}
-	}
-}
-
-func (mc *MetricsCollector) Gauge(name string, value float64, labels map[string]string) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	key := name + labelsKey(labels)
-	mc.metrics[key] = &Metric{
-		Name:   name,
-		Type:   MetricGauge,
-		Value:  value,
-		Labels: labels,
-	}
-}
-
-func (mc *MetricsCollector) Histogram(name string, value float64, labels map[string]string) {
-	mc.mu.Lock()
-	defer mc.mu.Unlock()
-
-	key := name + labelsKey(labels)
-	mc.metrics[key] = &Metric{
-		Name:   name,
-		Type:   MetricHistogram,
-		Value:  value,
-		Labels: labels,
-	}
-}
-
-func (mc *MetricsCollector) GetMetrics() []*Metric {
-	mc.mu.RLock()
-	defer mc.mu.RUnlock()
-
-	metrics := make([]*Metric, 0, len(mc.metrics))
-	for _, m := range mc.metrics {
-		metrics = append(metrics, m)
-	}
-	return metrics
-}
-
-func labelsKey(labels map[string]string) string {
-	key := ""
-	for k, v := range labels {
-		key += k + "=" + v + ","
-	}
-	return key
-}
-
-// Observability Stack
-
 type Stack struct {
-	Tracer   *Tracer
-	Logger   *Logger
-	Metrics  *MetricsCollector
+	Tracer  *Tracer
+	Logger  *Logger
+	Metrics *MetricsCollector
 }
 
 func NewStack(name string) *Stack {
@@ -334,8 +598,10 @@ func NewStack(name string) *Stack {
 	}
 }
 
-// Helpers
-
-func generateID() string {
-	return time.Now().Format("20060102150405.000000000")
+func labelsKey(labels map[string]string) string {
+	key := ""
+	for k, v := range labels {
+		key += k + "=" + v + ","
+	}
+	return key
 }

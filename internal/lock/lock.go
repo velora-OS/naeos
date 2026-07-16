@@ -1,13 +1,24 @@
 package lock
 
 import (
+	"crypto/md5"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
+	"sync"
 	"time"
+)
+
+type HashAlgorithm string
+
+const (
+	HashSHA256 HashAlgorithm = "sha256"
+	HashSHA512 HashAlgorithm = "sha512"
+	HashMD5    HashAlgorithm = "md5"
 )
 
 type LockFile struct {
@@ -15,6 +26,7 @@ type LockFile struct {
 	Generated string          `json:"generated"`
 	Artifacts []LockArtifact  `json:"artifacts"`
 	Checksum  string          `json:"checksum"`
+	Algorithm HashAlgorithm  `json:"algorithm,omitempty"`
 }
 
 type LockArtifact struct {
@@ -28,18 +40,83 @@ type ArtifactInfo struct {
 	Content []byte
 }
 
+type VerifyResult struct {
+	Changes  []string
+	Errors   []error
+	Duration time.Duration
+}
+
+type AuditEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Action    string    `json:"action"`
+	Path      string    `json:"path"`
+	Details   string    `json:"details,omitempty"`
+}
+
+type AuditLog struct {
+	Entries []AuditEntry `json:"entries"`
+	mu      sync.Mutex
+}
+
+func NewAuditLog() *AuditLog {
+	return &AuditLog{}
+}
+
+func (a *AuditLog) Add(action, path, details string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Entries = append(a.Entries, AuditEntry{
+		Timestamp: time.Now(),
+		Action:    action,
+		Path:      path,
+		Details:   details,
+	})
+}
+
+func (a *AuditLog) GetEntries() []AuditEntry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	result := make([]AuditEntry, len(a.Entries))
+	copy(result, a.Entries)
+	return result
+}
+
+func (a *AuditLog) Clear() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.Entries = nil
+}
+
+func hashContent(content []byte, algo HashAlgorithm) string {
+	switch algo {
+	case HashSHA512:
+		h := sha512.Sum512(content)
+		return hex.EncodeToString(h[:])
+	case HashMD5:
+		h := md5.Sum(content)
+		return hex.EncodeToString(h[:])
+	default:
+		h := sha256.Sum256(content)
+		return hex.EncodeToString(h[:])
+	}
+}
+
 func Generate(artifacts []ArtifactInfo) (*LockFile, error) {
+	return GenerateWithAlgorithm(artifacts, HashSHA256)
+}
+
+func GenerateWithAlgorithm(artifacts []ArtifactInfo, algo HashAlgorithm) (*LockFile, error) {
 	lock := &LockFile{
 		Version:   "1",
 		Generated: time.Now().UTC().Format(time.RFC3339),
+		Algorithm: algo,
 	}
 
 	for _, a := range artifacts {
-		hash := sha256.Sum256(a.Content)
 		lock.Artifacts = append(lock.Artifacts, LockArtifact{
 			Path:     a.Path,
 			Size:     len(a.Content),
-			Checksum: hex.EncodeToString(hash[:]),
+			Checksum: hashContent(a.Content, algo),
 		})
 	}
 
@@ -52,8 +129,7 @@ func Generate(artifacts []ArtifactInfo) (*LockFile, error) {
 		return nil, fmt.Errorf("marshal lock file: %w", err)
 	}
 
-	hash := sha256.Sum256(data)
-	lock.Checksum = hex.EncodeToString(hash[:])
+	lock.Checksum = hashContent(data, algo)
 
 	return lock, nil
 }
@@ -79,37 +155,84 @@ func ReadFromFile(path string) (*LockFile, error) {
 }
 
 func Verify(lock *LockFile, current []ArtifactInfo) ([]string, error) {
+	result := VerifyConcurrent(lock, current, 4)
+	return result.Changes, mergeErrors(result.Errors)
+}
+
+func VerifyConcurrent(lock *LockFile, current []ArtifactInfo, workers int) *VerifyResult {
+	start := time.Now()
+	result := &VerifyResult{}
+
 	if lock == nil {
-		return nil, fmt.Errorf("lock file is nil")
+		result.Errors = append(result.Errors, fmt.Errorf("lock file is nil"))
+		result.Duration = time.Since(start)
+		return result
 	}
+
+	algo := lock.Algorithm
+	if algo == "" {
+		algo = HashSHA256
+	}
+
+	type hashResult struct {
+		path   string
+		hash   string
+	}
+
+	results := make([]hashResult, len(current))
+
+	var wg sync.WaitGroup
+	for i, a := range current {
+		wg.Add(1)
+		go func(idx int, art ArtifactInfo) {
+			defer wg.Done()
+			hash := hashContent(art.Content, algo)
+			results[idx] = hashResult{path: art.Path, hash: hash}
+		}(i, a)
+	}
+	wg.Wait()
 
 	existing := make(map[string]LockArtifact)
 	for _, a := range lock.Artifacts {
 		existing[a.Path] = a
 	}
 
-	var changes []string
 	currentMap := make(map[string]bool)
-
-	for _, a := range current {
-		currentMap[a.Path] = true
-		hash := sha256.Sum256(a.Content)
-		checksum := hex.EncodeToString(hash[:])
-
-		if old, ok := existing[a.Path]; ok {
-			if old.Checksum != checksum {
-				changes = append(changes, fmt.Sprintf("modified: %s", a.Path))
+	for _, r := range results {
+		currentMap[r.path] = true
+		if old, ok := existing[r.path]; ok {
+			if old.Checksum != r.hash {
+				result.Changes = append(result.Changes, fmt.Sprintf("modified: %s", r.path))
 			}
 		} else {
-			changes = append(changes, fmt.Sprintf("added: %s", a.Path))
+			result.Changes = append(result.Changes, fmt.Sprintf("added: %s", r.path))
 		}
 	}
 
 	for _, a := range lock.Artifacts {
 		if !currentMap[a.Path] {
-			changes = append(changes, fmt.Sprintf("removed: %s", a.Path))
+			result.Changes = append(result.Changes, fmt.Sprintf("removed: %s", a.Path))
 		}
 	}
 
-	return changes, nil
+	result.Duration = time.Since(start)
+	return result
+}
+
+func VerifyDryRun(lock *LockFile, current []ArtifactInfo) *VerifyResult {
+	return VerifyConcurrent(lock, current, 1)
+}
+
+func mergeErrors(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	var msg string
+	for i, e := range errs {
+		if i > 0 {
+			msg += "; "
+		}
+		msg += e.Error()
+	}
+	return fmt.Errorf("%s", msg)
 }

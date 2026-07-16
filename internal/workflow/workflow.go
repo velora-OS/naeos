@@ -1,12 +1,13 @@
 package workflow
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
-
-// State Machine
 
 type State string
 
@@ -94,7 +95,37 @@ func (sm *StateMachine) CanTransition(event string) bool {
 	return ok
 }
 
-// Workflow
+type ApprovalRequest struct {
+	ID        string
+	Workflow  string
+	Requester string
+	Status    string
+	Approver  string
+	Comment   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type WorkflowEvent string
+
+const (
+	EventStepStart    WorkflowEvent = "step_start"
+	EventStepComplete WorkflowEvent = "step_complete"
+	EventStepFailed   WorkflowEvent = "step_failed"
+	EventStepRetry    WorkflowEvent = "step_retry"
+)
+
+type WorkflowEventHandler func(event WorkflowEvent, step string, ctx *WorkflowContext, err error)
+
+type RetryConfig struct {
+	MaxRetries int
+	Backoff    time.Duration
+}
+
+type ParallelStepGroup struct {
+	Steps      []*WorkflowStep
+	WaitForAll bool
+}
 
 type WorkflowStep struct {
 	Name     string
@@ -111,11 +142,12 @@ type WorkflowContext struct {
 }
 
 type Workflow struct {
-	Name     string
-	Steps    []*WorkflowStep
-	Machine  *StateMachine
-	Context  *WorkflowContext
-	mu       sync.RWMutex
+	Name         string
+	Steps        []*WorkflowStep
+	Machine      *StateMachine
+	Context      *WorkflowContext
+	EventHandler WorkflowEventHandler
+	mu           sync.RWMutex
 }
 
 func NewWorkflow(name string, steps []*WorkflowStep) *Workflow {
@@ -145,13 +177,181 @@ func NewWorkflow(name string, steps []*WorkflowStep) *Workflow {
 }
 
 func (w *Workflow) Execute() error {
-	w.Machine.Trigger("start")
+	return w.ExecuteWithContext(context.Background())
+}
+
+func (w *Workflow) Cancel() error {
+	return w.Machine.Trigger("cancel")
+}
+
+func (w *Workflow) Status() State {
+	return w.Machine.Current()
+}
+
+func (w *Workflow) ExecuteWithContext(ctx context.Context) error {
+	if err := w.Machine.Trigger("start"); err != nil {
+		return err
+	}
 
 	for _, step := range w.Steps {
+		if ctx.Err() != nil {
+			w.Machine.Trigger("cancel")
+			return ctx.Err()
+		}
+
 		w.Context.Current = step.Name
 		w.Context.Steps = append(w.Context.Steps, step.Name)
 
-		if err := step.Action(w.Context); err != nil {
+		w.emitEvent(EventStepStart, step.Name, nil)
+
+		var err error
+		if step.Timeout > 0 {
+			err = w.executeStepWithTimeout(ctx, step)
+		} else {
+			err = step.Action(w.Context)
+		}
+
+		if err != nil {
+			w.Context.Error = err
+			w.emitEvent(EventStepFailed, step.Name, err)
+			w.Machine.Trigger("error")
+			return fmt.Errorf("step %q failed: %w", step.Name, err)
+		}
+
+		w.emitEvent(EventStepComplete, step.Name, nil)
+		w.Machine.Trigger("next")
+	}
+
+	w.Machine.Trigger("complete")
+	return nil
+}
+
+func (w *Workflow) executeStepWithTimeout(parentCtx context.Context, step *WorkflowStep) error {
+	ctx, cancel := context.WithTimeout(parentCtx, step.Timeout)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- step.Action(w.Context)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("step %q timed out after %v", step.Name, step.Timeout)
+	case err := <-done:
+		return err
+	}
+}
+
+func (w *Workflow) ExecuteWithRetry(ctx context.Context, config RetryConfig) error {
+	if err := w.Machine.Trigger("start"); err != nil {
+		return err
+	}
+
+	for _, step := range w.Steps {
+		if ctx.Err() != nil {
+			w.Machine.Trigger("cancel")
+			return ctx.Err()
+		}
+
+		w.Context.Current = step.Name
+		w.Context.Steps = append(w.Context.Steps, step.Name)
+
+		var lastErr error
+		for attempt := 0; attempt <= config.MaxRetries; attempt++ {
+			if attempt > 0 {
+				w.emitEvent(EventStepRetry, step.Name, fmt.Errorf("retry %d/%d", attempt, config.MaxRetries))
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(config.Backoff):
+				}
+			}
+
+			w.emitEvent(EventStepStart, step.Name, nil)
+
+			var err error
+			if step.Timeout > 0 {
+				err = w.executeStepWithTimeout(ctx, step)
+			} else {
+				err = step.Action(w.Context)
+			}
+
+			if err == nil {
+				lastErr = nil
+				break
+			}
+			lastErr = err
+		}
+
+		if lastErr != nil {
+			w.Context.Error = lastErr
+			w.emitEvent(EventStepFailed, step.Name, lastErr)
+			w.Machine.Trigger("error")
+			return fmt.Errorf("step %q failed after %d retries: %w", step.Name, config.MaxRetries, lastErr)
+		}
+
+		w.emitEvent(EventStepComplete, step.Name, nil)
+		w.Machine.Trigger("next")
+	}
+
+	w.Machine.Trigger("complete")
+	return nil
+}
+
+func (w *Workflow) ExecuteParallelGroup(ctx context.Context, groups []*ParallelStepGroup) error {
+	if err := w.Machine.Trigger("start"); err != nil {
+		return err
+	}
+
+	for _, group := range groups {
+		if ctx.Err() != nil {
+			w.Machine.Trigger("cancel")
+			return ctx.Err()
+		}
+
+		if len(group.Steps) == 1 {
+			step := group.Steps[0]
+			w.Context.Current = step.Name
+			w.Context.Steps = append(w.Context.Steps, step.Name)
+			w.emitEvent(EventStepStart, step.Name, nil)
+
+			if err := step.Action(w.Context); err != nil {
+				w.Context.Error = err
+				w.emitEvent(EventStepFailed, step.Name, err)
+				w.Machine.Trigger("error")
+				return fmt.Errorf("step %q failed: %w", step.Name, err)
+			}
+
+			w.emitEvent(EventStepComplete, step.Name, nil)
+			w.Machine.Trigger("next")
+			continue
+		}
+
+		var wg sync.WaitGroup
+		errCh := make(chan error, len(group.Steps))
+
+		for _, step := range group.Steps {
+			wg.Add(1)
+			go func(s *WorkflowStep) {
+				defer wg.Done()
+				w.Context.Current = s.Name
+				w.emitEvent(EventStepStart, s.Name, nil)
+
+				if err := s.Action(w.Context); err != nil {
+					w.emitEvent(EventStepFailed, s.Name, err)
+					errCh <- fmt.Errorf("step %q failed: %w", s.Name, err)
+					return
+				}
+
+				w.emitEvent(EventStepComplete, s.Name, nil)
+			}(step)
+		}
+
+		wg.Wait()
+		close(errCh)
+
+		if err := <-errCh; err != nil {
 			w.Context.Error = err
 			w.Machine.Trigger("error")
 			return err
@@ -164,26 +364,61 @@ func (w *Workflow) Execute() error {
 	return nil
 }
 
-func (w *Workflow) Cancel() error {
-	w.Machine.Trigger("cancel")
+func (w *Workflow) emitEvent(event WorkflowEvent, step string, err error) {
+	if w.EventHandler != nil {
+		w.EventHandler(event, step, w.Context, err)
+	}
+}
+
+type WorkflowSnapshot struct {
+	Name      string         `json:"name"`
+	State     State          `json:"state"`
+	Context   *WorkflowContext `json:"context"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
+func (w *Workflow) SaveSnapshot(path string) error {
+	snapshot := WorkflowSnapshot{
+		Name:      w.Name,
+		State:     w.Machine.Current(),
+		Context:   w.Context,
+		CreatedAt: time.Now(),
+	}
+
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal snapshot: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write snapshot: %w", err)
+	}
+
 	return nil
 }
 
-func (w *Workflow) Status() State {
-	return w.Machine.Current()
+func LoadSnapshot(path string) (*WorkflowSnapshot, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read snapshot: %w", err)
+	}
+
+	var snapshot WorkflowSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
+	}
+
+	return &snapshot, nil
 }
 
-// Approval Workflow
-
-type ApprovalRequest struct {
-	ID        string
-	Workflow  string
-	Requester string
-	Status    string
-	Approver  string
-	Comment   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+func (w *Workflow) RestoreFromSnapshot(snapshot *WorkflowSnapshot) {
+	w.Context = snapshot.Context
+	if w.Context == nil {
+		w.Context = &WorkflowContext{
+			Data:  make(map[string]any),
+			Steps: []string{},
+		}
+	}
 }
 
 type ApprovalWorkflow struct {
@@ -265,8 +500,6 @@ func (a *ApprovalWorkflow) ListByStatus(status string) []*ApprovalRequest {
 	return reqs
 }
 
-// Workflow Manager
-
 type Manager struct {
 	workflows map[string]*Workflow
 	mu        sync.RWMutex
@@ -313,4 +546,12 @@ func (m *Manager) Execute(name string) error {
 		return fmt.Errorf("workflow not found: %s", name)
 	}
 	return workflow.Execute()
+}
+
+func (m *Manager) ExecuteWithContext(ctx context.Context, name string) error {
+	workflow, ok := m.Get(name)
+	if !ok {
+		return fmt.Errorf("workflow not found: %s", name)
+	}
+	return workflow.ExecuteWithContext(ctx)
 }

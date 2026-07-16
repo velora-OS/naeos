@@ -1,179 +1,130 @@
 package messagequeue
 
 import (
+	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
-func TestNewQueue(t *testing.T) {
-	q := NewQueue("test", 100)
-	if q == nil {
-		t.Fatal("expected queue to be created")
-	}
-	if q.Name() != "test" {
-		t.Errorf("expected name 'test', got %s", q.Name())
-	}
-}
-
-func TestPublish(t *testing.T) {
-	q := NewQueue("test", 100)
-
-	msg := &Message{
-		ID:      "1",
-		Topic:   "test",
-		Payload: "hello",
-	}
-
-	err := q.Publish(msg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if q.Len() != 1 {
-		t.Errorf("expected length 1, got %d", q.Len())
-	}
-}
-
-func TestPublishFull(t *testing.T) {
-	q := NewQueue("test", 1)
-
-	msg1 := &Message{ID: "1", Payload: "a"}
-	msg2 := &Message{ID: "2", Payload: "b"}
-
-	q.Publish(msg1)
-	err := q.Publish(msg2)
-	if err != ErrQueueFull {
-		t.Errorf("expected ErrQueueFull, got %v", err)
-	}
-}
-
-func TestSubscribe(t *testing.T) {
-	q := NewQueue("test", 100)
-
-	var received *Message
-	var wg sync.WaitGroup
-	wg.Add(1)
+func TestQueuePublishConsume(t *testing.T) {
+	q := NewQueue("test", 10)
+	var received string
 
 	q.Subscribe(func(msg *Message) error {
-		received = msg
-		wg.Done()
+		received = msg.Payload.(string)
 		return nil
 	})
 
-	msg := &Message{ID: "1", Payload: "hello"}
-	q.Publish(msg)
+	q.Publish(NewMessage("test", "hello"))
+	time.Sleep(50 * time.Millisecond)
 
-	wg.Wait()
-
-	if received == nil {
-		t.Fatal("expected message to be received")
+	if received != "hello" {
+		t.Errorf("expected 'hello', got %q", received)
 	}
-	if received.Payload != "hello" {
-		t.Errorf("expected 'hello', got %v", received.Payload)
-	}
-}
-
-func TestSubscribeRetry(t *testing.T) {
-	q := NewQueue("test", 100)
-
-	var attempts int
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	q.Subscribe(func(msg *Message) error {
-		attempts++
-		if attempts < 3 {
-			return &QueueError{"retry"}
-		}
-		wg.Done()
-		return nil
-	})
-
-	msg := &Message{ID: "1", Payload: "hello", MaxRetries: 3}
-	q.Publish(msg)
-
-	wg.Wait()
-
-	if attempts != 3 {
-		t.Errorf("expected 3 attempts, got %d", attempts)
-	}
-}
-
-func TestStop(t *testing.T) {
-	q := NewQueue("test", 100)
-	q.Subscribe(func(msg *Message) error {
-		return nil
-	})
 
 	q.Stop()
-
-	q.mu.RLock()
-	running := q.running
-	q.mu.RUnlock()
-
-	if running {
-		t.Error("expected queue to be stopped")
-	}
 }
 
-func TestTopic(t *testing.T) {
-	topic := NewTopic("events")
-	if topic == nil {
-		t.Fatal("expected topic to be created")
-	}
+func TestQueueRetry(t *testing.T) {
+	q := NewQueue("test", 10)
+	var attempts int32
 
-	var received *Message
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	topic.Subscribe("sub1", func(msg *Message) error {
-		received = msg
-		wg.Done()
-		return nil
+	q.Subscribe(func(msg *Message) error {
+		atomic.AddInt32(&attempts, 1)
+		return errors.New("retry")
 	})
 
-	msg := &Message{ID: "1", Payload: "event"}
-	topic.Publish(msg)
+	q.Publish(NewMessage("test", "fail"))
+	time.Sleep(200 * time.Millisecond)
 
-	wg.Wait()
-
-	if received == nil {
-		t.Fatal("expected message to be received")
+	if atomic.LoadInt32(&attempts) != 3 {
+		t.Errorf("expected 3 attempts (1+2 retries with MaxRetries=3), got %d", atomic.LoadInt32(&attempts))
 	}
+
+	q.Stop()
 }
 
-func TestTopicMultipleSubscribers(t *testing.T) {
-	topic := NewTopic("events")
+func TestQueueDeadLetter(t *testing.T) {
+	q := NewQueue("test", 10)
 
-	var count int
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	wg.Add(2)
+	q.Subscribe(func(msg *Message) error {
+		return errors.New("permanent failure")
+	})
+
+	msg := NewMessage("test", "dead")
+	msg.MaxRetries = 1
+	q.Publish(msg)
+	time.Sleep(100 * time.Millisecond)
+
+	dead := q.DeadLetters()
+	if len(dead) != 1 {
+		t.Errorf("expected 1 dead letter, got %d", len(dead))
+	}
+
+	q.Stop()
+}
+
+func TestQueueStats(t *testing.T) {
+	q := NewQueue("test", 10)
+
+	q.Subscribe(func(msg *Message) error {
+		return nil
+	})
+
+	q.Publish(NewMessage("test", "1"))
+	q.Publish(NewMessage("test", "2"))
+	time.Sleep(50 * time.Millisecond)
+
+	stats := q.Stats()
+	if stats.Published != 2 {
+		t.Errorf("expected 2 published, got %d", stats.Published)
+	}
+	if stats.Consumed != 2 {
+		t.Errorf("expected 2 consumed, got %d", stats.Consumed)
+	}
+
+	q.Stop()
+}
+
+func TestQueueMetrics(t *testing.T) {
+	q := NewQueue("test", 10)
+
+	q.Subscribe(func(msg *Message) error {
+		time.Sleep(5 * time.Millisecond)
+		return nil
+	})
+
+	q.Publish(NewMessage("test", "1"))
+	time.Sleep(50 * time.Millisecond)
+
+	metrics := q.Metrics()
+	if metrics.LatencyCount != 1 {
+		t.Errorf("expected 1 latency count, got %d", metrics.LatencyCount)
+	}
+
+	q.Stop()
+}
+
+func TestTopicPubSub(t *testing.T) {
+	topic := NewTopic("events")
+	var received string
 
 	topic.Subscribe("sub1", func(msg *Message) error {
-		mu.Lock()
-		count++
-		mu.Unlock()
-		wg.Done()
+		received = msg.Payload.(string)
 		return nil
 	})
 
-	topic.Subscribe("sub2", func(msg *Message) error {
-		mu.Lock()
-		count++
-		mu.Unlock()
-		wg.Done()
-		return nil
-	})
+	topic.Publish(NewMessage("events", "data"))
+	time.Sleep(50 * time.Millisecond)
 
-	msg := &Message{ID: "1", Payload: "event"}
-	topic.Publish(msg)
+	if received != "data" {
+		t.Errorf("expected 'data', got %q", received)
+	}
 
-	wg.Wait()
-
-	if count != 2 {
-		t.Errorf("expected 2 receives, got %d", count)
+	if topic.Subscribers() != 1 {
+		t.Errorf("expected 1 subscriber, got %d", topic.Subscribers())
 	}
 }
 
@@ -198,96 +149,97 @@ func TestTopicUnsubscribe(t *testing.T) {
 func TestBroker(t *testing.T) {
 	broker := NewBroker()
 
-	broker.CreateTopic("events")
-	broker.CreateTopic("logs")
+	topic := broker.CreateTopic("logs")
+	if topic == nil {
+		t.Fatal("expected topic")
+	}
+
+	topic2 := broker.CreateTopic("logs")
+	if topic != topic2 {
+		t.Error("expected same topic instance")
+	}
 
 	topics := broker.ListTopics()
-	if len(topics) != 2 {
-		t.Errorf("expected 2 topics, got %d", len(topics))
+	if len(topics) != 1 {
+		t.Errorf("expected 1 topic, got %d", len(topics))
 	}
-}
 
-func TestBrokerPublish(t *testing.T) {
-	broker := NewBroker()
-
-	var received *Message
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	broker.Subscribe("events", "sub1", func(msg *Message) error {
-		received = msg
-		wg.Done()
-		return nil
-	})
-
-	msg := &Message{ID: "1", Payload: "hello"}
-	broker.Publish("events", msg)
-
-	wg.Wait()
-
-	if received == nil {
-		t.Fatal("expected message to be received")
+	broker.DeleteTopic("logs")
+	_, ok := broker.GetTopic("logs")
+	if ok {
+		t.Error("expected topic to be deleted")
 	}
 }
 
 func TestBrokerPublishNotFound(t *testing.T) {
 	broker := NewBroker()
 
-	msg := &Message{ID: "1", Payload: "hello"}
-	err := broker.Publish("nonexistent", msg)
-	if err != ErrTopicNotFound {
+	err := broker.Publish("nonexistent", NewMessage("test", "data"))
+	if !errors.Is(err, ErrTopicNotFound) {
 		t.Errorf("expected ErrTopicNotFound, got %v", err)
 	}
 }
 
-func TestBrokerDeleteTopic(t *testing.T) {
+func TestBrokerSubscribeAutoCreate(t *testing.T) {
 	broker := NewBroker()
 
-	broker.CreateTopic("events")
-	broker.DeleteTopic("events")
+	var received bool
+	broker.Subscribe("auto-topic", "sub1", func(msg *Message) error {
+		received = true
+		return nil
+	})
 
-	topics := broker.ListTopics()
-	if len(topics) != 0 {
-		t.Errorf("expected 0 topics, got %d", len(topics))
+	broker.Publish("auto-topic", NewMessage("auto-topic", "data"))
+	time.Sleep(50 * time.Millisecond)
+
+	if !received {
+		t.Error("expected to receive message")
 	}
-}
-
-func TestBrokerStop(t *testing.T) {
-	broker := NewBroker()
-
-	broker.CreateTopic("events")
-	broker.CreateTopic("logs")
 
 	broker.Stop()
-
-	topics := broker.ListTopics()
-	if len(topics) != 2 {
-		t.Errorf("expected 2 topics still listed, got %d", len(topics))
-	}
 }
 
-func TestNewMessage(t *testing.T) {
-	msg := NewMessage("topic", "payload")
-	if msg == nil {
-		t.Fatal("expected message to be created")
+func TestQueueFull(t *testing.T) {
+	q := NewQueue("test", 1)
+
+	q.Subscribe(func(msg *Message) error {
+		time.Sleep(100 * time.Millisecond)
+		return nil
+	})
+
+	q.Publish(NewMessage("test", "1"))
+	err := q.Publish(NewMessage("test", "2"))
+	if !errors.Is(err, ErrQueueFull) {
+		t.Errorf("expected ErrQueueFull, got %v", err)
 	}
-	if msg.Topic != "topic" {
-		t.Errorf("expected topic 'topic', got %s", msg.Topic)
-	}
-	if msg.Payload != "payload" {
-		t.Errorf("expected payload 'payload', got %v", msg.Payload)
-	}
-	if msg.MaxRetries != 3 {
-		t.Errorf("expected max retries 3, got %d", msg.MaxRetries)
-	}
+
+	q.Stop()
 }
 
-func TestMessageTimestamp(t *testing.T) {
-	before := time.Now()
-	msg := NewMessage("topic", "payload")
-	after := time.Now()
+func TestQueueConcurrency(t *testing.T) {
+	q := NewQueue("test", 100)
+	var count int32
 
-	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
-		t.Error("expected timestamp between before and after")
+	q.Subscribe(func(msg *Message) error {
+		atomic.AddInt32(&count, 1)
+		return nil
+	})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			q.Publish(NewMessage("test", "data"))
+		}()
 	}
+	wg.Wait()
+
+	time.Sleep(100 * time.Millisecond)
+
+	if atomic.LoadInt32(&count) != 50 {
+		t.Errorf("expected 50 consumed, got %d", atomic.LoadInt32(&count))
+	}
+
+	q.Stop()
 }

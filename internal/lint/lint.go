@@ -74,6 +74,10 @@ func (l *Linter) LintFile(path string) (*LintResult, error) {
 }
 
 func defaultRules() []LintRule {
+	return append(basicYAMLRules(), specValidationRules()...)
+}
+
+func basicYAMLRules() []LintRule {
 	return []LintRule{
 		{
 			ID:       "yaml-tabs",
@@ -241,7 +245,145 @@ func defaultRules() []LintRule {
 				return nil
 			},
 		},
+		{
+			ID:       "yaml-line-length",
+			Severity: SeverityWarning,
+			Check: func(content string) []LintIssue {
+				var issues []LintIssue
+				lines := strings.Split(content, "\n")
+				const maxLineLength = 200
+				for i, line := range lines {
+					if len(line) > maxLineLength {
+						issues = append(issues, LintIssue{
+							Line:     i + 1,
+							Severity: SeverityWarning,
+							Rule:     "yaml-line-length",
+							Message:  fmt.Sprintf("line exceeds %d characters (%d)", maxLineLength, len(line)),
+						})
+					}
+				}
+				return issues
+			},
+		},
+		{
+			ID:       "yaml-nested-duplicate-keys",
+			Severity: SeverityWarning,
+			Check: func(content string) []LintIssue {
+				var issues []LintIssue
+				lines := strings.Split(content, "\n")
+				type keyEntry struct {
+					key   string
+					line  int
+					depth int
+				}
+				var stack []keyEntry
+
+				for i, line := range lines {
+					trimmed := strings.TrimLeft(line, " \t")
+					if strings.TrimSpace(trimmed) == "" {
+						continue
+					}
+
+					indent := len(line) - len(trimmed)
+					depth := indent / 2
+
+					colonIdx := strings.Index(trimmed, ":")
+					if colonIdx < 0 {
+						continue
+					}
+					key := strings.TrimSpace(trimmed[:colonIdx])
+					if key == "" {
+						continue
+					}
+
+				for j := len(stack) - 1; j >= 0; j-- {
+					entry := stack[j]
+					if entry.depth > depth {
+						continue
+					}
+					if entry.depth < depth {
+						break
+					}
+					if entry.depth == depth && entry.key == key {
+						issues = append(issues, LintIssue{
+							Line:     i + 1,
+							Severity: SeverityWarning,
+							Rule:     "yaml-nested-duplicate-keys",
+							Message:  fmt.Sprintf("duplicate key %q at same indentation level (first at line %d)", key, entry.line),
+						})
+						break
+					}
+				}
+
+				for len(stack) > 0 && stack[len(stack)-1].depth >= depth {
+					stack = stack[:len(stack)-1]
+				}
+				stack = append(stack, keyEntry{key: key, line: i + 1, depth: depth})
+				}
+				return issues
+			},
+		},
+		{
+			ID:       "yaml-bool-string-mix",
+			Severity: SeverityWarning,
+			Check: func(content string) []LintIssue {
+				var issues []LintIssue
+				lines := strings.Split(content, "\n")
+				for i, line := range lines {
+					trimmed := strings.TrimSpace(line)
+					if strings.Contains(trimmed, ":") {
+						parts := strings.SplitN(trimmed, ":", 2)
+						if len(parts) == 2 {
+							val := strings.TrimSpace(parts[1])
+							if (val == "\"true\"" || val == "\"false\"" || val == "'true'" || val == "'false'") {
+								issues = append(issues, LintIssue{
+									Line:     i + 1,
+									Severity: SeverityWarning,
+									Rule:     "yaml-bool-string-mix",
+									Message:  "boolean value is quoted — use unquoted true/false",
+								})
+							}
+						}
+					}
+				}
+				return issues
+			},
+		},
 	}
+}
+
+func checkYAMLDuplicates(node *yaml.Node, path string) []LintIssue {
+	var issues []LintIssue
+	if node.Kind == yaml.MappingNode {
+		seen := make(map[string]int)
+		for i := 0; i < len(node.Content)-1; i += 2 {
+			key := node.Content[i].Value
+			fullPath := key
+			if path != "" {
+				fullPath = path + "." + key
+			}
+			if prev, exists := seen[key]; exists {
+				issues = append(issues, LintIssue{
+					Line:     node.Content[i].Line,
+					Severity: SeverityWarning,
+					Rule:     "yaml-nested-duplicate-keys",
+					Message:  fmt.Sprintf("duplicate key %q in mapping (first at line %d)", fullPath, prev),
+				})
+			}
+			seen[key] = node.Content[i].Line
+
+			issues = append(issues, checkYAMLDuplicates(node.Content[i+1], fullPath)...)
+		}
+	} else if node.Kind == yaml.SequenceNode {
+		for _, child := range node.Content {
+			issues = append(issues, checkYAMLDuplicates(child, path)...)
+		}
+	}
+	return issues
+}
+
+func specValidationRules() []LintRule {
+	return []LintRule{}
 }
 
 func Fix(content string) string {

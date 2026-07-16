@@ -105,6 +105,15 @@ func (a *Auditor) AddRule(rule AuditRule) {
 	a.rules = append(a.rules, rule)
 }
 
+func (a *Auditor) AddRules(rules []AuditRule) {
+	a.rules = append(a.rules, rules...)
+}
+
+func (a *Auditor) AuditWithFilter(filename, content string, minSeverity Severity) []Finding {
+	findings := a.Audit(filename, content)
+	return FilterBySeverity(findings, minSeverity)
+}
+
 func (a *Auditor) Audit(filename, content string) []Finding {
 	var findings []Finding
 	for _, rule := range a.rules {
@@ -121,9 +130,13 @@ func (a *Auditor) Audit(filename, content string) []Finding {
 }
 
 func (a *Auditor) AuditFiles(files map[string]string) *AuditResult {
+	return a.AuditFilesWithFilter(files, SeverityInfo)
+}
+
+func (a *Auditor) AuditFilesWithFilter(files map[string]string, minSeverity Severity) *AuditResult {
 	result := &AuditResult{}
 	for name, content := range files {
-		findings := a.Audit(name, content)
+		findings := a.AuditWithFilter(name, content, minSeverity)
 		result.Finding = append(result.Finding, findings...)
 	}
 	for _, f := range result.Finding {
@@ -145,6 +158,10 @@ func (a *Auditor) AuditFiles(files map[string]string) *AuditResult {
 }
 
 func defaultAuditRules() []AuditRule {
+	return append(commonAuditRules(), languageSpecificAuditRules()...)
+}
+
+func commonAuditRules() []AuditRule {
 	return []AuditRule{
 		{
 			ID:       "hardcoded-secret",
@@ -404,6 +421,193 @@ func defaultAuditRules() []AuditRule {
 							Line:        i + 1,
 							Remediation: "Validate data source and consider using serde_json for untrusted input",
 						})
+					}
+				}
+				return findings
+			},
+		},
+	}
+}
+
+func languageSpecificAuditRules() []AuditRule {
+	return []AuditRule{
+		{
+			ID:       "xss-vulnerability",
+			Severity: SeverityHigh,
+			Check: func(filename, content string) []Finding {
+				var findings []Finding
+				lines := strings.Split(content, "\n")
+				for i, line := range lines {
+					trimmed := strings.TrimSpace(line)
+					switch {
+					case strings.HasSuffix(filename, ".js") || strings.HasSuffix(filename, ".ts") || strings.HasSuffix(filename, ".jsx") || strings.HasSuffix(filename, ".tsx"):
+						if strings.Contains(trimmed, "dangerouslySetInnerHTML") {
+							findings = append(findings, Finding{
+								Title:       "Potential XSS vulnerability",
+								Description: "dangerouslySetInnerHTML can lead to XSS attacks",
+								Severity:    SeverityHigh,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Use a sanitization library like DOMPurify before setting innerHTML",
+							})
+						}
+						if strings.Contains(trimmed, "innerHTML") && !strings.Contains(trimmed, "textContent") {
+							findings = append(findings, Finding{
+								Title:       "Potential XSS vulnerability",
+								Description: "innerHTML can lead to XSS attacks if content is not sanitized",
+								Severity:    SeverityHigh,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Use textContent or sanitize input before using innerHTML",
+							})
+						}
+					case strings.HasSuffix(filename, ".py"):
+						if strings.Contains(trimmed, "mark_safe(") {
+							findings = append(findings, Finding{
+								Title:       "Potential XSS vulnerability",
+								Description: "mark_safe() bypasses Django's auto-escaping",
+								Severity:    SeverityHigh,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Use |safe filter in templates or django.utils.html.escape()",
+							})
+						}
+					case strings.HasSuffix(filename, ".html") || strings.HasSuffix(filename, ".gohtml"):
+						if strings.Contains(trimmed, "raw ") || strings.Contains(trimmed, "{{-") {
+							findings = append(findings, Finding{
+								Title:       "Potential XSS vulnerability",
+								Description: "Raw template output may contain unescaped user input",
+								Severity:    SeverityMedium,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Ensure user input is properly escaped or sanitized",
+							})
+						}
+					}
+				}
+				return findings
+			},
+		},
+		{
+			ID:       "insecure-http",
+			Severity: SeverityMedium,
+			Check: func(filename, content string) []Finding {
+				var findings []Finding
+				lines := strings.Split(content, "\n")
+				for i, line := range lines {
+					trimmed := strings.TrimSpace(line)
+					if strings.Contains(trimmed, "http://") &&
+						!strings.Contains(trimmed, "http://localhost") &&
+						!strings.Contains(trimmed, "http://127.0.0.1") &&
+						!strings.Contains(trimmed, "http://0.0.0.0") &&
+						!strings.Contains(trimmed, "//go:") &&
+						!strings.Contains(trimmed, "example.com") {
+						findings = append(findings, Finding{
+							Title:       "Insecure HTTP usage",
+							Description: "Using HTTP instead of HTTPS for external URLs",
+							Severity:    SeverityMedium,
+							File:        filename,
+							Line:        i + 1,
+							Remediation: "Use HTTPS for all external communications",
+						})
+					}
+				}
+				return findings
+			},
+		},
+		{
+			ID:       "hardcoded-connection-string",
+			Severity: SeverityCritical,
+			Check: func(filename, content string) []Finding {
+				var findings []Finding
+				connectionPatterns := []string{
+					"mysql://", "postgresql://", "mongodb://", "redis://",
+					"Server=", "Data Source=", "Driver={SQL Server}",
+				}
+				lines := strings.Split(content, "\n")
+				for i, line := range lines {
+					for _, pattern := range connectionPatterns {
+						if strings.Contains(strings.ToLower(line), strings.ToLower(pattern)) &&
+							!strings.Contains(line, "os.Getenv") &&
+							!strings.Contains(line, "process.env") &&
+							!strings.Contains(line, "os.environ") {
+							findings = append(findings, Finding{
+								Title:       "Hardcoded connection string",
+								Description: "Database/cache connection string should not be hardcoded",
+								Severity:    SeverityCritical,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Use environment variables or a secrets manager for connection strings",
+							})
+							break
+						}
+					}
+				}
+				return findings
+			},
+		},
+		{
+			ID:       "weak-crypto",
+			Severity: SeverityMedium,
+			Check: func(filename, content string) []Finding {
+				var findings []Finding
+				weakPatterns := []struct {
+					pattern string
+					desc    string
+				}{
+					{"md5.New()", "MD5 is cryptographically broken"},
+					{"sha1.New()", "SHA-1 is deprecated for security use"},
+					{"crypto/md5", "MD5 should not be used for security purposes"},
+					{"DES ", "DES is insecure, use AES"},
+					{"RC4", "RC4 stream cipher has known biases"},
+					{"Math.random()", "Math.random() is not cryptographically secure"},
+				}
+				lines := strings.Split(content, "\n")
+				for i, line := range lines {
+					for _, wp := range weakPatterns {
+						if strings.Contains(line, wp.pattern) {
+							findings = append(findings, Finding{
+								Title:       "Weak cryptographic algorithm",
+								Description: wp.desc,
+								Severity:    SeverityMedium,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Use SHA-256+ for hashing, AES for encryption, crypto/rand for randomness",
+							})
+							break
+						}
+					}
+				}
+				return findings
+			},
+		},
+		{
+			ID:       "missing-input-validation",
+			Severity: SeverityMedium,
+			Check: func(filename, content string) []Finding {
+				var findings []Finding
+				if !strings.HasSuffix(filename, ".go") {
+					return findings
+				}
+				lines := strings.Split(content, "\n")
+				for i, line := range lines {
+					trimmed := strings.TrimSpace(line)
+					if strings.Contains(trimmed, "r.URL.Query().Get(") ||
+						strings.Contains(trimmed, "chi.URLParam(") ||
+						strings.Contains(trimmed, "mux.Vars(") {
+						if !strings.Contains(trimmed, "strconv.Parse") &&
+							!strings.Contains(trimmed, "valid.") &&
+							!strings.Contains(trimmed, "sanitize") &&
+							!strings.Contains(trimmed, "validate") {
+							findings = append(findings, Finding{
+								Title:       "Potential missing input validation",
+								Description: "URL parameter is used without apparent validation",
+								Severity:    SeverityLow,
+								File:        filename,
+								Line:        i + 1,
+								Remediation: "Validate and sanitize all user input before use",
+							})
+						}
 					}
 				}
 				return findings

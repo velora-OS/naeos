@@ -1,3 +1,3 @@
 package sample-specification
 
-// sample-specification module placeholder.
+// sample-specification module.

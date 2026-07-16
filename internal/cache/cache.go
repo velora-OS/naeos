@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// Cache Entry
-
 type Entry struct {
 	Key       string
 	Value     any
@@ -19,7 +17,7 @@ func (e *Entry) IsExpired() bool {
 	return !e.ExpiresAt.IsZero() && time.Now().After(e.ExpiresAt)
 }
 
-// Cache
+type EvictionCallback func(key string, value any)
 
 type Cache struct {
 	items    map[string]*list.Element
@@ -28,12 +26,16 @@ type Cache struct {
 	ttl      time.Duration
 	mu       sync.RWMutex
 	stats    *Stats
+	callback EvictionCallback
+	stopCh   chan struct{}
+	running  bool
 }
 
 type Stats struct {
-	Hits   int64
-	Misses int64
-	Size   int
+	Hits     int64
+	Misses   int64
+	Size     int
+	Evicted  int64
 }
 
 func New(capacity int, ttl time.Duration) *Cache {
@@ -43,7 +45,14 @@ func New(capacity int, ttl time.Duration) *Cache {
 		capacity: capacity,
 		ttl:      ttl,
 		stats:    &Stats{},
+		stopCh:   make(chan struct{}),
 	}
+}
+
+func (c *Cache) SetEvictionCallback(cb EvictionCallback) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.callback = cb
 }
 
 func (c *Cache) Get(key string) (any, bool) {
@@ -140,9 +149,10 @@ func (c *Cache) Stats() *Stats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return &Stats{
-		Hits:   c.stats.Hits,
-		Misses: c.stats.Misses,
-		Size:   c.lru.Len(),
+		Hits:    c.stats.Hits,
+		Misses:  c.stats.Misses,
+		Size:    c.lru.Len(),
+		Evicted: c.stats.Evicted,
 	}
 }
 
@@ -162,18 +172,50 @@ func (c *Cache) Cleanup() int {
 	defer c.mu.Unlock()
 
 	removed := 0
-	for elem := c.lru.Back(); elem != nil; {
+	for elem := c.lru.Front(); elem != nil; {
 		entry := elem.Value.(*Entry)
+		next := elem.Next()
 		if entry.IsExpired() {
-			prev := elem.Prev()
 			c.remove(elem)
 			removed++
-			elem = prev
-		} else {
-			break
 		}
+		elem = next
 	}
 	return removed
+}
+
+func (c *Cache) StartEviction(interval time.Duration) {
+	c.mu.Lock()
+	if c.running {
+		c.mu.Unlock()
+		return
+	}
+	c.running = true
+	c.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				c.Cleanup()
+			case <-c.stopCh:
+				return
+			}
+		}
+	}()
+}
+
+func (c *Cache) StopEviction() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.running {
+		close(c.stopCh)
+		c.running = false
+		c.stopCh = make(chan struct{})
+	}
 }
 
 func (c *Cache) remove(elem *list.Element) {
@@ -181,9 +223,12 @@ func (c *Cache) remove(elem *list.Element) {
 	delete(c.items, entry.Key)
 	c.lru.Remove(elem)
 	c.stats.Size--
-}
+	c.stats.Evicted++
 
-// Cache Manager (multiple caches)
+	if c.callback != nil {
+		c.callback(entry.Key, entry.Value)
+	}
+}
 
 type Manager struct {
 	caches map[string]*Cache
@@ -242,8 +287,6 @@ func (m *Manager) ClearAll() {
 		cache.Clear()
 	}
 }
-
-// HTTP Cache Middleware
 
 type HTTPCache struct {
 	cache *Cache

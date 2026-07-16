@@ -1,24 +1,22 @@
 package messagequeue
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// Message
-
 type Message struct {
-	ID        string
-	Topic     string
-	Payload   any
-	Timestamp time.Time
-	Retries   int
+	ID         string
+	Topic      string
+	Payload    any
+	Timestamp  time.Time
+	Retries    int
 	MaxRetries int
 }
 
 type MessageHandler func(msg *Message) error
-
-// Queue
 
 type Queue struct {
 	name     string
@@ -26,12 +24,33 @@ type Queue struct {
 	handler  MessageHandler
 	running  bool
 	mu       sync.RWMutex
+	stats    QueueStats
+	dead     []*Message
+	maxDead  int
+	metrics  *QueueMetrics
+}
+
+type QueueStats struct {
+	Published int64
+	Consumed  int64
+	Failed    int64
+	DeadLettered int64
+}
+
+type QueueMetrics struct {
+	QueueDepth    int64
+	ProcessRate   float64
+	AvgLatencyMs  float64
+	TotalLatency  int64
+	LatencyCount  int64
 }
 
 func NewQueue(name string, capacity int) *Queue {
 	return &Queue{
 		name:     name,
 		messages: make(chan *Message, capacity),
+		maxDead:  100,
+		metrics:  &QueueMetrics{},
 	}
 }
 
@@ -43,6 +62,7 @@ func (q *Queue) Publish(msg *Message) error {
 
 	select {
 	case q.messages <- msg:
+		atomic.AddInt64(&q.stats.Published, 1)
 		return nil
 	default:
 		return ErrQueueFull
@@ -69,13 +89,50 @@ func (q *Queue) consume() {
 			return
 		}
 
+		start := time.Now()
 		if err := handler(msg); err != nil {
 			msg.Retries++
 			if msg.Retries < msg.MaxRetries {
 				q.messages <- msg
+			} else {
+				q.addToDead(msg)
+				atomic.AddInt64(&q.stats.DeadLettered, 1)
 			}
+			atomic.AddInt64(&q.stats.Failed, 1)
+		} else {
+			atomic.AddInt64(&q.stats.Consumed, 1)
 		}
+
+		elapsed := time.Since(start).Milliseconds()
+		q.updateLatency(elapsed)
 	}
+}
+
+func (q *Queue) updateLatency(ms int64) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.metrics.TotalLatency += ms
+	q.metrics.LatencyCount++
+	if q.metrics.LatencyCount > 0 {
+		q.metrics.AvgLatencyMs = float64(q.metrics.TotalLatency) / float64(q.metrics.LatencyCount)
+	}
+}
+
+func (q *Queue) addToDead(msg *Message) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.dead) >= q.maxDead {
+		q.dead = q.dead[1:]
+	}
+	q.dead = append(q.dead, msg)
+}
+
+func (q *Queue) DeadLetters() []*Message {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	out := make([]*Message, len(q.dead))
+	copy(out, q.dead)
+	return out
 }
 
 func (q *Queue) Stop() {
@@ -93,7 +150,25 @@ func (q *Queue) Name() string {
 	return q.name
 }
 
-// Topic
+func (q *Queue) Stats() QueueStats {
+	return QueueStats{
+		Published:    atomic.LoadInt64(&q.stats.Published),
+		Consumed:     atomic.LoadInt64(&q.stats.Consumed),
+		Failed:       atomic.LoadInt64(&q.stats.Failed),
+		DeadLettered: atomic.LoadInt64(&q.stats.DeadLettered),
+	}
+}
+
+func (q *Queue) Metrics() QueueMetrics {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return QueueMetrics{
+		QueueDepth:   int64(len(q.messages)),
+		AvgLatencyMs: q.metrics.AvgLatencyMs,
+		TotalLatency: q.metrics.TotalLatency,
+		LatencyCount: q.metrics.LatencyCount,
+	}
+}
 
 type Topic struct {
 	name    string
@@ -145,8 +220,6 @@ func (t *Topic) Subscribers() int {
 	defer t.mu.RUnlock()
 	return len(t.queues)
 }
-
-// Broker
 
 type Broker struct {
 	topics map[string]*Topic
@@ -235,10 +308,8 @@ func (b *Broker) Stop() {
 	}
 }
 
-// Errors
-
 var (
-	ErrQueueFull    = &QueueError{"queue is full"}
+	ErrQueueFull     = &QueueError{"queue is full"}
 	ErrTopicNotFound = &QueueError{"topic not found"}
 )
 
@@ -250,18 +321,16 @@ func (e *QueueError) Error() string {
 	return e.msg
 }
 
-// Message Builder
-
 func NewMessage(topic string, payload any) *Message {
 	return &Message{
-		ID:        generateID(),
-		Topic:     topic,
-		Payload:   payload,
-		Timestamp: time.Now(),
+		ID:         generateID(),
+		Topic:      topic,
+		Payload:    payload,
+		Timestamp:  time.Now(),
 		MaxRetries: 3,
 	}
 }
 
 func generateID() string {
-	return time.Now().Format("20060102150405.000000000")
+	return fmt.Sprintf("msg-%d", time.Now().UnixNano())
 }

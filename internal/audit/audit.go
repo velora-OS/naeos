@@ -5,36 +5,34 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
 
-// AuditEvent represents a single auditable action performed by a user.
 type AuditEvent struct {
-	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	UserID    string    `json:"user_id"`
-	Action    string    `json:"action"`
-	Resource  string    `json:"resource"`
-	ResourceID string   `json:"resource_id,omitempty"`
-	IP        string    `json:"ip,omitempty"`
-	UserAgent string    `json:"user_agent,omitempty"`
-	Status    string    `json:"status"`
-	Details   string    `json:"details,omitempty"`
+	ID         string            `json:"id"`
+	Timestamp  time.Time         `json:"timestamp"`
+	UserID     string            `json:"user_id"`
+	Action     string            `json:"action"`
+	Resource   string            `json:"resource"`
+	ResourceID string            `json:"resource_id,omitempty"`
+	IP         string            `json:"ip,omitempty"`
+	UserAgent  string            `json:"user_agent,omitempty"`
+	Status     string            `json:"status"`
+	Details    string            `json:"details,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
-// Auditor is the interface for logging audit events.
 type Auditor interface {
 	Log(event AuditEvent) error
 }
 
-// FileAuditor writes audit events to a local log file.
 type FileAuditor struct {
 	path string
 	mu   sync.Mutex
 }
 
-// NewFileAuditor creates a file-backed auditor that writes to ~/.naeos/audit.log.
 func NewFileAuditor(homeDir string) (*FileAuditor, error) {
 	dir := filepath.Join(homeDir, ".naeos")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -45,7 +43,6 @@ func NewFileAuditor(homeDir string) (*FileAuditor, error) {
 	}, nil
 }
 
-// Log appends an audit event to the log file.
 func (f *FileAuditor) Log(event AuditEvent) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -76,18 +73,15 @@ func (f *FileAuditor) Log(event AuditEvent) error {
 	return nil
 }
 
-// MemoryAuditor stores audit events in memory for testing.
 type MemoryAuditor struct {
 	events []AuditEvent
 	mu     sync.Mutex
 }
 
-// NewMemoryAuditor creates an in-memory auditor.
 func NewMemoryAuditor() *MemoryAuditor {
 	return &MemoryAuditor{}
 }
 
-// Log stores an audit event in memory.
 func (m *MemoryAuditor) Log(event AuditEvent) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -103,7 +97,6 @@ func (m *MemoryAuditor) Log(event AuditEvent) error {
 	return nil
 }
 
-// Events returns a copy of all stored audit events.
 func (m *MemoryAuditor) Events() []AuditEvent {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -113,11 +106,200 @@ func (m *MemoryAuditor) Events() []AuditEvent {
 	return events
 }
 
-// Clear removes all stored audit events.
 func (m *MemoryAuditor) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = nil
+}
+
+type Query struct {
+	From     time.Time
+	To       time.Time
+	UserID   string
+	Action   string
+	Resource string
+	Status   string
+	Limit    int
+	Offset   int
+}
+
+func (m *MemoryAuditor) Query(q Query) []AuditEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var result []AuditEvent
+	for _, e := range m.events {
+		if !q.From.IsZero() && e.Timestamp.Before(q.From) {
+			continue
+		}
+		if !q.To.IsZero() && e.Timestamp.After(q.To) {
+			continue
+		}
+		if q.UserID != "" && e.UserID != q.UserID {
+			continue
+		}
+		if q.Action != "" && e.Action != q.Action {
+			continue
+		}
+		if q.Resource != "" && e.Resource != q.Resource {
+			continue
+		}
+		if q.Status != "" && e.Status != q.Status {
+			continue
+		}
+		result = append(result, e)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Timestamp.After(result[j].Timestamp)
+	})
+
+	if q.Offset > 0 {
+		if q.Offset >= len(result) {
+			return nil
+		}
+		result = result[q.Offset:]
+	}
+	if q.Limit > 0 && len(result) > q.Limit {
+		result = result[:q.Limit]
+	}
+
+	return result
+}
+
+type Aggregation struct {
+	ByAction   map[string]int
+	ByUser     map[string]int
+	ByResource map[string]int
+	ByStatus   map[string]int
+	ByDay      map[string]int
+	Total      int
+}
+
+func (m *MemoryAuditor) Aggregate() Aggregation {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	agg := Aggregation{
+		ByAction:   make(map[string]int),
+		ByUser:     make(map[string]int),
+		ByResource: make(map[string]int),
+		ByStatus:   make(map[string]int),
+		ByDay:      make(map[string]int),
+	}
+
+	for _, e := range m.events {
+		agg.Total++
+		agg.ByAction[e.Action]++
+		agg.ByUser[e.UserID]++
+		agg.ByResource[e.Resource]++
+		agg.ByStatus[e.Status]++
+		day := e.Timestamp.Format("2006-01-02")
+		agg.ByDay[day]++
+	}
+
+	return agg
+}
+
+type RetentionPolicy struct {
+	MaxAge    time.Duration
+	MaxCount  int
+	KeepDays  int
+}
+
+func (m *MemoryAuditor) ApplyRetention(policy RetentionPolicy) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	cutoff := time.Now().Add(-policy.MaxAge)
+	original := len(m.events)
+
+	var kept []AuditEvent
+	for _, e := range m.events {
+		if policy.MaxAge != 0 && e.Timestamp.Before(cutoff) {
+			continue
+		}
+		kept = append(kept, e)
+	}
+
+	if policy.MaxCount > 0 && len(kept) > policy.MaxCount {
+		kept = kept[len(kept)-policy.MaxCount:]
+	}
+
+	m.events = kept
+	return original - len(m.events)
+}
+
+func (m *MemoryAuditor) ExportJSON(path string) error {
+	m.mu.Lock()
+	events := make([]AuditEvent, len(m.events))
+	copy(events, m.events)
+	m.mu.Unlock()
+
+	data, err := json.MarshalIndent(events, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal events: %w", err)
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+func (m *MemoryAuditor) Len() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.events)
+}
+
+func (m *MemoryAuditor) Latest() *AuditEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.events) == 0 {
+		return nil
+	}
+	return &m.events[len(m.events)-1]
+}
+
+func (m *MemoryAuditor) Oldest() *AuditEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.events) == 0 {
+		return nil
+	}
+	return &m.events[0]
+}
+
+func (m *MemoryAuditor) ByID(id string) *AuditEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range m.events {
+		if e.ID == id {
+			return &e
+		}
+	}
+	return nil
+}
+
+func (m *MemoryAuditor) UserActions(userID string) []AuditEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []AuditEvent
+	for _, e := range m.events {
+		if e.UserID == userID {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+func (m *MemoryAuditor) FailedEvents() []AuditEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var result []AuditEvent
+	for _, e := range m.events {
+		if e.Status == "failed" || e.Status == "error" {
+			result = append(result, e)
+		}
+	}
+	return result
 }
 
 func generateID() string {
