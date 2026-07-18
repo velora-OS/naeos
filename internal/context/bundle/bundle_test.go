@@ -178,3 +178,275 @@ func TestGenerateFromNEIREmpty(t *testing.T) {
 	}
 	_ = bundle.Summary
 }
+
+func TestEstimateTokens(t *testing.T) {
+	bundle := &Bundle{
+		Project:  "test",
+		Modules:  []ModuleContext{{Name: "auth"}, {Name: "api"}},
+		Services: []ServiceContext{{Name: "srv"}},
+		Languages: []string{"go"},
+	}
+	tokens := bundle.EstimateTokens()
+	if tokens <= 0 {
+		t.Errorf("tokens = %d, want > 0", tokens)
+	}
+}
+
+func TestToJSON(t *testing.T) {
+	bundle := &Bundle{
+		Project:  "json-test",
+		Modules:  []ModuleContext{{Name: "m1"}},
+		Metadata: map[string]string{"k": "v"},
+	}
+	out := bundle.ToJSON()
+	if !strings.Contains(out, "json-test") {
+		t.Error("JSON should contain project name")
+	}
+	if !strings.Contains(out, "m1") {
+		t.Error("JSON should contain module name")
+	}
+}
+
+func TestToJSONEmpty(t *testing.T) {
+	bundle := &Bundle{}
+	out := bundle.ToJSON()
+	if !strings.Contains(out, "project") {
+		t.Error("empty bundle JSON should contain field names")
+	}
+}
+
+func TestFilterByModule(t *testing.T) {
+	bundle := &Bundle{
+		Project: "proj",
+		Modules: []ModuleContext{
+			{Name: "auth"},
+			{Name: "api"},
+			{Name: "core"},
+		},
+		DependencyGraph: []DependencyEdge{
+			{From: "auth", To: "core"},
+			{From: "api", To: "auth"},
+		},
+		Services: []ServiceContext{{Name: "s1"}},
+	}
+	filtered := bundle.FilterByModule([]string{"auth", "api"})
+	if len(filtered.Modules) != 2 {
+		t.Errorf("modules = %d, want 2", len(filtered.Modules))
+	}
+	if len(filtered.DependencyGraph) != 2 {
+		t.Errorf("dep graph = %d, want 2", len(filtered.DependencyGraph))
+	}
+	if len(filtered.Services) != 1 {
+		t.Error("services should be preserved")
+	}
+}
+
+func TestFilterByModuleEmpty(t *testing.T) {
+	bundle := &Bundle{
+		Modules: []ModuleContext{{Name: "a"}, {Name: "b"}},
+	}
+	filtered := bundle.FilterByModule([]string{"nonexistent"})
+	if len(filtered.Modules) != 0 {
+		t.Errorf("modules = %d, want 0", len(filtered.Modules))
+	}
+}
+
+func TestFilterByService(t *testing.T) {
+	bundle := &Bundle{
+		Modules:  []ModuleContext{{Name: "m1"}},
+		Services: []ServiceContext{
+			{Name: "http-svc", Kind: "rest"},
+			{Name: "grpc-svc", Kind: "grpc"},
+			{Name: "ws-svc", Kind: "websocket"},
+		},
+	}
+	filtered := bundle.FilterByService([]string{"rest", "grpc"})
+	if len(filtered.Services) != 2 {
+		t.Errorf("services = %d, want 2", len(filtered.Services))
+	}
+	if len(filtered.Modules) != 1 {
+		t.Error("modules should be preserved")
+	}
+}
+
+func TestFilterByServiceCaseInsensitive(t *testing.T) {
+	bundle := &Bundle{
+		Services: []ServiceContext{
+			{Name: "s1", Kind: "REST"},
+		},
+	}
+	filtered := bundle.FilterByService([]string{"rest"})
+	if len(filtered.Services) != 1 {
+		t.Errorf("services = %d, want 1 (case insensitive)", len(filtered.Services))
+	}
+}
+
+func TestMergeWithOther(t *testing.T) {
+	b1 := &Bundle{
+		Project:  "p1",
+		Modules:  []ModuleContext{{Name: "m1"}},
+		Services: []ServiceContext{{Name: "s1"}},
+		Languages: []string{"go"},
+		Metadata:  map[string]string{"a": "1"},
+	}
+	b2 := &Bundle{
+		Project:  "p2",
+		Modules:  []ModuleContext{{Name: "m2"}},
+		Services: []ServiceContext{{Name: "s2"}},
+		Languages: []string{"typescript"},
+		Metadata:  map[string]string{"b": "2"},
+		Security:  &SecurityContext{AuthMethod: "jwt"},
+	}
+	merged := b1.Merge(b2)
+	if merged.Project != "p2" {
+		t.Errorf("project = %q, want p2", merged.Project)
+	}
+	if len(merged.Modules) != 2 {
+		t.Errorf("modules = %d, want 2", len(merged.Modules))
+	}
+	if len(merged.Services) != 2 {
+		t.Errorf("services = %d, want 2", len(merged.Services))
+	}
+	if len(merged.Languages) != 2 {
+		t.Errorf("languages = %d, want 2", len(merged.Languages))
+	}
+	if merged.Security == nil || merged.Security.AuthMethod != "jwt" {
+		t.Error("security should come from other")
+	}
+	if merged.Metadata["a"] != "1" || merged.Metadata["b"] != "2" {
+		t.Error("metadata should be merged")
+	}
+	if merged.Metadata["token_estimate"] == "" {
+		t.Error("token_estimate should be set")
+	}
+	if merged.Summary == "" {
+		t.Error("summary should be set")
+	}
+}
+
+func TestMergeNilOther(t *testing.T) {
+	b := &Bundle{
+		Project:  "p1",
+		Modules:  []ModuleContext{{Name: "m1"}},
+		Languages: []string{"go"},
+		Metadata: map[string]string{"k": "v"},
+	}
+	merged := b.Merge(nil)
+	if merged.Project != "p1" {
+		t.Errorf("project = %q, want p1", merged.Project)
+	}
+	if len(merged.Modules) != 1 {
+		t.Errorf("modules = %d, want 1", len(merged.Modules))
+	}
+}
+
+func TestMergeDedupLanguages(t *testing.T) {
+	b1 := &Bundle{Languages: []string{"go", "typescript"}}
+	b2 := &Bundle{Languages: []string{"go", "python"}}
+	merged := b1.Merge(b2)
+	if len(merged.Languages) != 3 {
+		t.Errorf("languages = %d, want 3 (deduped)", len(merged.Languages))
+	}
+}
+
+func TestMergeModulesFromBoth(t *testing.T) {
+	b1 := &Bundle{
+		Modules: []ModuleContext{{Name: "m1"}},
+	}
+	b2 := &Bundle{
+		Modules: []ModuleContext{{Name: "m2"}},
+	}
+	merged := b1.Merge(b2)
+	if len(merged.Modules) != 2 {
+		t.Errorf("modules = %d, want 2", len(merged.Modules))
+	}
+}
+
+func TestMergeNoModules(t *testing.T) {
+	b1 := &Bundle{Project: "p1", Metadata: map[string]string{}}
+	b2 := &Bundle{Project: "p2", Metadata: map[string]string{}}
+	merged := b1.Merge(b2)
+	if len(merged.Modules) != 0 {
+		t.Errorf("modules = %d, want 0", len(merged.Modules))
+	}
+}
+
+func TestSupportedTargetsWithNEIR(t *testing.T) {
+	bundle := &Bundle{NEIR: "some json"}
+	targets := bundle.SupportedTargets()
+	found := false
+	for _, tgt := range targets {
+		if tgt == "neir" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("neir should be a supported target when NEIR is set")
+	}
+}
+
+func TestBuildTargets(t *testing.T) {
+	bundle := &Bundle{}
+	targets := bundle.buildTargets([]string{"go", "typescript"})
+	hasLangGo := false
+	hasLangTS := false
+	for _, tgt := range targets {
+		if tgt == "lang-go" {
+			hasLangGo = true
+		}
+		if tgt == "lang-typescript" {
+			hasLangTS = true
+		}
+	}
+	if !hasLangGo {
+		t.Error("should have lang-go target")
+	}
+	if !hasLangTS {
+		t.Error("should have lang-typescript target")
+	}
+}
+
+func TestBuildSummary(t *testing.T) {
+	bundle := &Bundle{
+		Project:  "proj",
+		Modules:  []ModuleContext{{Name: "a"}, {Name: "b"}},
+		Services: []ServiceContext{{Name: "s1"}},
+		Languages: []string{"go"},
+	}
+	summary := bundle.buildSummary()
+	if !strings.Contains(summary, "Project: proj") {
+		t.Error("summary should contain project")
+	}
+	if !strings.Contains(summary, "Modules: a, b") {
+		t.Error("summary should contain modules")
+	}
+	if !strings.Contains(summary, "Services: 1") {
+		t.Error("summary should contain service count")
+	}
+	if !strings.Contains(summary, "Languages: go") {
+		t.Error("summary should contain languages")
+	}
+}
+
+func TestBuildSummaryEmpty(t *testing.T) {
+	bundle := &Bundle{}
+	summary := bundle.buildSummary()
+	if summary != "" {
+		t.Errorf("empty bundle summary = %q, want empty", summary)
+	}
+}
+
+func TestFilterByModulePreservesCloudAndSecurity(t *testing.T) {
+	bundle := &Bundle{
+		Modules: []ModuleContext{{Name: "m1"}},
+		Cloud:   []CloudResource{{Provider: "aws", Type: "s3", Name: "bucket"}},
+		Security: &SecurityContext{AuthMethod: "oauth2"},
+	}
+	filtered := bundle.FilterByModule([]string{"m1"})
+	if filtered.Cloud == nil || len(filtered.Cloud) != 1 {
+		t.Error("cloud resources should be preserved")
+	}
+	if filtered.Security == nil || filtered.Security.AuthMethod != "oauth2" {
+		t.Error("security should be preserved")
+	}
+}

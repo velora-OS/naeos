@@ -1,8 +1,11 @@
 package broker
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,51 +38,43 @@ type Message struct {
 
 type MessageHandler func(msg *Message) error
 
-// Redis Adapter
+// stubBroker is the shared base type for Redis, RabbitMQ, and Kafka stubs.
+// All three adapters embed this and only override Name() and field names
+// in their constructors, eliminating the previous copy-paste duplication.
 
-type Redis struct {
+type stubBroker struct {
 	config    *Config
 	connected bool
 	channels  map[string]MessageHandler
 	mu        sync.RWMutex
 }
 
-func NewRedis() *Redis {
-	return &Redis{
-		channels: make(map[string]MessageHandler),
-	}
-}
-
-func (r *Redis) Name() string {
-	return "redis"
-}
-
-func (r *Redis) Connect(config *Config) error {
-	r.config = config
-	r.connected = true
+func (s *stubBroker) connect(config *Config) error {
+	s.config = config
+	s.connected = true
 	return nil
 }
 
-func (r *Redis) Close() error {
-	r.connected = false
+func (s *stubBroker) close() error {
+	s.connected = false
 	return nil
 }
 
-func (r *Redis) Ping() error {
-	if !r.connected {
+func (s *stubBroker) ping() error {
+	if !s.connected {
 		return fmt.Errorf("not connected")
 	}
 	return nil
 }
 
-func (r *Redis) Publish(channel string, msg *Message) error {
-	if !r.connected {
+func (s *stubBroker) publish(channel string, msg *Message) error {
+	if !s.connected {
 		return fmt.Errorf("not connected")
 	}
 
-	r.mu.RLock()
-	handler, ok := r.channels[channel]
-	r.mu.RUnlock()
+	s.mu.RLock()
+	handler, ok := s.channels[channel]
+	s.mu.RUnlock()
 
 	if ok {
 		go handler(msg)
@@ -87,163 +82,77 @@ func (r *Redis) Publish(channel string, msg *Message) error {
 	return nil
 }
 
-func (r *Redis) Subscribe(channel string, handler MessageHandler) error {
-	if !r.connected {
+func (s *stubBroker) subscribe(channel string, handler MessageHandler) error {
+	if !s.connected {
 		return fmt.Errorf("not connected")
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.channels[channel] = handler
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.channels[channel] = handler
 	return nil
 }
 
-func (r *Redis) Unsubscribe(channel string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.channels, channel)
+func (s *stubBroker) unsubscribe(channel string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.channels, channel)
 	return nil
 }
+
+// Redis Adapter
+
+type Redis struct {
+	stubBroker
+}
+
+func NewRedis() *Redis {
+	return &Redis{stubBroker{channels: make(map[string]MessageHandler)}}
+}
+
+func (r *Redis) Name() string                              { return "redis" }
+func (r *Redis) Connect(config *Config) error              { return r.stubBroker.connect(config) }
+func (r *Redis) Close() error                              { return r.stubBroker.close() }
+func (r *Redis) Ping() error                               { return r.stubBroker.ping() }
+func (r *Redis) Publish(channel string, msg *Message) error { return r.stubBroker.publish(channel, msg) }
+func (r *Redis) Subscribe(channel string, h MessageHandler) error { return r.stubBroker.subscribe(channel, h) }
+func (r *Redis) Unsubscribe(channel string) error               { return r.stubBroker.unsubscribe(channel) }
 
 // RabbitMQ Adapter
 
 type RabbitMQ struct {
-	config    *Config
-	connected bool
-	queues    map[string]MessageHandler
-	mu        sync.RWMutex
+	stubBroker
 }
 
 func NewRabbitMQ() *RabbitMQ {
-	return &RabbitMQ{
-		queues: make(map[string]MessageHandler),
-	}
+	return &RabbitMQ{stubBroker{channels: make(map[string]MessageHandler)}}
 }
 
-func (r *RabbitMQ) Name() string {
-	return "rabbitmq"
-}
-
-func (r *RabbitMQ) Connect(config *Config) error {
-	r.config = config
-	r.connected = true
-	return nil
-}
-
-func (r *RabbitMQ) Close() error {
-	r.connected = false
-	return nil
-}
-
-func (r *RabbitMQ) Ping() error {
-	if !r.connected {
-		return fmt.Errorf("not connected")
-	}
-	return nil
-}
-
-func (r *RabbitMQ) Publish(channel string, msg *Message) error {
-	if !r.connected {
-		return fmt.Errorf("not connected")
-	}
-
-	r.mu.RLock()
-	handler, ok := r.queues[channel]
-	r.mu.RUnlock()
-
-	if ok {
-		go handler(msg)
-	}
-	return nil
-}
-
-func (r *RabbitMQ) Subscribe(channel string, handler MessageHandler) error {
-	if !r.connected {
-		return fmt.Errorf("not connected")
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.queues[channel] = handler
-	return nil
-}
-
-func (r *RabbitMQ) Unsubscribe(channel string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.queues, channel)
-	return nil
-}
+func (r *RabbitMQ) Name() string                              { return "rabbitmq" }
+func (r *RabbitMQ) Connect(config *Config) error              { return r.stubBroker.connect(config) }
+func (r *RabbitMQ) Close() error                              { return r.stubBroker.close() }
+func (r *RabbitMQ) Ping() error                               { return r.stubBroker.ping() }
+func (r *RabbitMQ) Publish(channel string, msg *Message) error { return r.stubBroker.publish(channel, msg) }
+func (r *RabbitMQ) Subscribe(channel string, h MessageHandler) error { return r.stubBroker.subscribe(channel, h) }
+func (r *RabbitMQ) Unsubscribe(channel string) error               { return r.stubBroker.unsubscribe(channel) }
 
 // Kafka Adapter
 
 type Kafka struct {
-	config    *Config
-	connected bool
-	topics    map[string]MessageHandler
-	mu        sync.RWMutex
+	stubBroker
 }
 
 func NewKafka() *Kafka {
-	return &Kafka{
-		topics: make(map[string]MessageHandler),
-	}
+	return &Kafka{stubBroker{channels: make(map[string]MessageHandler)}}
 }
 
-func (k *Kafka) Name() string {
-	return "kafka"
-}
-
-func (k *Kafka) Connect(config *Config) error {
-	k.config = config
-	k.connected = true
-	return nil
-}
-
-func (k *Kafka) Close() error {
-	k.connected = false
-	return nil
-}
-
-func (k *Kafka) Ping() error {
-	if !k.connected {
-		return fmt.Errorf("not connected")
-	}
-	return nil
-}
-
-func (k *Kafka) Publish(channel string, msg *Message) error {
-	if !k.connected {
-		return fmt.Errorf("not connected")
-	}
-
-	k.mu.RLock()
-	handler, ok := k.topics[channel]
-	k.mu.RUnlock()
-
-	if ok {
-		go handler(msg)
-	}
-	return nil
-}
-
-func (k *Kafka) Subscribe(channel string, handler MessageHandler) error {
-	if !k.connected {
-		return fmt.Errorf("not connected")
-	}
-
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	k.topics[channel] = handler
-	return nil
-}
-
-func (k *Kafka) Unsubscribe(channel string) error {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	delete(k.topics, channel)
-	return nil
-}
+func (k *Kafka) Name() string                              { return "kafka" }
+func (k *Kafka) Connect(config *Config) error              { return k.stubBroker.connect(config) }
+func (k *Kafka) Close() error                              { return k.stubBroker.close() }
+func (k *Kafka) Ping() error                               { return k.stubBroker.ping() }
+func (k *Kafka) Publish(channel string, msg *Message) error { return k.stubBroker.publish(channel, msg) }
+func (k *Kafka) Subscribe(channel string, h MessageHandler) error { return k.stubBroker.subscribe(channel, h) }
+func (k *Kafka) Unsubscribe(channel string) error               { return k.stubBroker.unsubscribe(channel) }
 
 // Broker Manager
 
@@ -326,3 +235,509 @@ func NewMessage(channel string, payload []byte) *Message {
 func generateID() string {
 	return time.Now().Format("20060102150405.000000000")
 }
+
+// InMemoryBroker is a full in-memory broker with fan-out delivery to multiple
+// subscribers per channel, message ordering guarantees, and publish confirmation.
+
+type InMemoryBroker struct {
+	config        *Config
+	connected     bool
+	subscribers   map[string][]MessageHandler
+	mu            sync.RWMutex
+	published     chan *Message
+	publishConfirm chan struct{}
+	deadLetter    chan *Message
+	deadLetterH   MessageHandler
+}
+
+func NewInMemoryBroker() *InMemoryBroker {
+	return &InMemoryBroker{
+		subscribers:   make(map[string][]MessageHandler),
+		published:     make(chan *Message, 256),
+		publishConfirm: make(chan struct{}, 256),
+		deadLetter:    make(chan *Message, 256),
+	}
+}
+
+func (b *InMemoryBroker) Name() string { return "memory" }
+
+func (b *InMemoryBroker) Connect(config *Config) error {
+	b.config = config
+	b.connected = true
+	return nil
+}
+
+func (b *InMemoryBroker) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.connected = false
+	b.subscribers = make(map[string][]MessageHandler)
+	return nil
+}
+
+func (b *InMemoryBroker) Ping() error {
+	if !b.connected {
+		return fmt.Errorf("not connected")
+	}
+	return nil
+}
+
+func (b *InMemoryBroker) Publish(channel string, msg *Message) error {
+	if !b.connected {
+		return fmt.Errorf("not connected")
+	}
+	if msg == nil {
+		return fmt.Errorf("message is nil")
+	}
+	msg.Channel = channel
+
+	b.mu.RLock()
+	handlers := make([]MessageHandler, len(b.subscribers[channel]))
+	copy(handlers, b.subscribers[channel])
+	b.mu.RUnlock()
+
+	for _, h := range handlers {
+		if err := h(msg); err != nil {
+			if b.deadLetterH != nil {
+				b.deadLetterH(msg)
+			}
+		}
+	}
+
+	select {
+	case b.published <- msg:
+	default:
+	}
+	select {
+	case b.publishConfirm <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+func (b *InMemoryBroker) Subscribe(channel string, handler MessageHandler) error {
+	if !b.connected {
+		return fmt.Errorf("not connected")
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.subscribers[channel] = append(b.subscribers[channel], handler)
+	return nil
+}
+
+func (b *InMemoryBroker) Unsubscribe(channel string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.subscribers, channel)
+	return nil
+}
+
+func (b *InMemoryBroker) SubscriberCount(channel string) int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return len(b.subscribers[channel])
+}
+
+func (b *InMemoryBroker) SetDeadLetterHandler(handler MessageHandler) {
+	b.deadLetterH = handler
+}
+
+func (b *InMemoryBroker) DeadLetterChan() <-chan *Message {
+	return b.deadLetter
+}
+
+func (b *InMemoryBroker) PublishedChan() <-chan *Message {
+	return b.published
+}
+
+func (b *InMemoryBroker) PublishConfirmChan() <-chan struct{} {
+	return b.publishConfirm
+}
+
+// Middleware is a function that wraps a MessageHandler, forming a chain of
+// interceptors that execute before the final handler.
+
+type Middleware func(next MessageHandler) MessageHandler
+
+// Chain applies a slice of Middleware to a handler, composing them left to right.
+// The first middleware in the slice is the outermost (executes first on publish).
+
+func Chain(handler MessageHandler, middlewares ...Middleware) MessageHandler {
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		handler = middlewares[i](handler)
+	}
+	return handler
+}
+
+// MessageFilter filters messages by channel pattern, payload substring, or
+// a custom predicate function.
+
+type MessageFilter struct {
+	ChannelPattern string
+	PayloadMatch   string
+	Predicate      func(msg *Message) bool
+}
+
+func NewMessageFilter() *MessageFilter {
+	return &MessageFilter{}
+}
+
+func (f *MessageFilter) SetChannelPattern(pattern string) {
+	f.ChannelPattern = pattern
+}
+
+func (f *MessageFilter) SetPayloadMatch(match string) {
+	f.PayloadMatch = match
+}
+
+func (f *MessageFilter) SetPredicate(fn func(msg *Message) bool) {
+	f.Predicate = fn
+}
+
+func (f *MessageFilter) Match(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
+	if f.ChannelPattern != "" {
+		if matched, _ := matchGlob(f.ChannelPattern, msg.Channel); !matched {
+			return false
+		}
+	}
+	if f.PayloadMatch != "" {
+		if !strings.Contains(string(msg.Payload), f.PayloadMatch) {
+			return false
+		}
+	}
+	if f.Predicate != nil && !f.Predicate(msg) {
+		return false
+	}
+	return true
+}
+
+func (f *MessageFilter) WrapHandler(handler MessageHandler) MessageHandler {
+	return func(msg *Message) error {
+		if f.Match(msg) {
+			return handler(msg)
+		}
+		return nil
+	}
+}
+
+// matchGlob does simple glob matching where * matches any sequence of characters.
+func matchGlob(pattern, s string) (bool, error) {
+	if !strings.Contains(pattern, "*") {
+		return pattern == s, nil
+	}
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 2 {
+		prefix, suffix := parts[0], parts[1]
+		if !strings.HasPrefix(s, prefix) {
+			return false, nil
+		}
+		rest := s[len(prefix):]
+		if strings.HasSuffix(rest, suffix) {
+			return true, nil
+		}
+		return false, nil
+	}
+	return strings.Contains(s, strings.ReplaceAll(pattern, "*", "")), nil
+}
+
+// RetryConfig holds retry behaviour for publish failures.
+
+type RetryConfig struct {
+	MaxAttempts int
+	BaseDelay   time.Duration
+	MaxDelay    time.Duration
+	Multiplier  float64
+}
+
+func DefaultRetryConfig() *RetryConfig {
+	return &RetryConfig{
+		MaxAttempts: 3,
+		BaseDelay:   100 * time.Millisecond,
+		MaxDelay:    5 * time.Second,
+		Multiplier:  2.0,
+	}
+}
+
+func (rc *RetryConfig) delay(attempt int) time.Duration {
+	delay := time.Duration(float64(rc.BaseDelay) * pow(rc.Multiplier, float64(attempt)))
+	if delay > rc.MaxDelay {
+		delay = rc.MaxDelay
+	}
+	return delay
+}
+
+func pow(base, exp float64) float64 {
+	result := 1.0
+	for i := 0; i < int(exp); i++ {
+		result *= base
+	}
+	return result
+}
+
+// PublishWithRetry attempts to publish a message, retrying on failure with
+// exponential backoff.
+
+func PublishWithRetry(b Broker, channel string, msg *Message, rc *RetryConfig) error {
+	if rc == nil {
+		rc = DefaultRetryConfig()
+	}
+	var lastErr error
+	for attempt := 0; attempt < rc.MaxAttempts; attempt++ {
+		lastErr = b.Publish(channel, msg)
+		if lastErr == nil {
+			return nil
+		}
+		if attempt < rc.MaxAttempts-1 {
+			time.Sleep(rc.delay(attempt))
+		}
+	}
+	return fmt.Errorf("publish failed after %d attempts: %w", rc.MaxAttempts, lastErr)
+}
+
+// DeadLetterChannel provides a channel-based dead letter queue for messages
+// that failed processing.
+
+type DeadLetterChannel struct {
+	messages chan *Message
+	handler  MessageHandler
+	mu       sync.Mutex
+}
+
+func NewDeadLetterChannel(bufferSize int) *DeadLetterChannel {
+	return &DeadLetterChannel{
+		messages: make(chan *Message, bufferSize),
+	}
+}
+
+func (dlc *DeadLetterChannel) Handler() MessageHandler {
+	return func(msg *Message) error {
+		dlc.mu.Lock()
+		defer dlc.mu.Unlock()
+		select {
+		case dlc.messages <- msg:
+			return nil
+		default:
+			return fmt.Errorf("dead letter queue full")
+		}
+	}
+}
+
+func (dlc *DeadLetterChannel) Drain(handler MessageHandler) {
+	dlc.mu.Lock()
+	dlc.handler = handler
+	dlc.mu.Unlock()
+
+	go func() {
+		for msg := range dlc.messages {
+			dlc.mu.Lock()
+			h := dlc.handler
+			dlc.mu.Unlock()
+			if h != nil {
+				h(msg)
+			}
+		}
+	}()
+}
+
+func (dlc *DeadLetterChannel) Messages() <-chan *Message {
+	return dlc.messages
+}
+
+func (dlc *DeadLetterChannel) Len() int {
+	return len(dlc.messages)
+}
+
+func (dlc *DeadLetterChannel) Close() {
+	close(dlc.messages)
+}
+
+// ConnectionPool manages a pool of Broker connections with round-robin
+// selection and optional health checking.
+
+type ConnectionPool struct {
+	brokers  []Broker
+	current  uint64
+	healthy  []bool
+	mu       sync.RWMutex
+	checkFn  func(Broker) bool
+}
+
+func NewConnectionPool(brokers ...Broker) *ConnectionPool {
+	healthy := make([]bool, len(brokers))
+	for i := range healthy {
+		healthy[i] = true
+	}
+	return &ConnectionPool{
+		brokers: brokers,
+		healthy: healthy,
+		checkFn: func(b Broker) bool { return b.Ping() == nil },
+	}
+}
+
+func (cp *ConnectionPool) SetHealthCheck(fn func(Broker) bool) {
+	cp.checkFn = fn
+}
+
+func (cp *ConnectionPool) Next() Broker {
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+
+	if len(cp.brokers) == 0 {
+		return nil
+	}
+	start := atomic.AddUint64(&cp.current, 1) - 1
+	for i := uint64(0); i < uint64(len(cp.brokers)); i++ {
+		idx := (start + i) % uint64(len(cp.brokers))
+		if cp.healthy[idx] {
+			return cp.brokers[idx]
+		}
+	}
+	return nil
+}
+
+func (cp *ConnectionPool) Len() int {
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+	return len(cp.brokers)
+}
+
+func (cp *ConnectionPool) HealthyCount() int {
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+	count := 0
+	for _, h := range cp.healthy {
+		if h {
+			count++
+		}
+	}
+	return count
+}
+
+func (cp *ConnectionPool) CheckHealth() {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	for i, b := range cp.brokers {
+		cp.healthy[i] = cp.checkFn(b)
+	}
+}
+
+func (cp *ConnectionPool) SetHealthy(index int, healthy bool) {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	if index >= 0 && index < len(cp.healthy) {
+		cp.healthy[index] = healthy
+	}
+}
+
+func (cp *ConnectionPool) CloseAll() error {
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+	for _, b := range cp.brokers {
+		if err := b.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Metrics tracks publish/receive/error counts and per-channel subscriber counts.
+
+type Metrics struct {
+	published    int64
+	received     int64
+	errors       int64
+	subscribers  map[string]int64
+	mu           sync.RWMutex
+}
+
+func NewMetrics() *Metrics {
+	return &Metrics{
+		subscribers: make(map[string]int64),
+	}
+}
+
+func (m *Metrics) IncPublished()    { atomic.AddInt64(&m.published, 1) }
+func (m *Metrics) IncReceived()     { atomic.AddInt64(&m.received, 1) }
+func (m *Metrics) IncErrors()       { atomic.AddInt64(&m.errors, 1) }
+
+func (m *Metrics) PublishedCount() int64  { return atomic.LoadInt64(&m.published) }
+func (m *Metrics) ReceivedCount() int64   { return atomic.LoadInt64(&m.received) }
+func (m *Metrics) ErrorsCount() int64     { return atomic.LoadInt64(&m.errors) }
+
+func (m *Metrics) SetSubscriberCount(channel string, count int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.subscribers[channel] = count
+}
+
+func (m *Metrics) SubscriberCount(channel string) int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.subscribers[channel]
+}
+
+func (m *Metrics) Reset() {
+	atomic.StoreInt64(&m.published, 0)
+	atomic.StoreInt64(&m.received, 0)
+	atomic.StoreInt64(&m.errors, 0)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.subscribers = make(map[string]int64)
+}
+
+// MetricsBroker wraps a Broker and records metrics on every operation.
+
+type MetricsBroker struct {
+	broker  Broker
+	metrics *Metrics
+}
+
+func NewMetricsBroker(broker Broker, metrics *Metrics) *MetricsBroker {
+	return &MetricsBroker{broker: broker, metrics: metrics}
+}
+
+func (mb *MetricsBroker) Name() string { return mb.broker.Name() }
+
+func (mb *MetricsBroker) Connect(config *Config) error { return mb.broker.Connect(config) }
+func (mb *MetricsBroker) Close() error                 { return mb.broker.Close() }
+func (mb *MetricsBroker) Ping() error                  { return mb.broker.Ping() }
+
+func (mb *MetricsBroker) Publish(channel string, msg *Message) error {
+	mb.metrics.IncPublished()
+	err := mb.broker.Publish(channel, msg)
+	if err != nil {
+		mb.metrics.IncErrors()
+	}
+	return err
+}
+
+func (mb *MetricsBroker) Subscribe(channel string, handler MessageHandler) error {
+	wrapped := func(msg *Message) error {
+		mb.metrics.IncReceived()
+		return handler(msg)
+	}
+	err := mb.broker.Subscribe(channel, wrapped)
+	if err != nil {
+		mb.metrics.IncErrors()
+		return err
+	}
+	mb.metrics.SetSubscriberCount(channel, mb.metrics.SubscriberCount(channel)+1)
+	return nil
+}
+
+func (mb *MetricsBroker) Unsubscribe(channel string) error {
+	mb.metrics.SetSubscriberCount(channel, 0)
+	return mb.broker.Unsubscribe(channel)
+}
+
+func (mb *MetricsBroker) Metrics() *Metrics { return mb.metrics }
+
+var (
+	ErrNotConnected     = errors.New("not connected")
+	ErrPoolEmpty        = errors.New("broker pool is empty")
+	ErrMessageNil       = errors.New("message is nil")
+	ErrDeadLetterFull   = errors.New("dead letter queue full")
+)

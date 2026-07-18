@@ -45,7 +45,7 @@ Example:
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mgr := workspace.NewManager(rootDir)
-			if err := mgr.AddModule(args[0], args[1], ""); err != nil {
+			if err := mgr.AddModule(args[0], args[1], "", nil); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Added module %s\n", args[0])

@@ -18,6 +18,13 @@ type Server struct {
 	mu             sync.RWMutex
 	allowedOrigins []string
 	upgrader       websocket.Upgrader
+	rooms          *RoomManager
+	clientRooms    map[*Client]map[string]bool
+	rateLimiter    *RateLimiter
+	authFunc       AuthFunc
+	interceptors   []MessageInterceptor
+	history        *History
+	metrics        *MetricsCollector
 }
 
 type Client struct {
@@ -47,6 +54,10 @@ func NewServer() *Server {
 		broadcast:  make(chan []byte, 256),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		rooms:      NewRoomManager(),
+		clientRooms: make(map[*Client]map[string]bool),
+		history:    NewHistory(100),
+		metrics:    NewMetricsCollector(),
 	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -142,6 +153,8 @@ func (s *Server) Broadcast(eventType string, payload any) {
 		Time:    time.Now(),
 	}
 	data, _ := json.Marshal(msg)
+	s.history.Add(eventType, payload, "")
+	s.metrics.IncrSent(1)
 	s.broadcast <- data
 }
 
@@ -153,6 +166,24 @@ func (s *Server) ClientCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.clients)
+}
+
+func (s *Server) History() *History {
+	return s.history
+}
+
+func (s *Server) Metrics() *MetricsCollector {
+	return s.metrics
+}
+
+func (s *Server) ClientIDs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var ids []string
+	for c := range s.clients {
+		ids = append(ids, c.id)
+	}
+	return ids
 }
 
 func (s *Server) Stop() {
@@ -184,9 +215,26 @@ func (c *Client) readPump() {
 		if err != nil {
 			return
 		}
+		c.server.metrics.IncrReceived(1)
 
 		var incoming Message
 		if err := json.Unmarshal(msg, &incoming); err != nil {
+			continue
+		}
+
+		c.server.mu.RLock()
+		interceptors := make([]MessageInterceptor, len(c.server.interceptors))
+		copy(interceptors, c.server.interceptors)
+		c.server.mu.RUnlock()
+
+		blocked := false
+		for _, interceptor := range interceptors {
+			if !interceptor(c.id, &incoming) {
+				blocked = true
+				break
+			}
+		}
+		if blocked {
 			continue
 		}
 

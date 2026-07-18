@@ -1,0 +1,7 @@
+pipeline:
+  name: my-project
+  mode: development
+  verbose: true
+  output_dir: ./out
+  language:
+    - go

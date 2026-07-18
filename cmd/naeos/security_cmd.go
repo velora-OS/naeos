@@ -61,9 +61,10 @@ func newSecuritySetSecretCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "secret name (required)")
 	cmd.Flags().StringVar(&value, "value", "", "secret value (required)")
-	cmd.Flags().StringVar(&key, "key", "naeos-default-key", "encryption key")
+	cmd.Flags().StringVar(&key, "key", "", "encryption key (required, min 16 characters)")
 	cmd.MarkFlagRequired("name")
 	cmd.MarkFlagRequired("value")
+	cmd.MarkFlagRequired("key")
 	return cmd
 }
 
@@ -88,8 +89,9 @@ func newSecurityGetSecretCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "secret name (required)")
-	cmd.Flags().StringVar(&key, "key", "naeos-default-key", "encryption key")
+	cmd.Flags().StringVar(&key, "key", "", "encryption key (required, min 16 characters)")
 	cmd.MarkFlagRequired("name")
+	cmd.MarkFlagRequired("key")
 	return cmd
 }
 
@@ -119,7 +121,8 @@ func newSecurityListSecretsCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&key, "key", "naeos-default-key", "encryption key")
+	cmd.Flags().StringVar(&key, "key", "", "encryption key (required, min 16 characters)")
+	cmd.MarkFlagRequired("key")
 	return cmd
 }
 
@@ -163,10 +166,13 @@ func newSecurityHashPasswordCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "hash-password",
-		Short: "Hash a password with SHA-256",
+		Short: "Hash a password with bcrypt",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			hash := securityext.HashPassword(password)
+			hash, err := securityext.HashPassword(password)
+			if err != nil {
+				return fmt.Errorf("failed to hash password: %w", err)
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", hash)
 			return nil
 		},

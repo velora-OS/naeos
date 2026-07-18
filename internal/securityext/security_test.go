@@ -107,7 +107,10 @@ func TestSanitizerSanitizeAll(t *testing.T) {
 }
 
 func TestHashPassword(t *testing.T) {
-	hash := HashPassword("password123")
+	hash, err := HashPassword("password123")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
 	if hash == "" {
 		t.Error("expected non-empty hash")
 	}

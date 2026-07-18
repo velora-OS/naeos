@@ -168,24 +168,124 @@ func diffServiceFields(old, new service.Service) []FieldChange {
 		changes = append(changes, FieldChange{Field: "kind", OldValue: old.Kind, NewValue: new.Kind})
 	}
 
-	oldEndp := fmt.Sprintf("%v", old.Endpoints)
-	newEndp := fmt.Sprintf("%v", new.Endpoints)
-	if oldEndp != newEndp {
-		changes = append(changes, FieldChange{Field: "endpoints", OldValue: oldEndp, NewValue: newEndp})
+	if epChanges := diffEndpoints(old.Endpoints, new.Endpoints); len(epChanges) > 0 {
+		changes = append(changes, epChanges...)
+	}
+	if mwChanges := diffMiddleware(old.Middleware, new.Middleware); len(mwChanges) > 0 {
+		changes = append(changes, mwChanges...)
+	}
+	if attrChanges := diffAttributes(old.Attributes, new.Attributes); len(attrChanges) > 0 {
+		changes = append(changes, attrChanges...)
 	}
 
-	oldMid := fmt.Sprintf("%v", old.Middleware)
-	newMid := fmt.Sprintf("%v", new.Middleware)
-	if oldMid != newMid {
-		changes = append(changes, FieldChange{Field: "middleware", OldValue: oldMid, NewValue: newMid})
-	}
+	return changes
+}
 
-	oldAttr := fmt.Sprintf("%v", old.Attributes)
-	newAttr := fmt.Sprintf("%v", new.Attributes)
-	if oldAttr != newAttr {
-		changes = append(changes, FieldChange{Field: "attributes", OldValue: oldAttr, NewValue: newAttr})
+func diffEndpoints(old, new []service.Endpoint) []FieldChange {
+	var changes []FieldChange
+	oldMap := make(map[string]service.Endpoint)
+	for _, ep := range old {
+		key := ep.Method + ":" + ep.Path
+		oldMap[key] = ep
 	}
+	newMap := make(map[string]service.Endpoint)
+	for _, ep := range new {
+		key := ep.Method + ":" + ep.Path
+		newMap[key] = ep
+	}
+	for key, oldEp := range oldMap {
+		if newEp, exists := newMap[key]; exists {
+			if oldEp.Action != newEp.Action {
+				changes = append(changes, FieldChange{
+					Field:    fmt.Sprintf("endpoint[%s].action", key),
+					OldValue: oldEp.Action,
+					NewValue: newEp.Action,
+				})
+			}
+		} else {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("endpoint[%s]", key),
+				OldValue: "present",
+				NewValue: "removed",
+			})
+		}
+	}
+	for key := range newMap {
+		if _, exists := oldMap[key]; !exists {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("endpoint[%s]", key),
+				OldValue: "absent",
+				NewValue: "added",
+			})
+		}
+	}
+	return changes
+}
 
+func diffMiddleware(old, new []string) []FieldChange {
+	var changes []FieldChange
+	oldSet := make(map[string]bool)
+	for _, mw := range old {
+		oldSet[mw] = true
+	}
+	newSet := make(map[string]bool)
+	for _, mw := range new {
+		newSet[mw] = true
+	}
+	for _, mw := range old {
+		if !newSet[mw] {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("middleware[%s]", mw),
+				OldValue: "present",
+				NewValue: "removed",
+			})
+		}
+	}
+	for _, mw := range new {
+		if !oldSet[mw] {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("middleware[%s]", mw),
+				OldValue: "absent",
+				NewValue: "added",
+			})
+		}
+	}
+	return changes
+}
+
+func diffAttributes(old, new map[string]string) []FieldChange {
+	var changes []FieldChange
+	if len(old) != len(new) {
+		changes = append(changes, FieldChange{
+			Field:    "attributes",
+			OldValue: len(old),
+			NewValue: len(new),
+		})
+	}
+	for key, oldVal := range old {
+		if newVal, exists := new[key]; !exists {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("attributes[%s]", key),
+				OldValue: oldVal,
+				NewValue: "removed",
+			})
+		} else if oldVal != newVal {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("attributes[%s]", key),
+				OldValue: oldVal,
+				NewValue: newVal,
+			})
+		}
+	}
+	for key, newVal := range new {
+		if _, exists := old[key]; !exists {
+			changes = append(changes, FieldChange{
+				Field:    fmt.Sprintf("attributes[%s]", key),
+				OldValue: "absent",
+				NewValue: newVal,
+			})
+		}
+	}
 	return changes
 }
 

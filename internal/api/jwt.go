@@ -72,7 +72,7 @@ func (j *JWTValidator) Validate(token string) (*JWTClaims, error) {
 	signingInput := fmt.Sprintf("%s.%s", parts[0], parts[1])
 	expectedSig := j.sign(signingInput)
 
-	if parts[2] != expectedSig {
+	if !hmac.Equal([]byte(parts[2]), []byte(expectedSig)) {
 		return nil, fmt.Errorf("invalid signature")
 	}
 
@@ -101,23 +101,23 @@ func (j *JWTValidator) sign(input string) string {
 
 // OIDCDiscovery represents an OpenID Connect discovery document.
 type OIDCDiscovery struct {
-	Issuer                            string   `json:"issuer"`
-	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
-	TokenEndpoint                     string   `json:"token_endpoint"`
-	ResponseTypesSupported            []string `json:"response_types_supported"`
-	SubjectTypesSupported             []string `json:"subject_types_supported"`
-	IDTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
+	Issuer                           string   `json:"issuer"`
+	AuthorizationEndpoint            string   `json:"authorization_endpoint"`
+	TokenEndpoint                    string   `json:"token_endpoint"`
+	ResponseTypesSupported           []string `json:"response_types_supported"`
+	SubjectTypesSupported            []string `json:"subject_types_supported"`
+	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
 }
 
 // OIDCDiscoveryDocument returns the OIDC discovery metadata for the given issuer.
 func (j *JWTValidator) OIDCDiscoveryDocument(issuer string) *OIDCDiscovery {
 	return &OIDCDiscovery{
-		Issuer:                            issuer,
-		AuthorizationEndpoint:             issuer + "/authorize",
-		TokenEndpoint:                     issuer + "/token",
-		ResponseTypesSupported:            []string{"code"},
-		SubjectTypesSupported:             []string{"public"},
-		IDTokenSigningAlgValuesSupported:  []string{"HS256"},
+		Issuer:                           issuer,
+		AuthorizationEndpoint:            issuer + "/authorize",
+		TokenEndpoint:                    issuer + "/token",
+		ResponseTypesSupported:           []string{"code"},
+		SubjectTypesSupported:            []string{"public"},
+		IDTokenSigningAlgValuesSupported: []string{"HS256"},
 	}
 }
 

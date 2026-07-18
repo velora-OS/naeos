@@ -1,6 +1,7 @@
 package contextbundle
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -427,12 +428,173 @@ func (b *Bundle) ToPlainText() string {
 	return sb.String()
 }
 
-func (b *Bundle) SupportedTargets() []string {
-	targets := make([]string, 0, 4)
-	targets = append(targets, "markdown", "plain")
-	if b.NEIR != "" {
-		targets = append(targets, "json")
+func (b *Bundle) buildTargets(languages []string) []string {
+	targets := []string{"markdown", "plain", "json"}
+	seen := make(map[string]bool)
+	for _, t := range targets {
+		seen[t] = true
+	}
+	for _, lang := range languages {
+		key := "lang-" + strings.ToLower(lang)
+		if !seen[key] {
+			targets = append(targets, key)
+			seen[key] = true
+		}
 	}
 	sort.Strings(targets)
 	return targets
+}
+
+func (b *Bundle) buildSummary() string {
+	var parts []string
+	if b.Project != "" {
+		parts = append(parts, fmt.Sprintf("Project: %s", b.Project))
+	}
+	if len(b.Modules) > 0 {
+		names := make([]string, len(b.Modules))
+		for i, m := range b.Modules {
+			names[i] = m.Name
+		}
+		parts = append(parts, fmt.Sprintf("Modules: %s", strings.Join(names, ", ")))
+	}
+	if len(b.Services) > 0 {
+		parts = append(parts, fmt.Sprintf("Services: %d", len(b.Services)))
+	}
+	if len(b.Languages) > 0 {
+		parts = append(parts, fmt.Sprintf("Languages: %s", strings.Join(b.Languages, ", ")))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func (b *Bundle) SupportedTargets() []string {
+	targets := make([]string, 0, 4)
+	targets = append(targets, "markdown", "plain", "json")
+	if b.NEIR != "" {
+		targets = append(targets, "neir")
+	}
+	sort.Strings(targets)
+	return targets
+}
+
+func (b *Bundle) EstimateTokens() int {
+	content := b.ToPlainText()
+	words := strings.Fields(content)
+	return len(words) * 4 / 3
+}
+
+func (b *Bundle) ToJSON() string {
+	data, err := json.MarshalIndent(b, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func (b *Bundle) FilterByModule(names []string) *Bundle {
+	nameSet := make(map[string]bool, len(names))
+	for _, n := range names {
+		nameSet[n] = true
+	}
+	filtered := &Bundle{
+		Project:    b.Project,
+		Summary:    b.Summary,
+		Metadata:   b.Metadata,
+		Security:   b.Security,
+		Cloud:      b.Cloud,
+		NEIR:       b.NEIR,
+		Raw:        b.Raw,
+		Languages:  b.Languages,
+		Targets:    b.Targets,
+	}
+	for _, m := range b.Modules {
+		if nameSet[m.Name] {
+			filtered.Modules = append(filtered.Modules, m)
+		}
+	}
+	filtered.Services = append(filtered.Services, b.Services...)
+	for _, e := range b.DependencyGraph {
+		if nameSet[e.From] || nameSet[e.To] {
+			filtered.DependencyGraph = append(filtered.DependencyGraph, e)
+		}
+	}
+	return filtered
+}
+
+func (b *Bundle) FilterByService(kinds []string) *Bundle {
+	kindSet := make(map[string]bool, len(kinds))
+	for _, k := range kinds {
+		kindSet[strings.ToLower(k)] = true
+	}
+	filtered := &Bundle{
+		Project:         b.Project,
+		Summary:         b.Summary,
+		Metadata:        b.Metadata,
+		Security:        b.Security,
+		Cloud:           b.Cloud,
+		NEIR:            b.NEIR,
+		Raw:             b.Raw,
+		Languages:       b.Languages,
+		Targets:         b.Targets,
+		Modules:         b.Modules,
+		DependencyGraph: b.DependencyGraph,
+	}
+	for _, s := range b.Services {
+		if kindSet[strings.ToLower(s.Kind)] {
+			filtered.Services = append(filtered.Services, s)
+		}
+	}
+	return filtered
+}
+
+func (b *Bundle) Merge(other *Bundle) *Bundle {
+	merged := &Bundle{
+		Project:  b.Project,
+		Summary:  b.Summary,
+		Metadata: make(map[string]string),
+		Security: b.Security,
+		Cloud:    append([]CloudResource{}, b.Cloud...),
+		NEIR:     b.NEIR,
+		Raw:      b.Raw,
+	}
+	for k, v := range b.Metadata {
+		merged.Metadata[k] = v
+	}
+	if other != nil {
+		if other.Project != "" {
+			merged.Project = other.Project
+		}
+		merged.Modules = append(merged.Modules, b.Modules...)
+		merged.Modules = append(merged.Modules, other.Modules...)
+		merged.Services = append(merged.Services, b.Services...)
+		merged.Services = append(merged.Services, other.Services...)
+		merged.Languages = append(merged.Languages, b.Languages...)
+		merged.Languages = append(merged.Languages, other.Languages...)
+		merged.DependencyGraph = append(merged.DependencyGraph, b.DependencyGraph...)
+		merged.DependencyGraph = append(merged.DependencyGraph, other.DependencyGraph...)
+		merged.Cloud = append(merged.Cloud, other.Cloud...)
+		for k, v := range other.Metadata {
+			merged.Metadata[k] = v
+		}
+		if other.Security != nil {
+			merged.Security = other.Security
+		}
+	} else {
+		merged.Modules = append([]ModuleContext{}, b.Modules...)
+		merged.Services = append([]ServiceContext{}, b.Services...)
+		merged.Languages = append([]string{}, b.Languages...)
+		merged.DependencyGraph = append([]DependencyEdge{}, b.DependencyGraph...)
+	}
+	seenLang := make(map[string]bool)
+	var uniqueLangs []string
+	for _, l := range merged.Languages {
+		if !seenLang[l] {
+			seenLang[l] = true
+			uniqueLangs = append(uniqueLangs, l)
+		}
+	}
+	merged.Languages = uniqueLangs
+	merged.Targets = b.buildTargets(merged.Languages)
+	merged.Summary = merged.buildSummary()
+	merged.Metadata["token_estimate"] = fmt.Sprintf("%d", merged.EstimateTokens())
+	return merged
 }

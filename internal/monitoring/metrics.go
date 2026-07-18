@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +20,8 @@ const (
 	Summary   MetricType = "summary"
 )
 
+var defaultBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+
 type Metric struct {
 	Name        string
 	Type        MetricType
@@ -27,25 +30,91 @@ type Metric struct {
 	Help        string
 	Buckets     []float64
 	Quantiles   []float64
+	CreatedAt   time.Time
 }
 
 type MetricFamily struct {
-	Name    string
-	Type    MetricType
-	Help    string
-	Metrics []*Metric
+	Name      string
+	Type      MetricType
+	Help      string
+	Metrics   []*Metric
+	Buckets   []float64
+	Counts    []uint64
+	Sum       float64
+	Count     uint64
+	CreatedAt time.Time
 }
 
 // Registry
 
 type Registry struct {
-	metrics map[string]*MetricFamily
-	mu      sync.RWMutex
+	metrics          map[string]*MetricFamily
+	mu               sync.RWMutex
+	maxCardinality   int
+	cleanupInterval  time.Duration
+	stopCleanup      chan struct{}
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		metrics: make(map[string]*MetricFamily),
+		metrics:         make(map[string]*MetricFamily),
+		maxCardinality:  1000,
+		cleanupInterval: 5 * time.Minute,
+		stopCleanup:     make(chan struct{}),
+	}
+}
+
+func NewRegistryWithOptions(maxCardinality int, cleanupInterval time.Duration) *Registry {
+	if maxCardinality <= 0 {
+		maxCardinality = 1000
+	}
+	if cleanupInterval <= 0 {
+		cleanupInterval = 5 * time.Minute
+	}
+	return &Registry{
+		metrics:         make(map[string]*MetricFamily),
+		maxCardinality:  maxCardinality,
+		cleanupInterval: cleanupInterval,
+		stopCleanup:     make(chan struct{}),
+	}
+}
+
+func (r *Registry) StartCleanup(minAge time.Duration) {
+	go func() {
+		ticker := time.NewTicker(r.cleanupInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				r.CleanupStale(minAge)
+			case <-r.stopCleanup:
+				return
+			}
+		}
+	}()
+}
+
+func (r *Registry) StopCleanup() {
+	close(r.stopCleanup)
+}
+
+func (r *Registry) CleanupStale(minAge time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	cutoff := time.Now().Add(-minAge)
+	for name, family := range r.metrics {
+		filtered := family.Metrics[:0]
+		for _, m := range family.Metrics {
+			if m.CreatedAt.IsZero() || m.CreatedAt.After(cutoff) {
+				filtered = append(filtered, m)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(r.metrics, name)
+		} else {
+			family.Metrics = filtered
+		}
 	}
 }
 
@@ -57,11 +126,38 @@ func (r *Registry) Register(name string, metricType MetricType, help string) {
 		return
 	}
 
-	r.metrics[name] = &MetricFamily{
-		Name: name,
-		Type: metricType,
-		Help: help,
+	family := &MetricFamily{
+		Name:    name,
+		Type:    metricType,
+		Help:    help,
+		CreatedAt: time.Now(),
 	}
+	if metricType == Histogram {
+		family.Buckets = make([]float64, len(defaultBuckets))
+		copy(family.Buckets, defaultBuckets)
+		family.Counts = make([]uint64, len(defaultBuckets)+1)
+	}
+	r.metrics[name] = family
+}
+
+func (r *Registry) RegisterWithBuckets(name string, help string, buckets []float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.metrics[name]; exists {
+		return
+	}
+
+	family := &MetricFamily{
+		Name:      name,
+		Type:      Histogram,
+		Help:      help,
+		CreatedAt: time.Now(),
+	}
+	family.Buckets = make([]float64, len(buckets))
+	copy(family.Buckets, buckets)
+	family.Counts = make([]uint64, len(buckets)+1)
+	r.metrics[name] = family
 }
 
 func (r *Registry) CounterInc(name string, labels map[string]string) {
@@ -70,6 +166,10 @@ func (r *Registry) CounterInc(name string, labels map[string]string) {
 
 	family, ok := r.metrics[name]
 	if !ok {
+		return
+	}
+
+	if r.cardinalityForLocked(name) >= r.maxCardinality {
 		return
 	}
 
@@ -82,10 +182,11 @@ func (r *Registry) CounterInc(name string, labels map[string]string) {
 	}
 
 	family.Metrics = append(family.Metrics, &Metric{
-		Name:   name,
-		Type:   Counter,
-		Value:  1,
-		Labels: labels,
+		Name:      name,
+		Type:      Counter,
+		Value:     1,
+		Labels:    labels,
+		CreatedAt: time.Now(),
 	})
 }
 
@@ -98,6 +199,10 @@ func (r *Registry) CounterAdd(name string, value float64, labels map[string]stri
 		return
 	}
 
+	if r.cardinalityForLocked(name) >= r.maxCardinality {
+		return
+	}
+
 	key := labelsKey(labels)
 	for _, m := range family.Metrics {
 		if labelsKey(m.Labels) == key {
@@ -107,10 +212,11 @@ func (r *Registry) CounterAdd(name string, value float64, labels map[string]stri
 	}
 
 	family.Metrics = append(family.Metrics, &Metric{
-		Name:   name,
-		Type:   Counter,
-		Value:  value,
-		Labels: labels,
+		Name:      name,
+		Type:      Counter,
+		Value:     value,
+		Labels:    labels,
+		CreatedAt: time.Now(),
 	})
 }
 
@@ -123,6 +229,10 @@ func (r *Registry) GaugeSet(name string, value float64, labels map[string]string
 		return
 	}
 
+	if r.cardinalityForLocked(name) >= r.maxCardinality {
+		return
+	}
+
 	key := labelsKey(labels)
 	for _, m := range family.Metrics {
 		if labelsKey(m.Labels) == key {
@@ -132,10 +242,11 @@ func (r *Registry) GaugeSet(name string, value float64, labels map[string]string
 	}
 
 	family.Metrics = append(family.Metrics, &Metric{
-		Name:   name,
-		Type:   Gauge,
-		Value:  value,
-		Labels: labels,
+		Name:      name,
+		Type:      Gauge,
+		Value:     value,
+		Labels:    labels,
+		CreatedAt: time.Now(),
 	})
 }
 
@@ -157,10 +268,11 @@ func (r *Registry) GaugeInc(name string, labels map[string]string) {
 	}
 
 	family.Metrics = append(family.Metrics, &Metric{
-		Name:   name,
-		Type:   Gauge,
-		Value:  1,
-		Labels: labels,
+		Name:      name,
+		Type:      Gauge,
+		Value:     1,
+		Labels:    labels,
+		CreatedAt: time.Now(),
 	})
 }
 
@@ -182,10 +294,11 @@ func (r *Registry) GaugeDec(name string, labels map[string]string) {
 	}
 
 	family.Metrics = append(family.Metrics, &Metric{
-		Name:   name,
-		Type:   Gauge,
-		Value:  -1,
-		Labels: labels,
+		Name:      name,
+		Type:      Gauge,
+		Value:     -1,
+		Labels:    labels,
+		CreatedAt: time.Now(),
 	})
 }
 
@@ -198,11 +311,64 @@ func (r *Registry) HistogramObserve(name string, value float64, labels map[strin
 		return
 	}
 
+	family.Sum += value
+	family.Count++
+
+	key := labelsKey(labels)
+	for _, m := range family.Metrics {
+		if labelsKey(m.Labels) == key {
+			m.Value = value
+			return
+		}
+	}
+
 	family.Metrics = append(family.Metrics, &Metric{
-		Name:   name,
-		Type:   Histogram,
-		Value:  value,
-		Labels: labels,
+		Name:      name,
+		Type:      Histogram,
+		Value:     value,
+		Labels:    labels,
+		Buckets:   family.Buckets,
+		CreatedAt: time.Now(),
+	})
+}
+
+func (r *Registry) HistogramObserveWithBuckets(name string, value float64, labels map[string]string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	family, ok := r.metrics[name]
+	if !ok {
+		return
+	}
+
+	family.Sum += value
+	family.Count++
+
+	for i, bound := range family.Buckets {
+		if value <= bound {
+			family.Counts[i]++
+			break
+		}
+	}
+	if value > family.Buckets[len(family.Buckets)-1] {
+		family.Counts[len(family.Buckets)]++
+	}
+
+	key := labelsKey(labels)
+	for _, m := range family.Metrics {
+		if labelsKey(m.Labels) == key {
+			m.Value = value
+			return
+		}
+	}
+
+	family.Metrics = append(family.Metrics, &Metric{
+		Name:      name,
+		Type:      Histogram,
+		Value:     value,
+		Labels:    labels,
+		Buckets:   family.Buckets,
+		CreatedAt: time.Now(),
 	})
 }
 
@@ -217,25 +383,72 @@ func (r *Registry) GetFamilies() []*MetricFamily {
 	return families
 }
 
+func (r *Registry) GetFamily(name string) (*MetricFamily, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	f, ok := r.metrics[name]
+	return f, ok
+}
+
+func (r *Registry) CounterValue(name string, labels map[string]string) float64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	family, ok := r.metrics[name]
+	if !ok {
+		return 0
+	}
+	key := labelsKey(labels)
+	for _, m := range family.Metrics {
+		if labelsKey(m.Labels) == key {
+			return m.Value
+		}
+	}
+	return 0
+}
+
+func (r *Registry) GaugeValue(name string, labels map[string]string) float64 {
+	return r.CounterValue(name, labels)
+}
+
+func (r *Registry) Unregister(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.metrics, name)
+}
+
 func (r *Registry) FormatPrometheus() string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	result := ""
+	var sb strings.Builder
 	for _, family := range r.metrics {
-		result += fmt.Sprintf("# HELP %s %s\n", family.Name, family.Help)
-		result += fmt.Sprintf("# TYPE %s %s\n", family.Name, family.Type)
+		fmt.Fprintf(&sb, "# HELP %s %s\n", family.Name, family.Help)
+		fmt.Fprintf(&sb, "# TYPE %s %s\n", family.Name, family.Type)
 
-		for _, m := range family.Metrics {
-			if len(m.Labels) > 0 {
-				result += fmt.Sprintf("%s{%s} %f\n", family.Name, formatLabels(m.Labels), m.Value)
-			} else {
-				result += fmt.Sprintf("%s %f\n", family.Name, m.Value)
+		if family.Type == Histogram && len(family.Buckets) > 0 {
+			cumCount := uint64(0)
+			for i, bound := range family.Buckets {
+				cumCount += family.Counts[i]
+				fmt.Fprintf(&sb, "%s_bucket{le=\"%g\"} %d\n", family.Name, bound, cumCount)
+			}
+			cumCount += family.Counts[len(family.Buckets)]
+			fmt.Fprintf(&sb, "%s_bucket{le=\"+Inf\"} %d\n", family.Name, cumCount)
+			fmt.Fprintf(&sb, "%s_sum %g\n", family.Name, family.Sum)
+			fmt.Fprintf(&sb, "%s_count %d\n", family.Name, family.Count)
+		} else {
+			for _, m := range family.Metrics {
+				if len(m.Labels) > 0 {
+					fmt.Fprintf(&sb, "%s{%s} %f\n", family.Name, formatLabels(m.Labels), m.Value)
+				} else {
+					fmt.Fprintf(&sb, "%s %f\n", family.Name, m.Value)
+				}
 			}
 		}
-		result += "\n"
+		sb.WriteString("\n")
 	}
-	return result
+	return sb.String()
 }
 
 func labelsKey(labels map[string]string) string {
@@ -265,6 +478,45 @@ func formatLabels(labels map[string]string) string {
 		result += fmt.Sprintf(`%s="%s"`, k, labels[k])
 	}
 	return result
+}
+
+func (r *Registry) cardinalityForLocked(name string) int {
+	family, ok := r.metrics[name]
+	if !ok {
+		return 0
+	}
+	return len(family.Metrics)
+}
+
+// statusResponseWriter captures the HTTP status code
+
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	written    bool
+}
+
+func newStatusResponseWriter(w http.ResponseWriter) *statusResponseWriter {
+	return &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+}
+
+func (w *statusResponseWriter) WriteHeader(code int) {
+	if !w.written {
+		w.statusCode = code
+		w.written = true
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusResponseWriter) Write(b []byte) (int, error) {
+	if !w.written {
+		w.written = true
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *statusResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 // Collector
@@ -326,7 +578,7 @@ func (m *Metrics) IncRequests(method, path, status string) {
 }
 
 func (m *Metrics) ObserveRequestDuration(method, path string, duration float64) {
-	m.registry.HistogramObserve("naeos_request_duration_seconds", duration, map[string]string{
+	m.registry.HistogramObserveWithBuckets("naeos_request_duration_seconds", duration, map[string]string{
 		"method": method,
 		"path":   path,
 	})
@@ -339,7 +591,7 @@ func (m *Metrics) IncPipelines(status string) {
 }
 
 func (m *Metrics) ObservePipelineDuration(duration float64) {
-	m.registry.HistogramObserve("naeos_pipeline_duration_seconds", duration, nil)
+	m.registry.HistogramObserveWithBuckets("naeos_pipeline_duration_seconds", duration, nil)
 }
 
 func (m *Metrics) IncSpecValidations(valid bool) {
@@ -393,11 +645,13 @@ func MetricsMiddleware(metrics *Metrics) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
+			sw := newStatusResponseWriter(w)
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(sw, r)
 
 			duration := time.Since(start).Seconds()
-			metrics.IncRequests(r.Method, r.URL.Path, "200")
+			status := fmt.Sprintf("%d", sw.statusCode)
+			metrics.IncRequests(r.Method, r.URL.Path, status)
 			metrics.ObserveRequestDuration(r.Method, r.URL.Path, duration)
 		})
 	}

@@ -54,7 +54,7 @@ Example:
 				format = "json"
 			}
 
-			errs := configschema.ValidateData(data, format)
+			errs, _ := configschema.ValidateData(data, format)
 			if len(errs) == 0 {
 				cmd.OutOrStdout().Write([]byte("✓ Config is valid\n"))
 			} else {

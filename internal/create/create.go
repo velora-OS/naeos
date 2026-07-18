@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"text/template"
 )
 
 type Wizard struct {
@@ -24,6 +26,8 @@ type ProjectConfig struct {
 	EnableTesting    bool
 	EnableDocker     bool
 	EnableCI         bool
+	DryRun           bool
+	NonInteractive   bool
 }
 
 func NewWizard() *Wizard {
@@ -150,4 +154,384 @@ func (cfg *ProjectConfig) ToSpec() string {
 		sb.WriteString("  coverage: standard\n")
 	}
 	return sb.String()
+}
+
+type Scaffolder struct {
+	dryRun bool
+	files  []ScaffoldFile
+}
+
+type ScaffoldFile struct {
+	Path    string
+	Content string
+	Mode    os.FileMode
+}
+
+func NewScaffolder(dryRun bool) *Scaffolder {
+	return &Scaffolder{dryRun: dryRun}
+}
+
+func (s *Scaffolder) Generate(cfg *ProjectConfig) ([]ScaffoldFile, error) {
+	projectName := strings.ToLower(strings.ReplaceAll(cfg.Name, " ", "-"))
+	baseDir := cfg.OutputDir
+
+	s.files = nil
+	s.addFile(filepath.Join(baseDir, projectName+".spec.yaml"), s.generateSpec(cfg), 0o644)
+	s.addFile(filepath.Join(baseDir, ".gitignore"), s.generateGitignore(cfg), 0o644)
+	s.addFile(filepath.Join(baseDir, "README.md"), s.generateREADME(cfg), 0o644)
+	s.addFile(filepath.Join(baseDir, "Makefile"), s.generateMakefile(cfg), 0o644)
+
+	switch cfg.Language {
+	case "go":
+		s.addGoProject(cfg, projectName, baseDir)
+	case "typescript":
+		s.addTypeScriptProject(cfg, projectName, baseDir)
+	case "python":
+		s.addPythonProject(cfg, projectName, baseDir)
+	}
+
+	if cfg.EnableDocker {
+		s.addFile(filepath.Join(baseDir, "Dockerfile"), s.generateDockerfile(cfg), 0o644)
+		s.addFile(filepath.Join(baseDir, "docker-compose.yml"), s.generateDockerCompose(cfg), 0o644)
+	}
+	if cfg.EnableCI {
+		s.addFile(filepath.Join(baseDir, ".github", "workflows", "ci.yml"), s.generateCIWorkflow(cfg), 0o644)
+	}
+
+	return s.files, nil
+}
+
+func (s *Scaffolder) addFile(path, content string, mode os.FileMode) {
+	s.files = append(s.files, ScaffoldFile{Path: path, Content: content, Mode: mode})
+}
+
+func (s *Scaffolder) addGoProject(cfg *ProjectConfig, name, baseDir string) {
+	s.addFile(filepath.Join(baseDir, "go.mod"), fmt.Sprintf("module %s\n\ngo 1.25\n", cfg.ModulePath), 0o644)
+	s.addFile(filepath.Join(baseDir, "main.go"), s.generateMainGo(cfg), 0o644)
+	if cfg.EnableTesting {
+		s.addFile(filepath.Join(baseDir, "main_test.go"), s.generateMainTest(cfg), 0o644)
+	}
+}
+
+func (s *Scaffolder) addTypeScriptProject(cfg *ProjectConfig, name, baseDir string) {
+	pkgJSON := fmt.Sprintf(`{
+  "name": "%s",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest"
+  }
+}
+`, name)
+	s.addFile(filepath.Join(baseDir, "package.json"), pkgJSON, 0o644)
+	s.addFile(filepath.Join(baseDir, "tsconfig.json"), `{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true
+  }
+}
+`, 0o644)
+	s.addFile(filepath.Join(baseDir, "src", "index.ts"), s.generateTSIndex(cfg), 0o644)
+}
+
+func (s *Scaffolder) addPythonProject(cfg *ProjectConfig, name, baseDir string) {
+	s.addFile(filepath.Join(baseDir, "pyproject.toml"), fmt.Sprintf(`[project]
+name = "%s"
+version = "0.1.0"
+requires-python = ">=3.10"
+`, name), 0o644)
+	s.addFile(filepath.Join(baseDir, "src", "__init__.py"), "", 0o644)
+	s.addFile(filepath.Join(baseDir, "src", "main.py"), s.generatePythonMain(cfg), 0o644)
+}
+
+func (s *Scaffolder) generateSpec(cfg *ProjectConfig) string {
+	return cfg.ToSpec()
+}
+
+func (s *Scaffolder) generateGitignore(cfg *ProjectConfig) string {
+	lines := []string{
+		"# Build artifacts",
+		"*.exe", "*.dll", "*.so", "*.dylib",
+		"/" + cfg.OutputDir,
+	}
+	switch cfg.Language {
+	case "go":
+		lines = append(lines, "", "# Go", "*.test", "cover.out", "vendor/")
+	case "typescript":
+		lines = append(lines, "", "# Node", "node_modules/", "dist/", ".tsbuildinfo")
+	case "python":
+		lines = append(lines, "", "# Python", "__pycache__/", "*.pyc", ".venv/", "*.egg-info/")
+	}
+	lines = append(lines, "", "# IDE", ".idea/", ".vscode/", "*.swp", "", "# OS", ".DS_Store", "Thumbs.db")
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func (s *Scaffolder) generateREADME(cfg *ProjectConfig) string {
+	return fmt.Sprintf(`# %s
+
+%s
+
+## Getting Started
+
+`+"```bash"+`
+make build
+make test
+`+"```"+`
+
+## Project Structure
+
+- Architecture: %s
+- Language: %s
+- Deployment: %s
+
+## License
+
+Apache 2.0
+`, cfg.Name, cfg.Description, cfg.Architecture, cfg.Language, cfg.Deployment)
+}
+
+func (s *Scaffolder) generateMakefile(cfg *ProjectConfig) string {
+	return fmt.Sprintf(`.PHONY: build test clean run
+
+BINARY := %s
+
+build:
+	go build -o $(BINARY) .
+
+test:
+	go test -v -race ./...
+
+clean:
+	rm -f $(BINARY)
+
+run: build
+	./$(BINARY)
+`, strings.ToLower(strings.ReplaceAll(cfg.Name, " ", "-")))
+}
+
+func (s *Scaffolder) generateDockerfile(cfg *ProjectConfig) string {
+	switch cfg.Language {
+	case "go":
+		return fmt.Sprintf(`FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o /app/server .
+
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
+COPY --from=builder /app/server /server
+EXPOSE %d
+CMD ["/server"]
+`, cfg.Port)
+	case "typescript":
+		return fmt.Sprintf(`FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE %d
+CMD ["node", "dist/index.js"]
+`, cfg.Port)
+	default:
+		return fmt.Sprintf(`FROM python:3.12-slim
+WORKDIR /app
+COPY . .
+RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
+EXPOSE %d
+CMD ["python", "src/main.py"]
+`, cfg.Port)
+	}
+}
+
+func (s *Scaffolder) generateDockerCompose(cfg *ProjectConfig) string {
+	return fmt.Sprintf(`version: "3.8"
+
+services:
+  app:
+    build: .
+    ports:
+      - "%d:%d"
+    environment:
+      - PORT=%d
+    restart: unless-stopped
+`, cfg.Port, cfg.Port, cfg.Port)
+}
+
+func (s *Scaffolder) generateCIWorkflow(cfg *ProjectConfig) string {
+	name := strings.ToLower(strings.ReplaceAll(cfg.Name, " ", "-"))
+	return fmt.Sprintf(`name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: go build -o %s .
+      - name: Test
+        run: go test -v -race ./...
+`, name)
+}
+
+func (s *Scaffolder) generateMainGo(cfg *ProjectConfig) string {
+	return fmt.Sprintf(`package main
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+)
+
+func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "%d"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Hello from %s!")
+	})
+
+	fmt.Printf("Server starting on :%%s\\n", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %%v\\n", err)
+		os.Exit(1)
+	}
+}
+`, cfg.Port, cfg.Name)
+}
+
+func (s *Scaffolder) generateMainTest(cfg *ProjectConfig) string {
+	return `package main
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func TestHandler(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+`
+}
+
+func (s *Scaffolder) generateTSIndex(cfg *ProjectConfig) string {
+	return fmt.Sprintf(`import http from "http";
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("Hello from %s!");
+});
+
+const port = process.env.PORT || "%d";
+server.listen(port, () => {
+  console.log("Server running on port " + port);
+});
+`, cfg.Name, cfg.Port)
+}
+
+func (s *Scaffolder) generatePythonMain(cfg *ProjectConfig) string {
+	return fmt.Sprintf(`import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Hello from %s!")
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", %d))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"Server running on port {port}")
+    server.serve_forever()
+`, cfg.Name, cfg.Port)
+}
+
+func (s *Scaffolder) Execute(cfg *ProjectConfig) error {
+	files, err := s.Generate(cfg)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if s.dryRun {
+			fmt.Printf("[dry-run] %s (%d bytes)\n", f.Path, len(f.Content))
+			continue
+		}
+		dir := filepath.Dir(f.Path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create dir %s: %w", dir, err)
+		}
+		if err := os.WriteFile(f.Path, []byte(f.Content), f.Mode); err != nil {
+			return fmt.Errorf("write %s: %w", f.Path, err)
+		}
+	}
+	return nil
+}
+
+var funcMap = template.FuncMap{
+	"upper": strings.ToUpper,
+	"lower": strings.ToLower,
+	"title": strings.Title,
+}
+
+func renderTemplate(name, tmpl string, data any) (string, error) {
+	t, err := template.New(name).Funcs(funcMap).Parse(tmpl)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	if err := t.Execute(&sb, data); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
+}
+
+func ValidateConfig(cfg *ProjectConfig) []string {
+	var errs []string
+	if cfg.Name == "" {
+		errs = append(errs, "name is required")
+	}
+	if cfg.ModulePath == "" {
+		errs = append(errs, "module path is required")
+	}
+	validLangs := map[string]bool{"go": true, "typescript": true, "python": true, "java": true, "rust": true}
+	if !validLangs[cfg.Language] {
+		errs = append(errs, "unsupported language: "+cfg.Language)
+	}
+	validArch := map[string]bool{"hexagonal": true, "layered": true, "clean": true, "event-driven": true, "cqrs": true, "monolith": true}
+	if !validArch[cfg.Architecture] {
+		errs = append(errs, "unsupported architecture: "+cfg.Architecture)
+	}
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		errs = append(errs, "port must be between 1 and 65535")
+	}
+	return errs
 }

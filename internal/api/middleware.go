@@ -11,10 +11,12 @@ import (
 
 // RateLimiter implements a token-bucket rate limiter per client.
 type RateLimiter struct {
-	clients map[string]*clientRecord
-	mu      sync.Mutex
-	rate    int
-	window  time.Duration
+	clients    map[string]*clientRecord
+	mu         sync.Mutex
+	rate       int
+	window     time.Duration
+	maxClients int
+	done       chan struct{}
 }
 
 type clientRecord struct {
@@ -22,12 +24,16 @@ type clientRecord struct {
 	lastSeen time.Time
 }
 
+const defaultMaxClients = 10000
+
 // NewRateLimiter creates a rate limiter with the given requests per window.
 func NewRateLimiter(requestsPerWindow int, window time.Duration) *RateLimiter {
 	rl := &RateLimiter{
-		clients: make(map[string]*clientRecord),
-		rate:    requestsPerWindow,
-		window:  window,
+		clients:    make(map[string]*clientRecord),
+		rate:       requestsPerWindow,
+		window:     window,
+		maxClients: defaultMaxClients,
+		done:       make(chan struct{}),
 	}
 	go rl.cleanup()
 	return rl
@@ -41,6 +47,9 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 	now := time.Now()
 	record, exists := rl.clients[clientID]
 	if !exists {
+		if len(rl.clients) >= rl.maxClients {
+			return false
+		}
 		rl.clients[clientID] = &clientRecord{
 			tokens:   rl.rate - 1,
 			lastSeen: now,
@@ -78,16 +87,26 @@ func (rl *RateLimiter) cleanup() {
 	ticker := time.NewTicker(rl.window)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.mu.Lock()
-		now := time.Now()
-		for id, record := range rl.clients {
-			if now.Sub(record.lastSeen) > rl.window*10 {
-				delete(rl.clients, id)
+	for {
+		select {
+		case <-rl.done:
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for id, record := range rl.clients {
+				if now.Sub(record.lastSeen) > rl.window*10 {
+					delete(rl.clients, id)
+				}
 			}
+			rl.mu.Unlock()
 		}
-		rl.mu.Unlock()
 	}
+}
+
+// Stop signals the cleanup goroutine to stop.
+func (rl *RateLimiter) Stop() {
+	close(rl.done)
 }
 
 // Middleware wraps an http.Handler with per-client rate limiting.

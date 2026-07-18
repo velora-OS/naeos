@@ -2,6 +2,7 @@ package docs
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -24,8 +25,8 @@ func NewGenerator(projectName string, artifacts []ArtifactRef) *DocGenerator {
 }
 
 type ArchitectureDiagram struct {
-	Nodes   []DiagramNode
-	Edges   []DiagramEdge
+	Nodes []DiagramNode
+	Edges []DiagramEdge
 }
 
 type DiagramNode struct {
@@ -95,4 +96,331 @@ func (g *DocGenerator) GenerateProjectDocs() string {
 	sb.WriteString("2. Install dependencies\n")
 	sb.WriteString("3. Run the application\n")
 	return sb.String()
+}
+
+type ChangeEntry struct {
+	Version string
+	Date    string
+	Changes []ChangeItem
+}
+
+type ChangeItem struct {
+	Category string
+	Text     string
+}
+
+type ChangelogGenerator struct {
+	projectName string
+	entries     []ChangeEntry
+}
+
+func NewChangelogGenerator(projectName string, entries []ChangeEntry) *ChangelogGenerator {
+	return &ChangelogGenerator{projectName: projectName, entries: entries}
+}
+
+func (cg *ChangelogGenerator) Generate() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# Changelog - %s\n\n", cg.projectName))
+	sb.WriteString("All notable changes to this project will be documented in this file.\n\n")
+	for _, entry := range cg.entries {
+		sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", entry.Version, entry.Date))
+		grouped := make(map[string][]string)
+		for _, item := range entry.Changes {
+			grouped[item.Category] = append(grouped[item.Category], item.Text)
+		}
+		categories := make([]string, 0, len(grouped))
+		for cat := range grouped {
+			categories = append(categories, cat)
+		}
+		sort.Strings(categories)
+		for _, cat := range categories {
+			sb.WriteString(fmt.Sprintf("### %s\n\n", cat))
+			for _, text := range grouped[cat] {
+				sb.WriteString(fmt.Sprintf("- %s\n", text))
+			}
+			sb.WriteString("\n")
+		}
+	}
+	return sb.String()
+}
+
+func (cg *ChangelogGenerator) LatestVersion() string {
+	if len(cg.entries) == 0 {
+		return ""
+	}
+	return cg.entries[0].Version
+}
+
+func (cg *ChangelogGenerator) EntriesForVersion(version string) *ChangeEntry {
+	for i := range cg.entries {
+		if cg.entries[i].Version == version {
+			return &cg.entries[i]
+		}
+	}
+	return nil
+}
+
+type ContributorGuide struct {
+	projectName string
+	repoURL     string
+	sections    []ContributorSection
+}
+
+type ContributorSection struct {
+	Title   string
+	Content string
+}
+
+func NewContributorGuide(projectName, repoURL string) *ContributorGuide {
+	return &ContributorGuide{projectName: projectName, repoURL: repoURL}
+}
+
+func (cg *ContributorGuide) AddSection(title, content string) {
+	cg.sections = append(cg.sections, ContributorSection{Title: title, Content: content})
+}
+
+func (cg *ContributorGuide) Generate() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# Contributing to %s\n\n", cg.projectName))
+	sb.WriteString(fmt.Sprintf("Thank you for your interest in contributing to **%s**!\n\n", cg.projectName))
+	if cg.repoURL != "" {
+		sb.WriteString(fmt.Sprintf("Repository: %s\n\n", cg.repoURL))
+	}
+	if len(cg.sections) == 0 {
+		sb.WriteString("## Getting Started\n\n")
+		sb.WriteString("1. Fork the repository\n")
+		sb.WriteString("2. Create a feature branch\n")
+		sb.WriteString("3. Make your changes\n")
+		sb.WriteString("4. Submit a pull request\n\n")
+		sb.WriteString("## Code of Conduct\n\n")
+		sb.WriteString("Please be respectful and follow our community guidelines.\n")
+		return sb.String()
+	}
+	for _, section := range cg.sections {
+		sb.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", section.Title, section.Content))
+	}
+	return sb.String()
+}
+
+func (cg *ContributorGuide) SectionCount() int {
+	return len(cg.sections)
+}
+
+type ConfigField struct {
+	Name        string
+	Type        string
+	Default     string
+	Description string
+	Required    bool
+}
+
+type ConfigDoc struct {
+	projectName string
+	fields      map[string]ConfigField
+	order       []string
+}
+
+func NewConfigDoc(projectName string, fields map[string]ConfigField) *ConfigDoc {
+	order := make([]string, 0, len(fields))
+	for k := range fields {
+		order = append(order, k)
+	}
+	sort.Strings(order)
+	return &ConfigDoc{projectName: projectName, fields: fields, order: order}
+}
+
+func (cd *ConfigDoc) Generate() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# %s Configuration\n\n", cd.projectName))
+	sb.WriteString("This document describes all configuration options.\n\n")
+	sb.WriteString("| Field | Type | Default | Required | Description |\n")
+	sb.WriteString("|-------|------|---------|----------|-------------|\n")
+	for _, key := range cd.order {
+		f := cd.fields[key]
+		req := "no"
+		if f.Required {
+			req = "yes"
+		}
+		sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s |\n",
+			f.Name, f.Type, f.Default, req, f.Description))
+	}
+	sb.WriteString("\n## Environment Variables\n\n")
+	for _, key := range cd.order {
+		envName := strings.ToUpper(strings.ReplaceAll(cd.fields[key].Name, ".", "_"))
+		sb.WriteString(fmt.Sprintf("- `%s` maps to env var `%s`\n", cd.fields[key].Name, envName))
+	}
+	return sb.String()
+}
+
+func (cd *ConfigDoc) RequiredFields() []ConfigField {
+	var required []ConfigField
+	for _, key := range cd.order {
+		if cd.fields[key].Required {
+			required = append(required, cd.fields[key])
+		}
+	}
+	return required
+}
+
+func (cd *ConfigDoc) FieldCount() int {
+	return len(cd.fields)
+}
+
+type MarkdownSection struct {
+	Title   string
+	Level   int
+	Content strings.Builder
+}
+
+func NewMarkdownSection(title string, level int) *MarkdownSection {
+	if level < 1 {
+		level = 1
+	}
+	if level > 6 {
+		level = 6
+	}
+	return &MarkdownSection{Title: title, Level: level}
+}
+
+func (ms *MarkdownSection) WriteParagraph(text string) {
+	ms.Content.WriteString(text)
+	ms.Content.WriteString("\n\n")
+}
+
+func (ms *MarkdownSection) WriteList(items []string) {
+	for _, item := range items {
+		ms.Content.WriteString(fmt.Sprintf("- %s\n", item))
+	}
+	ms.Content.WriteString("\n")
+}
+
+func (ms *MarkdownSection) WriteCodeBlock(lang, code string) {
+	ms.Content.WriteString(fmt.Sprintf("```%s\n%s\n```\n\n", lang, code))
+}
+
+func (ms *MarkdownSection) WriteTable(headers []string, rows [][]string) {
+	ms.Content.WriteString("| " + strings.Join(headers, " | ") + " |\n|")
+	for range headers {
+		ms.Content.WriteString("---|")
+	}
+	ms.Content.WriteString("\n")
+	for _, row := range rows {
+		ms.Content.WriteString("| " + strings.Join(row, " | ") + " |\n")
+	}
+	ms.Content.WriteString("\n")
+}
+
+func (ms *MarkdownSection) Render() string {
+	prefix := strings.Repeat("#", ms.Level)
+	return fmt.Sprintf("%s %s\n\n%s", prefix, ms.Title, ms.Content.String())
+}
+
+type MarkdownDocument struct {
+	Title    string
+	Sections []*MarkdownSection
+}
+
+func NewMarkdownDocument(title string) *MarkdownDocument {
+	return &MarkdownDocument{Title: title}
+}
+
+func (md *MarkdownDocument) AddSection(section *MarkdownSection) {
+	md.Sections = append(md.Sections, section)
+}
+
+func (md *MarkdownDocument) Render() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# %s\n\n", md.Title))
+	for _, section := range md.Sections {
+		sb.WriteString(section.Render())
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+func (md *MarkdownDocument) SectionCount() int {
+	return len(md.Sections)
+}
+
+type ReadmeGenerator struct {
+	projectName string
+	description string
+	repoURL     string
+	license     string
+	installCmd  string
+	usageCmd    string
+	features    []string
+}
+
+func NewReadmeGenerator(projectName, description string) *ReadmeGenerator {
+	return &ReadmeGenerator{projectName: projectName, description: description}
+}
+
+func (rg *ReadmeGenerator) WithRepoURL(url string) *ReadmeGenerator {
+	rg.repoURL = url
+	return rg
+}
+
+func (rg *ReadmeGenerator) WithLicense(license string) *ReadmeGenerator {
+	rg.license = license
+	return rg
+}
+
+func (rg *ReadmeGenerator) WithInstall(cmd string) *ReadmeGenerator {
+	rg.installCmd = cmd
+	return rg
+}
+
+func (rg *ReadmeGenerator) WithUsage(cmd string) *ReadmeGenerator {
+	rg.usageCmd = cmd
+	return rg
+}
+
+func (rg *ReadmeGenerator) WithFeatures(features []string) *ReadmeGenerator {
+	rg.features = features
+	return rg
+}
+
+func (rg *ReadmeGenerator) Generate() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# %s\n\n", rg.projectName))
+	if rg.repoURL != "" {
+		if badges := rg.generateBadges(); badges != "" {
+			sb.WriteString(badges)
+			sb.WriteString("\n\n")
+		}
+	}
+	sb.WriteString(fmt.Sprintf("> %s\n\n", rg.description))
+	if rg.license != "" {
+		sb.WriteString(fmt.Sprintf("**License:** %s\n\n", rg.license))
+	}
+	sb.WriteString("## Features\n\n")
+	if len(rg.features) > 0 {
+		for _, f := range rg.features {
+			sb.WriteString(fmt.Sprintf("- %s\n", f))
+		}
+	} else {
+		sb.WriteString("- TODO: Add features\n")
+	}
+	sb.WriteString("\n")
+	if rg.installCmd != "" {
+		sb.WriteString(fmt.Sprintf("## Installation\n\n```bash\n%s\n```\n\n", rg.installCmd))
+	}
+	if rg.usageCmd != "" {
+		sb.WriteString(fmt.Sprintf("## Usage\n\n```bash\n%s\n```\n\n", rg.usageCmd))
+	}
+	if rg.repoURL != "" {
+		sb.WriteString(fmt.Sprintf("## Contributing\n\nSee [CONTRIBUTING.md](%s/blob/main/CONTRIBUTING.md) for details.\n\n", rg.repoURL))
+	}
+	return sb.String()
+}
+
+func (rg *ReadmeGenerator) generateBadges() string {
+	var badges []string
+	badges = append(badges, "![Go](https://img.shields.io/badge/language-Go-blue)")
+	if rg.license != "" {
+		badges = append(badges, fmt.Sprintf("![License](https://img.shields.io/badge/license-%s-green)", rg.license))
+	}
+	badges = append(badges, fmt.Sprintf("[![Build](%s/actions/workflows/ci.yml/badge.svg)](%s/actions)", rg.repoURL, rg.repoURL))
+	return strings.Join(badges, " ")
 }

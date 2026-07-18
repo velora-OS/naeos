@@ -1,0 +1,219 @@
+package cicd
+
+import (
+	"fmt"
+	"strings"
+)
+
+type NotificationType string
+
+const (
+	NotificationSlack   NotificationType = "slack"
+	NotificationEmail   NotificationType = "email"
+	NotificationWebhook NotificationType = "webhook"
+)
+
+type NotificationConfig struct {
+	Type    NotificationType
+	Target  string
+	Channel string
+	Events  []string
+}
+
+type NotificationGenerator struct{}
+
+func (n *NotificationGenerator) Name() string {
+	return "Notification Generator"
+}
+
+func (n *NotificationGenerator) GenerateSteps(config *NotificationConfig) ([]PipelineStep, error) {
+	if config == nil {
+		return nil, fmt.Errorf("notification config is nil")
+	}
+
+	switch config.Type {
+	case NotificationSlack:
+		return n.generateSlackSteps(config)
+	case NotificationEmail:
+		return n.generateEmailSteps(config)
+	case NotificationWebhook:
+		return n.generateWebhookSteps(config)
+	default:
+		return nil, fmt.Errorf("unsupported notification type: %s", config.Type)
+	}
+}
+
+func (n *NotificationGenerator) generateSlackSteps(config *NotificationConfig) ([]PipelineStep, error) {
+	channel := config.Channel
+	if channel == "" {
+		channel = "general"
+	}
+	if config.Target == "" {
+		return nil, fmt.Errorf("slack webhook URL is required")
+	}
+
+	var steps []PipelineStep
+	for _, event := range config.Events {
+		steps = append(steps, PipelineStep{
+			Name:    fmt.Sprintf("Notify Slack on %s", event),
+			Command: fmt.Sprintf("curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Pipeline %s for %s\"}' %s", event, channel, config.Target),
+			Env: map[string]string{
+				"SLACK_CHANNEL": channel,
+			},
+		})
+	}
+	if len(config.Events) == 0 {
+		steps = append(steps, PipelineStep{
+			Name:    "Notify Slack on completion",
+			Command: fmt.Sprintf("curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Pipeline completed\"}' %s", config.Target),
+			Env: map[string]string{
+				"SLACK_CHANNEL": channel,
+			},
+		})
+	}
+
+	return steps, nil
+}
+
+func (n *NotificationGenerator) generateEmailSteps(config *NotificationConfig) ([]PipelineStep, error) {
+	if config.Target == "" {
+		return nil, fmt.Errorf("email recipient is required")
+	}
+
+	var steps []PipelineStep
+	for _, event := range config.Events {
+		steps = append(steps, PipelineStep{
+			Name:    fmt.Sprintf("Email notification on %s", event),
+			Command: fmt.Sprintf("echo 'Pipeline %s' | mail -s 'CI/CD Notification' %s", event, config.Target),
+			Env: map[string]string{
+				"EMAIL_TO": config.Target,
+			},
+		})
+	}
+	if len(config.Events) == 0 {
+		steps = append(steps, PipelineStep{
+			Name:    "Email notification on completion",
+			Command: fmt.Sprintf("echo 'Pipeline completed' | mail -s 'CI/CD Notification' %s", config.Target),
+			Env: map[string]string{
+				"EMAIL_TO": config.Target,
+			},
+		})
+	}
+
+	return steps, nil
+}
+
+func (n *NotificationGenerator) generateWebhookSteps(config *NotificationConfig) ([]PipelineStep, error) {
+	if config.Target == "" {
+		return nil, fmt.Errorf("webhook URL is required")
+	}
+
+	var steps []PipelineStep
+	for _, event := range config.Events {
+		steps = append(steps, PipelineStep{
+			Name:    fmt.Sprintf("Webhook notification on %s", event),
+			Command: fmt.Sprintf("curl -X POST -H 'Content-Type: application/json' -d '{\"event\":\"%s\",\"status\":\"completed\"}' %s", event, config.Target),
+			Env: map[string]string{
+				"WEBHOOK_URL": config.Target,
+			},
+		})
+	}
+	if len(config.Events) == 0 {
+		steps = append(steps, PipelineStep{
+			Name:    "Webhook notification on completion",
+			Command: fmt.Sprintf("curl -X POST -H 'Content-Type: application/json' -d '{\"event\":\"completed\",\"status\":\"success\"}' %s", config.Target),
+			Env: map[string]string{
+				"WEBHOOK_URL": config.Target,
+			},
+		})
+	}
+
+	return steps, nil
+}
+
+func EmbedNotifications(config *PipelineConfig, notifications []*NotificationConfig) error {
+	if config == nil {
+		return fmt.Errorf("pipeline config is nil")
+	}
+
+	gen := &NotificationGenerator{}
+	for _, notif := range notifications {
+		steps, err := gen.GenerateSteps(notif)
+		if err != nil {
+			return fmt.Errorf("failed to generate notification steps: %w", err)
+		}
+		config.Steps = append(config.Steps, steps...)
+	}
+
+	return nil
+}
+
+func GenerateNotificationBlock(config *PipelineConfig, notifications []*NotificationConfig) (string, error) {
+	gen := &NotificationGenerator{}
+	var allSteps []PipelineStep
+
+	for _, notif := range notifications {
+		steps, err := gen.GenerateSteps(notif)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate notification steps: %w", err)
+		}
+		allSteps = append(allSteps, steps...)
+	}
+
+	if config.Platform == GitHubActions {
+		return generateGitHubNotificationBlock(allSteps), nil
+	} else if config.Platform == GitLabCI {
+		return generateGitLabNotificationBlock(allSteps), nil
+	}
+
+	var sb strings.Builder
+	for _, step := range allSteps {
+		sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
+		sb.WriteString(fmt.Sprintf("        run: %s\n\n", step.Command))
+	}
+	return sb.String(), nil
+}
+
+func generateGitHubNotificationBlock(steps []PipelineStep) string {
+	var sb strings.Builder
+	for _, step := range steps {
+		sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
+		sb.WriteString(fmt.Sprintf("        run: |\n          %s\n\n", strings.ReplaceAll(step.Command, "\n", "\n          ")))
+	}
+	return sb.String()
+}
+
+func generateGitLabNotificationBlock(steps []PipelineStep) string {
+	var sb strings.Builder
+	sb.WriteString("notify:\n")
+	sb.WriteString("  stage: deploy\n")
+	sb.WriteString("  script:\n")
+	for _, step := range steps {
+		sb.WriteString(fmt.Sprintf("    - %s\n", step.Command))
+	}
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+func FormatNotificationStepsYAML(steps []PipelineStep, platform CICDPlatform) string {
+	var sb strings.Builder
+
+	if platform == GitHubActions {
+		for _, step := range steps {
+			sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
+			if len(step.Env) > 0 {
+				sb.WriteString("        env:\n")
+				for k, v := range step.Env {
+					sb.WriteString(fmt.Sprintf("          %s: %s\n", k, v))
+				}
+			}
+			sb.WriteString(fmt.Sprintf("        run: %s\n\n", step.Command))
+		}
+	} else if platform == GitLabCI {
+		for _, step := range steps {
+			sb.WriteString(fmt.Sprintf("    - %s\n", step.Command))
+		}
+	}
+
+	return sb.String()
+}

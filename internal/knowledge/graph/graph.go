@@ -9,20 +9,20 @@ import (
 type NodeType string
 
 const (
-	NodeTypeDecision      NodeType = "decision"
-	NodeTypeRequirement   NodeType = "requirement"
-	NodeTypeRationale     NodeType = "rationale"
-	NodeTypeComponent     NodeType = "component"
-	NodeTypePolicy        NodeType = "policy"
+	NodeTypeDecision       NodeType = "decision"
+	NodeTypeRequirement    NodeType = "requirement"
+	NodeTypeRationale      NodeType = "rationale"
+	NodeTypeComponent      NodeType = "component"
+	NodeTypePolicy         NodeType = "policy"
 	NodeTypeImplementation NodeType = "implementation"
-	NodeTypeHistorical    NodeType = "historical"
-	NodeTypeService       NodeType = "service"
-	NodeTypeModule        NodeType = "module"
-	NodeTypeAPI           NodeType = "api"
-	NodeTypeStorage       NodeType = "storage"
-	NodeTypeDeployment    NodeType = "deployment"
-	NodeTypeTesting       NodeType = "testing"
-	NodeTypeSecurity      NodeType = "security"
+	NodeTypeHistorical     NodeType = "historical"
+	NodeTypeService        NodeType = "service"
+	NodeTypeModule         NodeType = "module"
+	NodeTypeAPI            NodeType = "api"
+	NodeTypeStorage        NodeType = "storage"
+	NodeTypeDeployment     NodeType = "deployment"
+	NodeTypeTesting        NodeType = "testing"
+	NodeTypeSecurity       NodeType = "security"
 )
 
 type EdgeType string
@@ -333,27 +333,195 @@ func (kg *KnowledgeGraph) FindByContentSubstring(substring string) []*Node {
 }
 
 func (kg *KnowledgeGraph) HasPath(from, to string) bool {
+	path := kg.ShortestPath(from, to)
+	return path != nil
+}
+
+func (kg *KnowledgeGraph) ShortestPath(from, to string) []string {
 	kg.mu.RLock()
 	defer kg.mu.RUnlock()
 
+	if from == to {
+		if _, ok := kg.nodes[from]; ok {
+			return []string{from}
+		}
+		return nil
+	}
+
+	if _, ok := kg.nodes[from]; !ok {
+		return nil
+	}
+	if _, ok := kg.nodes[to]; !ok {
+		return nil
+	}
+
+	type entry struct {
+		id   string
+		path []string
+	}
+
 	visited := make(map[string]bool)
-	queue := []string{from}
+	queue := []entry{{id: from, path: []string{from}}}
 	visited[from] = true
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
 
-		if current == to {
-			return true
-		}
-
 		for _, e := range kg.edges {
-			if e.From == current && !visited[e.To] {
+			if e.From == current.id && !visited[e.To] {
+				newPath := make([]string, len(current.path), len(current.path)+1)
+				copy(newPath, current.path)
+				newPath = append(newPath, e.To)
+				if e.To == to {
+					return newPath
+				}
 				visited[e.To] = true
-				queue = append(queue, e.To)
+				queue = append(queue, entry{id: e.To, path: newPath})
 			}
 		}
 	}
-	return false
+	return nil
+}
+
+func (kg *KnowledgeGraph) TopologicalSort() ([]string, error) {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+
+	inDegree := make(map[string]int)
+	for id := range kg.nodes {
+		inDegree[id] = 0
+	}
+	for _, e := range kg.edges {
+		inDegree[e.To]++
+	}
+
+	var queue []string
+	for id, deg := range inDegree {
+		if deg == 0 {
+			queue = append(queue, id)
+		}
+	}
+
+	var order []string
+	for len(queue) > 0 {
+		n := queue[0]
+		queue = queue[1:]
+		order = append(order, n)
+
+		for _, e := range kg.edges {
+			if e.From == n {
+				inDegree[e.To]--
+				if inDegree[e.To] == 0 {
+					queue = append(queue, e.To)
+				}
+			}
+		}
+	}
+
+	if len(order) != len(kg.nodes) {
+		return nil, fmt.Errorf("graph contains a cycle")
+	}
+	return order, nil
+}
+
+func (kg *KnowledgeGraph) DetectCycles() [][]string {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+
+	var cycles [][]string
+	visited := make(map[string]bool)
+	recStack := make(map[string]bool)
+	path := make([]string, 0)
+
+	var dfs func(id string)
+	dfs = func(id string) {
+		visited[id] = true
+		recStack[id] = true
+		path = append(path, id)
+
+		for _, e := range kg.edges {
+			if e.From == id {
+				if !visited[e.To] {
+					dfs(e.To)
+				} else if recStack[e.To] {
+					cycle := []string{e.To}
+					for i := len(path) - 1; i >= 0; i-- {
+						cycle = append(cycle, path[i])
+						if path[i] == e.To {
+							break
+						}
+					}
+					cycles = append(cycles, cycle)
+				}
+			}
+		}
+
+		path = path[:len(path)-1]
+		recStack[id] = false
+	}
+
+	for id := range kg.nodes {
+		if !visited[id] {
+			dfs(id)
+		}
+	}
+	return cycles
+}
+
+func (kg *KnowledgeGraph) ExportDOT() string {
+	kg.mu.RLock()
+	defer kg.mu.RUnlock()
+
+	var sb strings.Builder
+	sb.WriteString("digraph knowledge {\n")
+	sb.WriteString("  rankdir=LR;\n")
+	sb.WriteString("  node [shape=box];\n\n")
+
+	for _, n := range kg.nodes {
+		label := n.ID
+		if n.Topic != "" {
+			label = n.ID + "\\n(" + n.Topic + ")"
+		}
+		attrs := fmt.Sprintf(`label="%s"`, label)
+		if n.Type != "" {
+			attrs += fmt.Sprintf(` style=filled fillcolor="%s"`, nodeColor(n.Type))
+		}
+		sb.WriteString(fmt.Sprintf("  %s [%s];\n", n.ID, attrs))
+	}
+
+	sb.WriteString("\n")
+	for _, e := range kg.edges {
+		attrs := fmt.Sprintf(`label="%s"`, e.Type)
+		if e.Weight > 1 {
+			attrs += fmt.Sprintf(` penwidth=%d`, e.Weight)
+		}
+		sb.WriteString(fmt.Sprintf("  %s -> %s [%s];\n", e.From, e.To, attrs))
+	}
+
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
+func nodeColor(t NodeType) string {
+	switch t {
+	case NodeTypeDecision:
+		return "#4A90D9"
+	case NodeTypeService:
+		return "#50C878"
+	case NodeTypeModule:
+		return "#FFD700"
+	case NodeTypeAPI:
+		return "#FF6347"
+	case NodeTypeStorage:
+		return "#9370DB"
+	case NodeTypeSecurity:
+		return "#FF4500"
+	case NodeTypeDeployment:
+		return "#20B2AA"
+	case NodeTypeTesting:
+		return "#DDA0DD"
+	default:
+		return "#E8E8E8"
+	}
 }

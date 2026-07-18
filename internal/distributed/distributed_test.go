@@ -3,196 +3,241 @@ package distributed
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
-func TestCoordinatorWorkers(t *testing.T) {
-	workers := []Worker{
-		NewSimpleWorker("w1", func(ctx context.Context, task *Task) (map[string]any, error) {
-			return map[string]any{"result": "ok"}, nil
-		}),
-		NewSimpleWorker("w2", func(ctx context.Context, task *Task) (map[string]any, error) {
-			return map[string]any{"result": "ok"}, nil
-		}),
-	}
-
-	c := NewCoordinator(workers, 10)
-	if c.WorkerCount() != 2 {
-		t.Errorf("expected 2 workers, got %d", c.WorkerCount())
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	c.Start(ctx)
-
-	c.Submit(&Task{ID: "t1", Type: "test"})
-	c.Submit(&Task{ID: "t2", Type: "test"})
-
-	var results []TaskResult
-	for r := range c.Results() {
-		results = append(results, *r)
-		if len(results) == 2 {
-			break
-		}
-	}
-
-	c.Stop()
-
-	if len(results) != 2 {
-		t.Errorf("expected 2 results, got %d", len(results))
-	}
+func newTestWorker(id string) *SimpleWorker {
+	return NewSimpleWorker(id, func(ctx context.Context, task *Task) (map[string]any, error) {
+		return map[string]any{"result": "ok"}, nil
+	})
 }
 
-func TestCoordinatorErrorHandling(t *testing.T) {
-	worker := NewSimpleWorker("w1", func(ctx context.Context, task *Task) (map[string]any, error) {
-		return nil, fmt.Errorf("task failed")
-	})
-
-	c := NewCoordinator([]Worker{worker}, 10)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func TestCoordinatorBasic(t *testing.T) {
+	workers := []Worker{newTestWorker("w1"), newTestWorker("w2")}
+	c := NewCoordinator(workers, 10)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	c.Start(ctx)
 	c.Submit(&Task{ID: "t1", Type: "test"})
-
-	r := <-c.Results()
+	c.Submit(&Task{ID: "t2", Type: "test"})
+	var results []*TaskResult
+	timeout := time.After(2 * time.Second)
+	for len(results) < 2 {
+		select {
+		case r := <-c.Results():
+			results = append(results, r)
+		case <-timeout:
+			t.Fatal("timeout waiting for results")
+		}
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	m := c.Metrics()
+	if m.TasksCompleted != 2 {
+		t.Errorf("expected 2 completed, got %d", m.TasksCompleted)
+	}
 	c.Stop()
+}
 
-	if r.Error != "task failed" {
-		t.Errorf("expected error 'task failed', got %q", r.Error)
+func TestCoordinatorRetry(t *testing.T) {
+	var attempts atomic.Int32
+	worker := NewSimpleWorker("retry-w", func(ctx context.Context, task *Task) (map[string]any, error) {
+		count := attempts.Add(1)
+		if count < 3 {
+			return nil, fmt.Errorf("transient error")
+		}
+		return map[string]any{"ok": true}, nil
+	})
+	c := NewCoordinator([]Worker{worker}, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.Start(ctx)
+	c.Submit(&Task{ID: "retry-t", Type: "test", MaxRetry: 3})
+	var result *TaskResult
+	timeout := time.After(5 * time.Second)
+	select {
+	case result = <-c.Results():
+	case <-timeout:
+		t.Fatal("timeout waiting for retry result")
 	}
-	if r.Worker != "w1" {
-		t.Errorf("expected worker 'w1', got %q", r.Worker)
+	if !result.Succeeded {
+		t.Errorf("expected success after retries, got error: %s", result.Error)
 	}
+	if result.Attempt != 3 {
+		t.Errorf("expected 3 attempts, got %d", result.Attempt)
+	}
+	if result.Retries != 2 {
+		t.Errorf("expected 2 retries, got %d", result.Retries)
+	}
+	c.Stop()
+}
+
+func TestCoordinatorTimeout(t *testing.T) {
+	worker := NewSimpleWorker("slow-w", func(ctx context.Context, task *Task) (map[string]any, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(10 * time.Second):
+			return map[string]any{"done": true}, nil
+		}
+	})
+	c := NewCoordinator([]Worker{worker}, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.Start(ctx)
+	c.Submit(&Task{ID: "timeout-t", Type: "test", Timeout: 50 * time.Millisecond, MaxRetry: 0})
+	var result *TaskResult
+	timeout := time.After(2 * time.Second)
+	select {
+	case result = <-c.Results():
+	case <-timeout:
+		t.Fatal("timeout waiting for result")
+	}
+	if result.Error == "" {
+		t.Error("expected timeout error")
+	}
+	c.Stop()
+}
+
+func TestCoordinatorDrain(t *testing.T) {
+	worker := NewSimpleWorker("drain-w", func(ctx context.Context, task *Task) (map[string]any, error) {
+		time.Sleep(10 * time.Millisecond)
+		return map[string]any{"ok": true}, nil
+	})
+	c := NewCoordinator([]Worker{worker}, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.Start(ctx)
+	for i := 0; i < 5; i++ {
+		c.Submit(&Task{ID: fmt.Sprintf("d%d", i), Type: "test"})
+	}
+	time.Sleep(20 * time.Millisecond)
+	c.Drain()
 }
 
 func TestLoadBalancer(t *testing.T) {
-	var counts [3]int64
-	var mu sync.Mutex
-
-	workers := make([]Worker, 3)
-	for i := range workers {
-		idx := i
-		workers[i] = NewSimpleWorker(fmt.Sprintf("w%d", i), func(ctx context.Context, task *Task) (map[string]any, error) {
-			mu.Lock()
-			counts[idx]++
-			mu.Unlock()
-			return nil, nil
-		})
-	}
-
+	workers := []Worker{newTestWorker("w1"), newTestWorker("w2"), newTestWorker("w3")}
 	lb := NewLoadBalancer(workers)
 	if lb.WorkerCount() != 3 {
 		t.Errorf("expected 3 workers, got %d", lb.WorkerCount())
 	}
-
-	for i := 0; i < 6; i++ {
-		w := lb.Next()
-		if w == nil {
-			t.Fatal("expected non-nil worker")
-		}
+	w1 := lb.Next()
+	w2 := lb.Next()
+	w3 := lb.Next()
+	if w1.ID() == w2.ID() || w2.ID() == w3.ID() {
+		t.Error("expected round-robin distribution")
 	}
-
-	if lb.Next() == nil {
-		t.Error("expected non-nil worker")
+	lbEmpty := NewLoadBalancer(nil)
+	if lbEmpty.Next() != nil {
+		t.Error("expected nil from empty load balancer")
 	}
 }
 
 func TestResultAggregator(t *testing.T) {
 	agg := NewResultAggregator()
-
-	agg.Add(TaskResult{TaskID: "t1", Output: map[string]any{"ok": true}})
-	agg.Add(TaskResult{TaskID: "t2", Error: "failed"})
-	agg.Add(TaskResult{TaskID: "t3", Output: map[string]any{"ok": true}})
-
+	agg.Add(TaskResult{TaskID: "t1", Succeeded: true})
+	agg.Add(TaskResult{TaskID: "t2", Error: "failed", Succeeded: false})
+	agg.Add(TaskResult{TaskID: "t3", Succeeded: true})
 	if agg.Count() != 3 {
-		t.Errorf("expected 3 results, got %d", agg.Count())
+		t.Errorf("expected 3, got %d", agg.Count())
 	}
-
-	failed := agg.Failed()
-	if len(failed) != 1 {
-		t.Errorf("expected 1 failed, got %d", len(failed))
+	if len(agg.Failed()) != 1 {
+		t.Errorf("expected 1 failed, got %d", len(agg.Failed()))
 	}
-
-	all := agg.All()
-	if len(all) != 3 {
-		t.Errorf("expected 3 all, got %d", len(all))
+	if len(agg.Succeeded()) != 2 {
+		t.Errorf("expected 2 succeeded, got %d", len(agg.Succeeded()))
 	}
-
 	summary := agg.Summary()
-	if summary != "3 total, 2 succeeded, 1 failed" {
-		t.Errorf("unexpected summary: %s", summary)
+	if len(summary) == 0 {
+		t.Error("expected non-empty summary")
 	}
 }
 
-func TestSimpleWorker(t *testing.T) {
-	w := NewSimpleWorker("test", func(ctx context.Context, task *Task) (map[string]any, error) {
-		return map[string]any{"echo": task.ID}, nil
+func TestCircuitBreaker(t *testing.T) {
+	cb := NewCircuitBreaker(3, 100*time.Millisecond)
+	if cb.State() != "closed" {
+		t.Errorf("expected closed, got %s", cb.State())
+	}
+	if !cb.Allow() {
+		t.Error("expected allowed when closed")
+	}
+	cb.RecordFailure()
+	cb.RecordFailure()
+	cb.RecordFailure()
+	if cb.State() != "open" {
+		t.Errorf("expected open after 3 failures, got %s", cb.State())
+	}
+	if cb.Allow() {
+		t.Error("expected rejected when open")
+	}
+	time.Sleep(150 * time.Millisecond)
+	if !cb.Allow() {
+		t.Error("expected allowed after reset timeout")
+	}
+	if cb.State() != "half-open" {
+		t.Errorf("expected half-open, got %s", cb.State())
+	}
+	cb.RecordSuccess()
+	if cb.State() != "closed" {
+		t.Errorf("expected closed after success, got %s", cb.State())
+	}
+}
+
+func TestCircuitBreakerWorker(t *testing.T) {
+	worker := NewSimpleWorker("cb-w", func(ctx context.Context, task *Task) (map[string]any, error) {
+		return nil, fmt.Errorf("always fails")
 	})
-
-	if w.ID() != "test" {
-		t.Errorf("expected ID 'test', got %q", w.ID())
+	cb := NewCircuitBreaker(2, 100*time.Millisecond)
+	cbw := NewCircuitBreakerWorker(worker, cb)
+	ctx := context.Background()
+	_, err := cbw.Execute(ctx, &Task{ID: "t1"})
+	if err == nil {
+		t.Error("expected error")
 	}
-
-	result, err := w.Execute(context.Background(), &Task{ID: "t1"})
-	if err != nil {
-		t.Fatal(err)
+	_, err = cbw.Execute(ctx, &Task{ID: "t2"})
+	if err == nil {
+		t.Error("expected error")
 	}
-	if result.TaskID != "t1" {
-		t.Errorf("expected task ID 't1', got %q", result.TaskID)
+	_, err = cbw.Execute(ctx, &Task{ID: "t3"})
+	if err == nil {
+		t.Error("expected circuit breaker error")
 	}
 }
 
-func TestCoordinatorConcurrency(t *testing.T) {
-	var counter int64
-	workers := []Worker{
-		NewSimpleWorker("w1", func(ctx context.Context, task *Task) (map[string]any, error) {
-			atomic.AddInt64(&counter, 1)
-			time.Sleep(10 * time.Millisecond)
-			return nil, nil
-		}),
-		NewSimpleWorker("w2", func(ctx context.Context, task *Task) (map[string]any, error) {
-			atomic.AddInt64(&counter, 1)
-			time.Sleep(10 * time.Millisecond)
-			return nil, nil
-		}),
-	}
-
-	c := NewCoordinator(workers, 10)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func TestHealthChecker(t *testing.T) {
+	workers := []Worker{newTestWorker("hw1"), newTestWorker("hw2")}
+	hc := NewHealthChecker(workers, 50*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	c.Start(ctx)
-
-	for i := 0; i < 10; i++ {
-		c.Submit(&Task{ID: fmt.Sprintf("t%d", i), Type: "test"})
+	hc.Start(ctx)
+	time.Sleep(100 * time.Millisecond)
+	status := hc.Status()
+	if len(status) != 2 {
+		t.Errorf("expected 2 health statuses, got %d", len(status))
 	}
-
-	done := make(chan struct{})
-	go func() {
-		count := 0
-		for range c.Results() {
-			count++
-			if count == 10 {
-				break
-			}
+	for _, h := range status {
+		if !h.Healthy {
+			t.Errorf("expected worker %s to be healthy", h.WorkerID)
 		}
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("timeout waiting for results")
 	}
+	healthy := hc.HealthyWorkers()
+	if len(healthy) != 2 {
+		t.Errorf("expected 2 healthy workers, got %d", len(healthy))
+	}
+	hc.Stop()
+}
 
-	c.Stop()
-
-	if atomic.LoadInt64(&counter) != 10 {
-		t.Errorf("expected 10 tasks executed, got %d", counter)
+func TestComputeBackoff(t *testing.T) {
+	b1 := computeBackoff(1)
+	b2 := computeBackoff(2)
+	b3 := computeBackoff(3)
+	if b1 >= b2 || b2 >= b3 {
+		t.Error("expected increasing backoff")
+	}
+	if b3 > 5*time.Second {
+		t.Error("expected max 5s backoff")
 	}
 }

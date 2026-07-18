@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Secret Manager
@@ -217,13 +219,20 @@ func (s *Sanitizer) SanitizeAll(input string) string {
 
 // Hash
 
-func HashPassword(password string) string {
-	hash := sha256.Sum256([]byte(password))
-	return base64.StdEncoding.EncodeToString(hash[:])
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(hash), nil
 }
 
 func VerifyPassword(password, hash string) bool {
-	return HashPassword(password) == hash
+	decoded, err := base64.StdEncoding.DecodeString(hash)
+	if err != nil {
+		return false
+	}
+	return bcrypt.CompareHashAndPassword(decoded, []byte(password)) == nil
 }
 
 // Token Generator

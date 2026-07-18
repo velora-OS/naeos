@@ -31,31 +31,32 @@ import (
 
 // Server is the main HTTP API server for the NAEOS platform.
 type Server struct {
-	Addr        string
-	Router      *http.ServeMux
-	server      *http.Server
-	Auth        *AuthConfig
-	CORS        *CORSConfig
-	MaxBodySize int64
-	Limiter     *RateLimiter
-	APIKeys     map[string]*RateLimiter
-	apiKeysMu   sync.RWMutex
-	jwt         *JWTValidator
-	parser      parser.Parser
-	compiler    *compiler.Compiler
-	bundle      *contextbundle.Generator
-	store       *artifacts.Store
-	pipelines   []pipelineRun
-	pipelineJobs map[string]*pipelineJob
-	jobsMu      sync.RWMutex
-	deployments []cloudDeployment
-	deployMu       sync.RWMutex
-	plugins        *pluginhost.Manager
+	Addr            string
+	Router          *http.ServeMux
+	server          *http.Server
+	Auth            *AuthConfig
+	CORS            *CORSConfig
+	MaxBodySize     int64
+	Limiter         *RateLimiter
+	APIKeys         map[string]*RateLimiter
+	apiKeysMu       sync.RWMutex
+	jwt             *JWTValidator
+	parser          parser.Parser
+	compiler        *compiler.Compiler
+	bundle          *contextbundle.Generator
+	store           *artifacts.Store
+	pipelines       []pipelineRun
+	pipelinesMu     sync.RWMutex
+	pipelineJobs    map[string]*pipelineJob
+	jobsMu          sync.RWMutex
+	deployments     []cloudDeployment
+	deployMu        sync.RWMutex
+	plugins         *pluginhost.Manager
 	metricsRegistry *monitoring.Registry
-	auditor        audit.Auditor
-	wsServer       *naeosws.Server
-	mcpServer      *mcp.Server
-	db             database.Database
+	auditor         audit.Auditor
+	wsServer        *naeosws.Server
+	mcpServer       *mcp.Server
+	db              database.Database
 }
 
 type pipelineRun struct {
@@ -100,16 +101,16 @@ type CORSConfig struct {
 
 // APIResponse is the standard JSON envelope returned by API endpoints.
 type APIResponse struct {
-	Success bool        `json:"success"`
-	Data    any `json:"data,omitempty"`
-	Error   string      `json:"error,omitempty"`
+	Success bool   `json:"success"`
+	Data    any    `json:"data,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // ErrorResponse contains detailed error information in API responses.
 type ErrorResponse struct {
-	Error   string      `json:"error"`
-	Message string      `json:"message"`
-	Details any `json:"details,omitempty"`
+	Error   string `json:"error"`
+	Message string `json:"message"`
+	Details any    `json:"details,omitempty"`
 }
 
 // NewServer creates a new API server with the given address and auth configuration.
@@ -124,9 +125,9 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	metrics := monitoring.NewMetrics()
 
 	s := &Server{
-		Addr:  addr,
+		Addr:   addr,
 		Router: http.NewServeMux(),
-		Auth:  auth,
+		Auth:   auth,
 		CORS: &CORSConfig{
 			AllowedOrigins: []string{
 				"http://localhost:3000",
@@ -136,14 +137,14 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 			AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders: []string{"Content-Type", "Authorization"},
 		},
-		MaxBodySize: 10 << 20,
-		Limiter:     NewRateLimiter(100, time.Minute),
-		APIKeys:     make(map[string]*RateLimiter),
-		parser:      parser.NewParser(),
-		compiler:    compiler.New(),
-		store:       store,
+		MaxBodySize:  10 << 20,
+		Limiter:      NewRateLimiter(100, time.Minute),
+		APIKeys:      make(map[string]*RateLimiter),
+		parser:       parser.NewParser(),
+		compiler:     compiler.New(),
+		store:        store,
 		pipelineJobs: make(map[string]*pipelineJob),
-		plugins:     pluginhost.NewManager(".naeos/plugins"),
+		plugins:      pluginhost.NewManager(".naeos/plugins"),
 	}
 
 	if auth != nil && auth.JWTSecret != "" {
@@ -317,8 +318,6 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			if s.CORS.AllowCredentials {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
-		} else if s.CORS == nil {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 		methods := "GET, POST, PUT, DELETE, OPTIONS"
 		headers := "Content-Type, Authorization, X-Request-ID"
@@ -340,6 +339,12 @@ func (s *Server) handlerWithMiddleware(handler http.HandlerFunc) http.HandlerFun
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+
+		// Security headers
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		// Auth
 		if s.Auth.Enabled && r.URL.Path != "/api/v1/health" {
@@ -506,12 +511,12 @@ func (s *Server) handleSpecCompile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
-		"compiled":  true,
-		"targets":   targets,
-		"bundle":    b.ToMarkdown(),
-		"project":   doc.Project,
-		"modules":   len(doc.Modules),
-		"services":  len(doc.Services),
+		"compiled": true,
+		"targets":  targets,
+		"bundle":   b.ToMarkdown(),
+		"project":  doc.Project,
+		"modules":  len(doc.Modules),
+		"services": len(doc.Services),
 	})
 }
 
@@ -555,7 +560,9 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 			Services:  len(doc.Services),
 			CreatedAt: time.Now().Format(time.RFC3339),
 		}
+		s.pipelinesMu.Lock()
 		s.pipelines = append(s.pipelines, run)
+		s.pipelinesMu.Unlock()
 
 		if s.db != nil {
 			s.db.Exec("INSERT INTO pipeline_runs (id, status, project, modules, services, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -579,18 +586,21 @@ func (s *Server) handlePipelineStatus(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	s.pipelinesMu.RLock()
 	var lastRun *pipelineRun
 	if len(s.pipelines) > 0 {
 		last := s.pipelines[len(s.pipelines)-1]
 		lastRun = &last
 	}
+	total := len(s.pipelines)
+	s.pipelinesMu.RUnlock()
 	status := "idle"
 	if lastRun != nil && lastRun.Status == "running" {
 		status = "running"
 	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"status":   status,
-		"total":    len(s.pipelines),
+		"total":    total,
 		"last_run": lastRun,
 	})
 }
@@ -695,9 +705,9 @@ func (s *Server) handleCloudPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Provider  string                   `json:"provider"`
-		Project   string                   `json:"project"`
-		Region    string                   `json:"region"`
+		Provider  string           `json:"provider"`
+		Project   string           `json:"project"`
+		Region    string           `json:"region"`
 		Resources []map[string]any `json:"resources"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -725,9 +735,9 @@ func (s *Server) handleCloudPlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &cloud.DeployConfig{
-		Provider: cloud.CloudProvider(req.Provider),
-		Region:   req.Region,
-		Project:  req.Project,
+		Provider:  cloud.CloudProvider(req.Provider),
+		Region:    req.Region,
+		Project:   req.Project,
 		Resources: resources,
 	}
 
@@ -755,9 +765,9 @@ func (s *Server) handleCloudDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Provider  string                   `json:"provider"`
-		Project   string                   `json:"project"`
-		Region    string                   `json:"region"`
+		Provider  string           `json:"provider"`
+		Project   string           `json:"project"`
+		Region    string           `json:"region"`
 		Resources []map[string]any `json:"resources"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -785,9 +795,9 @@ func (s *Server) handleCloudDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &cloud.DeployConfig{
-		Provider: cloud.CloudProvider(req.Provider),
-		Region:   req.Region,
-		Project:  req.Project,
+		Provider:  cloud.CloudProvider(req.Provider),
+		Region:    req.Region,
+		Project:   req.Project,
 		Resources: resources,
 	}
 
@@ -834,9 +844,9 @@ func (s *Server) handleCloudDestroy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Provider  string                   `json:"provider"`
-		Project   string                   `json:"project"`
-		Region    string                   `json:"region"`
+		Provider  string           `json:"provider"`
+		Project   string           `json:"project"`
+		Region    string           `json:"region"`
 		Resources []map[string]any `json:"resources"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -864,9 +874,9 @@ func (s *Server) handleCloudDestroy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	config := &cloud.DeployConfig{
-		Provider: cloud.CloudProvider(req.Provider),
-		Region:   req.Region,
-		Project:  req.Project,
+		Provider:  cloud.CloudProvider(req.Provider),
+		Region:    req.Region,
+		Project:   req.Project,
 		Resources: resources,
 	}
 
@@ -982,7 +992,7 @@ func (s *Server) handlePluginExecute(w http.ResponseWriter, r *http.Request) {
 		req.Action = "execute"
 	}
 
-	result, err := s.plugins.Execute(context.Background(), req.Name, req.Action, req.Params)
+	result, err := s.plugins.Execute(r.Context(), req.Name, req.Action, req.Params)
 	if err != nil {
 		s.writeError(w, http.StatusInternalServerError, errors.Wrap(errors.ErrPlugin, "execution failed", err).Error())
 		return
@@ -1040,17 +1050,18 @@ func (s *Server) handleConfigSchema(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"name":        map[string]string{"type": "string", "description": "project name"},
-			"version":     map[string]string{"type": "string", "description": "project version"},
-			"output_dir":  map[string]string{"type": "string", "description": "output directory"},
-			"mode":        map[string]string{"type": "string", "description": "pipeline mode"},
-			"verbose":     map[string]string{"type": "boolean", "description": "verbose output"},
+			"name":       map[string]string{"type": "string", "description": "project name"},
+			"version":    map[string]string{"type": "string", "description": "project version"},
+			"output_dir": map[string]string{"type": "string", "description": "output directory"},
+			"mode":       map[string]string{"type": "string", "description": "pipeline mode"},
+			"verbose":    map[string]string{"type": "boolean", "description": "verbose output"},
 		},
 		"required": []string{"name"},
 	})
 }
 
 func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
+	s.pipelinesMu.RLock()
 	offset, limit := parsePagination(r, 50, 200)
 	total := len(s.pipelines)
 	start := offset
@@ -1061,8 +1072,11 @@ func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 	if end > total {
 		end = total
 	}
+	pipelines := make([]pipelineRun, len(s.pipelines[start:end]))
+	copy(pipelines, s.pipelines[start:end])
+	s.pipelinesMu.RUnlock()
 	s.writeJSON(w, http.StatusOK, map[string]any{
-		"pipelines": s.pipelines[start:end],
+		"pipelines": pipelines,
 		"total":     total,
 		"page":      offset/limit + 1,
 		"limit":     limit,

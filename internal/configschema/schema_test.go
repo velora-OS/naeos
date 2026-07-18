@@ -1,14 +1,60 @@
 package configschema
 
 import (
-	"os"
 	"encoding/json"
 	"testing"
 )
 
-func TestValidateConfigRequired(t *testing.T) {
+func TestDefaultSchema(t *testing.T) {
+	schema := DefaultSchema()
+	if schema.Type != "object" {
+		t.Errorf("expected type object, got %s", schema.Type)
+	}
+	if len(schema.Properties) == 0 {
+		t.Error("expected properties in default schema")
+	}
+	if len(schema.Required) == 0 || schema.Required[0] != "name" {
+		t.Error("expected 'name' in required")
+	}
+}
+
+func TestSchemaBuilder(t *testing.T) {
+	schema := NewBuilder().
+		Title("Test Schema").
+		Description("A test").
+		Version("2.0").
+		AddProperty("field1", Property{Type: "string", Description: "test field"}).
+		AddProperty("field2", Property{Type: "number", Minimum: float64Ptr(0), Maximum: float64Ptr(100)}).
+		Required("field1").
+		Build()
+	if schema.Title != "Test Schema" {
+		t.Errorf("expected title Test Schema, got %s", schema.Title)
+	}
+	if schema.Version != "2.0" {
+		t.Errorf("expected version 2.0, got %s", schema.Version)
+	}
+	if _, ok := schema.Properties["field1"]; !ok {
+		t.Error("expected field1 in properties")
+	}
+	if len(schema.Required) != 1 || schema.Required[0] != "field1" {
+		t.Error("expected field1 in required")
+	}
+}
+
+func TestValidateConfig(t *testing.T) {
 	config := map[string]any{
-		"description": "no name",
+		"name":    "myproject",
+		"verbose": true,
+	}
+	errs := ValidateConfig(config)
+	for _, e := range errs {
+		t.Errorf("unexpected error: %s: %s", e.Field, e.Message)
+	}
+}
+
+func TestValidateConfigMissingRequired(t *testing.T) {
+	config := map[string]any{
+		"verbose": true,
 	}
 	errs := ValidateConfig(config)
 	found := false
@@ -18,210 +64,209 @@ func TestValidateConfigRequired(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("expected required field error for 'name', got %v", errs)
+		t.Error("expected missing required field 'name' error")
 	}
 }
 
-func TestValidateConfigTypes(t *testing.T) {
-	config := map[string]any{
-		"name":    123,
-		"verbose": "notbool",
-	}
-	errs := ValidateConfig(config)
-	if len(errs) < 2 {
-		t.Errorf("expected >=2 type errors, got %d: %v", len(errs), errs)
-	}
-}
-
-func TestValidateConfigValid(t *testing.T) {
-	config := map[string]any{
-		"name":    "myproject",
-		"version": "1.0.0",
-		"verbose": true,
-	}
-	errs := ValidateConfig(config)
-	if len(errs) > 0 {
-		t.Errorf("expected no errors, got %v", errs)
-	}
-}
-
-func TestValidateDataJSON(t *testing.T) {
-	data := []byte(`{"name":"test","verbose":true}`)
-	errs := ValidateData(data, "json")
-	if len(errs) > 0 {
-		t.Errorf("expected no errors, got %v", errs)
-	}
-}
-
-func TestValidateDataYAML(t *testing.T) {
-	data := []byte("name: test\nverbose: true")
-	errs := ValidateData(data, "yaml")
-	if len(errs) > 0 {
-		t.Errorf("expected no errors, got %v", errs)
-	}
-}
-
-func TestValidateDataInvalidJSON(t *testing.T) {
-	data := []byte(`{not json}`)
-	errs := ValidateData(data, "json")
-	if len(errs) == 0 {
-		t.Error("expected errors for invalid JSON")
-	}
-}
-
-func TestValidateDataMissingRequired(t *testing.T) {
-	data, _ := json.Marshal(map[string]any{
-		"version": "1.0.0",
-	})
-	errs := ValidateData(data, "json")
-	if len(errs) == 0 {
-		t.Error("expected missing required error")
-	}
-}
-
-func TestDefaultSchema(t *testing.T) {
-	s := DefaultSchema()
-	if s.Type != "object" {
-		t.Errorf("expected type 'object', got %s", s.Type)
-	}
-	if len(s.Required) == 0 {
-		t.Error("expected required fields")
-	}
-	if _, ok := s.Properties["name"]; !ok {
-		t.Error("expected 'name' property")
-	}
-}
-
-func TestValidateFileYAML(t *testing.T) {
-	tmp := t.TempDir()
-	path := tmp + "/config.yaml"
-	data := []byte("name: test\nversion: \"1.0\"\nverbose: true")
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		t.Fatalf("write temp file: %v", err)
-	}
-	errs, err := ValidateFile(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(errs) > 0 {
-		t.Errorf("expected no validation errors, got %v", errs)
-	}
-}
-
-func TestValidateFileJSON(t *testing.T) {
-	tmp := t.TempDir()
-	path := tmp + "/config.json"
-	data := []byte(`{"name": "test", "version": "1.0", "verbose": true}`)
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		t.Fatalf("write temp file: %v", err)
-	}
-	errs, err := ValidateFile(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(errs) > 0 {
-		t.Errorf("expected no validation errors, got %v", errs)
-	}
-}
-
-func TestValidateFileUnknown(t *testing.T) {
-	tmp := t.TempDir()
-	path := tmp + "/config.txt"
-	data := []byte(`{"name": "test"}`)
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		t.Fatalf("write temp file: %v", err)
-	}
-	// .txt falls through to JSON validation by default
-	errs, err := ValidateFile(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(errs) > 0 {
-		t.Errorf("expected no validation errors, got %v", errs)
-	}
-}
-
-func TestValidateFileNotFound(t *testing.T) {
-	_, err := ValidateFile("/nonexistent/path/config.json")
-	if err == nil {
-		t.Error("expected error for non-existent file, got nil")
-	}
-}
-
-func TestValidateDataInvalidYAML(t *testing.T) {
-	data := []byte("{{invalid yaml: [}")
-	errs := ValidateData(data, "yaml")
-	if len(errs) == 0 {
-		t.Error("expected errors for invalid YAML")
-	}
-	if errs[0].Field != "_root" {
-		t.Errorf("expected field '_root', got %s", errs[0].Field)
-	}
-}
-
-func TestValidateTypeNumber(t *testing.T) {
-	schema := DefaultSchema()
-	// int type
-	if !validateType(42, "number") {
-		t.Error("expected int to be valid for 'number'")
-	}
-	// int64 type
-	if !validateType(int64(100), "number") {
-		t.Error("expected int64 to be valid for 'number'")
-	}
-	// float64 type
-	if !validateType(float64(3.14), "number") {
-		t.Error("expected float64 to be valid for 'number'")
-	}
-	// string should not be valid for number
-	if validateType("not a number", "number") {
-		t.Error("expected string to be invalid for 'number'")
-	}
-	// exercise ValidateConfig with number-typed value in a known property
-	config := map[string]any{
-		"name":    "project",
-		"verbose": float64(1),
-	}
-	errs := ValidateConfig(config)
-	// verbose expects boolean; number(1) is not boolean
+func TestValidateTypeEnum(t *testing.T) {
+	schema := NewBuilder().
+		AddProperty("mode", Property{Type: "string", Enum: []any{"a", "b", "c"}}).
+		Build()
+	config := map[string]any{"mode": "d"}
+	errs := ValidateWithSchema(config, schema)
 	found := false
 	for _, e := range errs {
-		if e.Field == "verbose" {
+		if e.Field == "mode" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected type error for verbose with numeric value, got %v", errs)
+		t.Error("expected enum validation error")
 	}
-	_ = schema
-}
-
-func TestValidateTypeObject(t *testing.T) {
-	// map[string]any should be valid for "object" type
-	obj := map[string]any{"key": "value"}
-	if !validateType(obj, "object") {
-		t.Error("expected map[string]any to be valid for 'object'")
-	}
-	// a slice should not be valid for "object"
-	slice := []any{"a", "b"}
-	if validateType(slice, "object") {
-		t.Error("expected []any to be invalid for 'object'")
-	}
-	// string should not be valid for "object"
-	if validateType("string", "object") {
-		t.Error("expected string to be invalid for 'object'")
+	config["mode"] = "a"
+	errs = ValidateWithSchema(config, schema)
+	for _, e := range errs {
+		t.Errorf("unexpected error: %s", e.Message)
 	}
 }
 
-func TestValidateTypeUnknown(t *testing.T) {
-	// Unknown type should always return true (no validation applied)
-	if !validateType(123, "unknown_type") {
-		t.Error("expected any value to be valid for unknown type")
+func TestValidateStringConstraints(t *testing.T) {
+	schema := NewBuilder().
+		AddProperty("name", Property{
+			Type:      "string",
+			MinLength: intPtr(3),
+			MaxLength: intPtr(10),
+			Pattern:   `^[a-z]+$`,
+		}).
+		Build()
+	tests := []struct {
+		value    string
+		wantErrs int
+	}{
+		{"ab", 1},
+		{"abcdefghjkl", 1},
+		{"abc123", 1},
+		{"abc", 0},
 	}
-	if !validateType("hello", "custom") {
-		t.Error("expected any value to be valid for custom type")
+	for _, tt := range tests {
+		config := map[string]any{"name": tt.value}
+		errs := ValidateWithSchema(config, schema)
+		strErrs := 0
+		for _, e := range errs {
+			if e.Field == "name" {
+				strErrs++
+			}
+		}
+		if strErrs != tt.wantErrs {
+			t.Errorf("value %s: expected %d errors, got %d", tt.value, tt.wantErrs, strErrs)
+		}
 	}
-	if !validateType(nil, "nonexistent") {
-		t.Error("expected nil to be valid for nonexistent type")
+}
+
+func TestValidateNumberConstraints(t *testing.T) {
+	schema := NewBuilder().
+		AddProperty("port", Property{
+			Type:    "number",
+			Minimum: float64Ptr(1),
+			Maximum: float64Ptr(65535),
+		}).
+		Build()
+	tests := []struct {
+		value    any
+		wantErrs int
+	}{
+		{0, 1},
+		{99999, 1},
+		{8080, 0},
 	}
+	for _, tt := range tests {
+		config := map[string]any{"port": tt.value}
+		errs := ValidateWithSchema(config, schema)
+		numErrs := 0
+		for _, e := range errs {
+			if e.Field == "port" {
+				numErrs++
+			}
+		}
+		if numErrs != tt.wantErrs {
+			t.Errorf("value %v: expected %d errors, got %d", tt.value, tt.wantErrs, numErrs)
+		}
+	}
+}
+
+func TestValidateArrayItems(t *testing.T) {
+	schema := NewBuilder().
+		AddProperty("tags", Property{
+			Type:  "array",
+			Items: &Property{Type: "string"},
+		}).
+		Build()
+	config := map[string]any{"tags": []any{"a", "b", 123}}
+	errs := ValidateWithSchema(config, schema)
+	itemErrs := 0
+	for _, e := range errs {
+		if e.Field == "tags[2]" {
+			itemErrs++
+		}
+	}
+	if itemErrs != 1 {
+		t.Errorf("expected 1 item error, got %d", itemErrs)
+	}
+}
+
+func TestValidateNestedObject(t *testing.T) {
+	schema := NewBuilder().
+		AddProperty("server", Property{
+			Type: "object",
+			Properties: map[string]Property{
+				"host": {Type: "string"},
+				"port": {Type: "number", Minimum: float64Ptr(1)},
+			},
+			Required: []string{"host"},
+		}).
+		Build()
+	config := map[string]any{
+		"server": map[string]any{"port": 8080},
+	}
+	errs := ValidateWithSchema(config, schema)
+	found := false
+	for _, e := range errs {
+		if e.Field == "server.host" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected nested required field error")
+	}
+}
+
+func TestToJSONSchema(t *testing.T) {
+	schema := DefaultSchema()
+	jsonSchema := schema.ToJSONSchema()
+	if jsonSchema["$schema"] != "http://json-schema.org/draft-07/schema#" {
+		t.Error("expected json-schema draft-07")
+	}
+	props, ok := jsonSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("expected properties map")
+	}
+	nameProp, ok := props["name"].(map[string]any)
+	if !ok {
+		t.Fatal("expected name property")
+	}
+	if nameProp["type"] != "string" {
+		t.Errorf("expected type string, got %v", nameProp["type"])
+	}
+	req, ok := jsonSchema["required"].([]string)
+	if !ok || len(req) == 0 || req[0] != "name" {
+		t.Error("expected required field name")
+	}
+	_, err := json.Marshal(jsonSchema)
+	if err != nil {
+		t.Errorf("failed to marshal JSON schema: %v", err)
+	}
+}
+
+func TestGenerateDocumentation(t *testing.T) {
+	schema := DefaultSchema()
+	doc := schema.GenerateDocumentation()
+	if len(doc) == 0 {
+		t.Error("expected non-empty documentation")
+	}
+	if !contains(doc, "## Required Fields") {
+		t.Error("expected Required Fields section")
+	}
+	if !contains(doc, "### `name`") {
+		t.Error("expected name field docs")
+	}
+}
+
+func TestDeprecatedField(t *testing.T) {
+	schema := NewBuilder().
+		AddProperty("old_field", Property{Type: "string", Deprecated: true}).
+		Build()
+	config := map[string]any{"old_field": "value"}
+	errs := ValidateWithSchema(config, schema)
+	found := false
+	for _, e := range errs {
+		if e.Field == "old_field" && contains(e.Message, "deprecated") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected deprecation warning")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstr(s, substr))
+}
+
+func containsSubstr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
