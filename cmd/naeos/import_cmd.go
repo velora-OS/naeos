@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/NAEOS-foundation/naeos/internal/hcl"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/hcl"
 )
 
 func newImportCommand() *cobra.Command {
@@ -53,12 +54,12 @@ Example:
 			}
 
 			if outputPath != "" {
-				if err := os.WriteFile(outputPath, output, 0o644); err != nil {
+				if err := os.WriteFile(outputPath, output, 0o600); err != nil {
 					return fmt.Errorf("write output: %w", err)
 				}
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Imported %s → %s (%s format)\n", inputFile, outputPath, outputFormat)))
+				fmt.Fprintf(cmd.OutOrStdout(), "Imported %s → %s (%s format)\n", inputFile, outputPath, outputFormat)
 			} else {
-				cmd.OutOrStdout().Write(output)
+				_, _ = cmd.OutOrStdout().Write(output)
 			}
 			return nil
 		},

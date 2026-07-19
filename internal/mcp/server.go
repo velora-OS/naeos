@@ -28,20 +28,20 @@ type PipelineJob struct {
 }
 
 type Server struct {
-	mux           *http.ServeMux
-	compiler      *compiler.Compiler
-	bundle        *contextbundle.Generator
-	store         *artifacts.Store
-	pluginMgr     *pluginhost.Manager
-	pipelineJobs  map[string]*PipelineJob
-	mu            sync.RWMutex
+	mux          *http.ServeMux
+	compiler     *compiler.Compiler
+	bundle       *contextbundle.Generator
+	store        *artifacts.Store
+	pluginMgr    *pluginhost.Manager
+	pipelineJobs map[string]*PipelineJob
+	mu           sync.RWMutex
 }
 
 type JSONRPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	Method  string        `json:"method"`
+	JSONRPC string          `json:"jsonrpc"`
+	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
-	ID      any           `json:"id"`
+	ID      any             `json:"id"`
 }
 
 type JSONRPCResponse struct {
@@ -104,7 +104,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) writeJSONRPCError(w http.ResponseWriter, id any, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(JSONRPCResponse{
+	_ = json.NewEncoder(w).Encode(JSONRPCResponse{
 		JSONRPC: "2.0",
 		Error:   &JSONRPCError{Code: code, Message: message},
 		ID:      id,
@@ -117,7 +117,7 @@ func (s *Server) HandleMCP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
@@ -149,10 +149,10 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 			"capabilities": map[string]any{
 				"tools": map[string]any{},
 			},
-		"serverInfo": map[string]any{
-			"name":    "naeos-mcp",
-			"version": version.String(),
-		},
+			"serverInfo": map[string]any{
+				"name":    "naeos-mcp",
+				"version": version.String(),
+			},
 		}
 	case "tools/list":
 		resp.Result = map[string]any{
@@ -178,7 +178,7 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (s *Server) listTools() []Tool {
@@ -512,11 +512,11 @@ func (s *Server) handleExportTerraform(spec string) (*CallResult, error) {
 	b.WriteString("}\n\n")
 
 	for _, svc := range doc.Services {
-		b.WriteString(fmt.Sprintf("resource \"null_resource\" \"%s\" {\n", svc.Name))
+		fmt.Fprintf(&b, "resource \"null_resource\" \"%s\" {\n", svc.Name)
 		b.WriteString("  triggers = {\n")
-		b.WriteString(fmt.Sprintf("    name    = \"%s\"\n", svc.Name))
+		fmt.Fprintf(&b, "    name    = \"%s\"\n", svc.Name)
 		if svc.Kind != "" {
-			b.WriteString(fmt.Sprintf("    kind    = \"%s\"\n", svc.Kind))
+			fmt.Fprintf(&b, "    kind    = \"%s\"\n", svc.Kind)
 		}
 		b.WriteString("  }\n")
 		b.WriteString("}\n\n")

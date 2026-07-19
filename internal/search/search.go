@@ -49,15 +49,15 @@ type Query struct {
 }
 
 type SearchResult struct {
-	Total   int
-	Hits    []*SearchHit
-	Took    time.Duration
-	Query   string
+	Total int
+	Hits  []*SearchHit
+	Took  time.Duration
+	Query string
 }
 
 type SearchHit struct {
-	Document *Document
-	Score    float64
+	Document   *Document
+	Score      float64
 	Highlights map[string][]string
 }
 
@@ -295,7 +295,7 @@ func (p *Persistent) save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p.filePath, data, 0o644)
+	return os.WriteFile(p.filePath, data, 0o600)
 }
 
 func (p *Persistent) load() {

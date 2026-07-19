@@ -31,18 +31,18 @@ type Queue struct {
 }
 
 type QueueStats struct {
-	Published int64
-	Consumed  int64
-	Failed    int64
+	Published    int64
+	Consumed     int64
+	Failed       int64
 	DeadLettered int64
 }
 
 type QueueMetrics struct {
-	QueueDepth    int64
-	ProcessRate   float64
-	AvgLatencyMs  float64
-	TotalLatency  int64
-	LatencyCount  int64
+	QueueDepth   int64
+	ProcessRate  float64
+	AvgLatencyMs float64
+	TotalLatency int64
+	LatencyCount int64
 }
 
 func NewQueue(name string, capacity int) *Queue {
@@ -171,9 +171,9 @@ func (q *Queue) Metrics() QueueMetrics {
 }
 
 type Topic struct {
-	name    string
-	queues  map[string]*Queue
-	mu      sync.RWMutex
+	name   string
+	queues map[string]*Queue
+	mu     sync.RWMutex
 }
 
 func NewTopic(name string) *Topic {

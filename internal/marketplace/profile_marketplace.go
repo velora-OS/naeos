@@ -9,17 +9,17 @@ import (
 )
 
 type ProfileEntry struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Author      string            `json:"author"`
-	Industry    string            `json:"industry"`
-	Tags        []string          `json:"tags"`
-	Downloads   int               `json:"downloads"`
-	Content     map[string]any    `json:"content"`
-	Readme      string            `json:"readme,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	Description string         `json:"description"`
+	Author      string         `json:"author"`
+	Industry    string         `json:"industry"`
+	Tags        []string       `json:"tags"`
+	Downloads   int            `json:"downloads"`
+	Content     map[string]any `json:"content"`
+	Readme      string         `json:"readme,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 type ProfileMarketplace struct {

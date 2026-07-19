@@ -3,9 +3,12 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/spf13/cobra"
+
 	"github.com/NAEOS-foundation/naeos/internal/graphql"
 	"github.com/NAEOS-foundation/naeos/internal/version"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -55,7 +58,11 @@ func newGraphQLCommand() *cobra.Command {
 			http.Handle("/graphql", handler)
 
 			fmt.Printf("GraphQL server starting on http://localhost%s/graphql\n", graphqlPort)
-			return http.ListenAndServe(graphqlPort, nil)
+			srv := &http.Server{
+				Addr:              graphqlPort,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			return srv.ListenAndServe()
 		},
 	}
 

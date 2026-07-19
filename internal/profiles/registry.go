@@ -12,18 +12,18 @@ import (
 var builtinProfilesJSON []byte
 
 type Profile struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Industry    string            `json:"industry"`
-	Version     string            `json:"version"`
-	Modules     []ModuleTemplate  `json:"modules"`
-	Services    []ServiceTemplate `json:"services"`
-	Architecture ArchTemplate     `json:"architecture"`
-	Security    SecurityTemplate  `json:"security"`
-	Deployment  DeployTemplate    `json:"deployment"`
-	Testing     TestTemplate      `json:"testing"`
-	Tags        []string          `json:"tags"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Description  string            `json:"description"`
+	Industry     string            `json:"industry"`
+	Version      string            `json:"version"`
+	Modules      []ModuleTemplate  `json:"modules"`
+	Services     []ServiceTemplate `json:"services"`
+	Architecture ArchTemplate      `json:"architecture"`
+	Security     SecurityTemplate  `json:"security"`
+	Deployment   DeployTemplate    `json:"deployment"`
+	Testing      TestTemplate      `json:"testing"`
+	Tags         []string          `json:"tags"`
 }
 
 type ModuleTemplate struct {
@@ -34,9 +34,9 @@ type ModuleTemplate struct {
 }
 
 type ServiceTemplate struct {
-	Name     string `json:"name"`
-	Kind     string `json:"kind"`
-	Port     int    `json:"port"`
+	Name        string `json:"name"`
+	Kind        string `json:"kind"`
+	Port        int    `json:"port"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -133,65 +133,65 @@ func (r *Registry) ToSpecYAML(p *Profile) string {
 	var sb strings.Builder
 
 	slug := strings.ToLower(strings.ReplaceAll(p.Name, " ", "-"))
-	sb.WriteString(fmt.Sprintf("project: %s\n", slug))
-	sb.WriteString(fmt.Sprintf("description: %s\n\n", p.Description))
+	fmt.Fprintf(&sb, "project: %s\n", slug)
+	fmt.Fprintf(&sb, "description: %s\n\n", p.Description)
 
 	sb.WriteString("modules:\n")
 	for _, m := range p.Modules {
-		sb.WriteString(fmt.Sprintf("  - name: %s\n    path: %s\n    description: %s\n", m.Name, m.Path, m.Description))
+		fmt.Fprintf(&sb, "  - name: %s\n    path: %s\n    description: %s\n", m.Name, m.Path, m.Description)
 		if len(m.Dependencies) > 0 {
 			sb.WriteString("    dependencies:\n")
 			for _, d := range m.Dependencies {
-				sb.WriteString(fmt.Sprintf("      - %s\n", d))
+				fmt.Fprintf(&sb, "      - %s\n", d)
 			}
 		}
 	}
 
 	sb.WriteString("\nservices:\n")
 	for _, s := range p.Services {
-		sb.WriteString(fmt.Sprintf("  - name: %s\n    kind: %s\n    port: %d\n", s.Name, s.Kind, s.Port))
+		fmt.Fprintf(&sb, "  - name: %s\n    kind: %s\n    port: %d\n", s.Name, s.Kind, s.Port)
 		if s.Description != "" {
-			sb.WriteString(fmt.Sprintf("    description: %s\n", s.Description))
+			fmt.Fprintf(&sb, "    description: %s\n", s.Description)
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\narchitecture:\n  pattern: %s\n", p.Architecture.Pattern))
+	fmt.Fprintf(&sb, "\narchitecture:\n  pattern: %s\n", p.Architecture.Pattern)
 	if len(p.Architecture.Principles) > 0 {
 		sb.WriteString("  principles:\n")
 		for _, pr := range p.Architecture.Principles {
-			sb.WriteString(fmt.Sprintf("    - %s\n", pr))
+			fmt.Fprintf(&sb, "    - %s\n", pr)
 		}
 	}
 
 	if p.Security.Authentication != "" {
-		sb.WriteString(fmt.Sprintf("\nsecurity:\n  authentication:\n    method: %s\n", p.Security.Authentication))
+		fmt.Fprintf(&sb, "\nsecurity:\n  authentication:\n    method: %s\n", p.Security.Authentication)
 		if p.Security.Authorization != "" {
-			sb.WriteString(fmt.Sprintf("  authorization:\n    model: %s\n", p.Security.Authorization))
+			fmt.Fprintf(&sb, "  authorization:\n    model: %s\n", p.Security.Authorization)
 		}
 		if len(p.Security.Roles) > 0 {
 			sb.WriteString("    roles:\n")
 			for _, role := range p.Security.Roles {
-				sb.WriteString(fmt.Sprintf("      - %s\n", role))
+				fmt.Fprintf(&sb, "      - %s\n", role)
 			}
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\ndeployment:\n  strategy: %s\n", p.Deployment.Strategy))
+	fmt.Fprintf(&sb, "\ndeployment:\n  strategy: %s\n", p.Deployment.Strategy)
 	if len(p.Deployment.Environments) > 0 {
 		sb.WriteString("  environments:\n")
 		for _, env := range p.Deployment.Environments {
-			sb.WriteString(fmt.Sprintf("    - %s\n", env))
+			fmt.Fprintf(&sb, "    - %s\n", env)
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\ntesting:\n  strategy: %s\n", p.Testing.Strategy))
+	fmt.Fprintf(&sb, "\ntesting:\n  strategy: %s\n", p.Testing.Strategy)
 	if p.Testing.Coverage != "" {
-		sb.WriteString(fmt.Sprintf("  coverage: %s\n", p.Testing.Coverage))
+		fmt.Fprintf(&sb, "  coverage: %s\n", p.Testing.Coverage)
 	}
 	if len(p.Testing.Frameworks) > 0 {
 		sb.WriteString("  frameworks:\n")
 		for _, f := range p.Testing.Frameworks {
-			sb.WriteString(fmt.Sprintf("    - %s\n", f))
+			fmt.Fprintf(&sb, "    - %s\n", f)
 		}
 	}
 

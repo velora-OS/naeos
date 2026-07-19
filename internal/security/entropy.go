@@ -33,37 +33,3 @@ func isHighEntropySecret(s string, threshold float64) bool {
 	}
 	return shannonEntropy(trimmed) >= threshold
 }
-
-func extractSecretValue(line string, patterns []string) string {
-	for _, p := range patterns {
-		idx := strings.Index(line, p)
-		if idx == -1 {
-			continue
-		}
-		rest := line[idx+len(p):]
-		rest = strings.TrimSpace(rest)
-
-		if len(rest) == 0 {
-			continue
-		}
-
-		if rest[0] == '"' {
-			end := strings.Index(rest[1:], "\"")
-			if end != -1 {
-				return rest[1 : end+1]
-			}
-		}
-		if rest[0] == '\'' {
-			end := strings.Index(rest[1:], "'")
-			if end != -1 {
-				return rest[1 : end+1]
-			}
-		}
-
-		fields := strings.Fields(rest)
-		if len(fields) > 0 {
-			return fields[0]
-		}
-	}
-	return ""
-}

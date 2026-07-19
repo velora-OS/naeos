@@ -9,7 +9,7 @@ import (
 
 func TestShannonEntropy(t *testing.T) {
 	tests := []struct {
-		input    string
+		input      string
 		minEntropy float64
 	}{
 		{"aaaa", 0.0},

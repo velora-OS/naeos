@@ -8,7 +8,6 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
-
 // AWSAdapter implements CloudAdapter for Amazon Web Services.
 type AWSAdapter struct {
 	Runner CommandRunner
@@ -94,57 +93,57 @@ func (a *AWSAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
 				},
 			})
-	case ResourceCDN:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "aws_cloudfront_distribution",
-			Spec: map[string]any{
-				"comment": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceServerless:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "aws_lambda_function",
-			Spec: map[string]any{
-				"function_name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-				"runtime":       "python3.12",
-			},
-		})
-	case ResourceMonitoring:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "aws_cloudwatch_metric_alarm",
-			Spec: map[string]any{
-				"alarm_name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceSecrets:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "aws_secretsmanager_secret",
-			Spec: map[string]any{
-				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceDNS:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "aws_route53_zone",
-			Spec: map[string]any{
-				"name": res.Name,
-			},
-		})
-	case ResourceNetworking:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "aws_vpc",
-			Spec: map[string]any{
-				"cidr_block": "10.0.0.0/16",
-			},
-		})
+		case ResourceCDN:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "aws_cloudfront_distribution",
+				Spec: map[string]any{
+					"comment": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceServerless:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "aws_lambda_function",
+				Spec: map[string]any{
+					"function_name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+					"runtime":       "python3.12",
+				},
+			})
+		case ResourceMonitoring:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "aws_cloudwatch_metric_alarm",
+				Spec: map[string]any{
+					"alarm_name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceSecrets:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "aws_secretsmanager_secret",
+				Spec: map[string]any{
+					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceDNS:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "aws_route53_zone",
+				Spec: map[string]any{
+					"name": res.Name,
+				},
+			})
+		case ResourceNetworking:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "aws_vpc",
+				Spec: map[string]any{
+					"cidr_block": "10.0.0.0/16",
+				},
+			})
+		}
 	}
-}
 
 	estimator := NewCostEstimator()
 	cost := estimator.EstimateCost(string(config.Provider), resources)
@@ -212,15 +211,15 @@ func (a *AWSAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 	}
 
 	sm := NewStateManager()
-	sm.Save(&DeploymentRecord{
-		Project:     config.Project,
-		Provider:    AWS,
-		Environment: config.Environment,
-		Region:      config.Region,
-		Resources:   deployed,
+	_ = sm.Save(&DeploymentRecord{
+		Project:      config.Project,
+		Provider:     AWS,
+		Environment:  config.Environment,
+		Region:       config.Region,
+		Resources:    deployed,
 		TerraformDir: tr.WorkDir,
-		Timestamp:   result.Timestamp,
-		Status:      "deployed",
+		Timestamp:    result.Timestamp,
+		Status:       "deployed",
 	})
 
 	return result, nil
@@ -232,7 +231,7 @@ func (a *AWSAdapter) Destroy(config *DeployConfig) error {
 		if err := tr.ApplyDestroy(); err == nil {
 			pool.Remove(config.Project, AWS)
 			sm := NewStateManager()
-			sm.Delete(config.Project, AWS)
+			_ = sm.Delete(config.Project, AWS)
 			return nil
 		}
 	}
@@ -245,7 +244,7 @@ func (a *AWSAdapter) Destroy(config *DeployConfig) error {
 			tr.Runner = a.Runner
 		}
 		if derr := tr.DestroyAll(); derr == nil {
-			sm.Delete(config.Project, AWS)
+			_ = sm.Delete(config.Project, AWS)
 			return nil
 		}
 	}
@@ -279,7 +278,7 @@ func (a *AWSAdapter) Destroy(config *DeployConfig) error {
 		return err
 	}
 
-	sm.Delete(config.Project, AWS)
+	_ = sm.Delete(config.Project, AWS)
 	return nil
 }
 
@@ -287,7 +286,7 @@ func (a *AWSAdapter) ExportTerraform(config *DeployConfig) (string, error) {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf(`terraform {
+	fmt.Fprintf(&sb, `terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -300,10 +299,10 @@ provider "aws" {
   region = "%s"
 }
 
-`, config.Region))
+`, config.Region)
 
 	// Local variables for naming
-	sb.WriteString(fmt.Sprintf(`locals {
+	fmt.Fprintf(&sb, `locals {
   project     = "%s"
   environment = "%s"
   common_tags = {
@@ -313,13 +312,13 @@ provider "aws" {
   }
 }
 
-`, config.Project, config.Environment, config.Environment, config.Project, version.ProductName))
+`, config.Project, config.Environment, config.Environment, config.Project, version.ProductName)
 
 	for _, res := range config.Resources {
 		switch res.Type {
 		case ResourceStorage:
 			bucketName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_s3_bucket" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_s3_bucket" "%s" {
   bucket = "%s"
 
   tags = local.common_tags
@@ -333,11 +332,11 @@ resource "aws_s3_bucket_versioning" "%s" {
   }
 }
 
-`, res.Name, bucketName, res.Name, res.Name))
+`, res.Name, bucketName, res.Name, res.Name)
 
 		case ResourceCompute:
 			clusterName := fmt.Sprintf("%s-%s", config.Project, config.Environment)
-			sb.WriteString(fmt.Sprintf(`resource "aws_ecs_cluster" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_ecs_cluster" "%s" {
   name = "%s"
 
   setting {
@@ -403,15 +402,15 @@ resource "aws_ecs_service" "%s" {
 }
 
 `, res.Name, clusterName,
-			res.Name, config.Project, res.Name,
-			res.Name, config.Project, res.Name,
-			res.Name, res.Name,
-			res.Name, res.Name,
-			res.Name, res.Name, res.Name))
+				res.Name, config.Project, res.Name,
+				res.Name, config.Project, res.Name,
+				res.Name, res.Name,
+				res.Name, res.Name,
+				res.Name, res.Name, res.Name)
 
 		case ResourceDatabase:
 			identifier := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "random_password" "%s_db" {
+			fmt.Fprintf(&sb, `resource "random_password" "%s_db" {
   length           = 32
   special          = true
   override_special = "!#$%%^&*()-_=+[]{}<>:?"
@@ -457,14 +456,14 @@ resource "aws_rds_instance" "%s" {
 }
 
 `, res.Name,
-			res.Name, identifier,
-			res.Name, identifier, res.Name,
-			res.Name, identifier, res.Name,
-			res.Name, res.Name, res.Name))
+				res.Name, identifier,
+				res.Name, identifier, res.Name,
+				res.Name, identifier, res.Name,
+				res.Name, res.Name, res.Name)
 
 		case ResourceCache:
 			clusterID := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_elasticache_subnet_group" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_elasticache_subnet_group" "%s" {
   name       = "%s-subnet"
   subnet_ids = []
 
@@ -487,12 +486,12 @@ resource "aws_elasticache_cluster" "%s" {
 }
 
 `, res.Name, res.Name,
-			res.Name, clusterID,
-			res.Name))
+				res.Name, clusterID,
+				res.Name)
 
 		case ResourceQueue:
 			queueName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_sqs_queue" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_sqs_queue" "%s" {
   name                      = "%s"
   delay_seconds             = 0
   max_message_size          = 262144
@@ -518,11 +517,11 @@ resource "aws_sqs_queue_policy" "%s_policy" {
 }
 
 `, res.Name, queueName,
-			res.Name, res.Name,
-			res.Name, res.Name))
+				res.Name, res.Name,
+				res.Name, res.Name)
 
 		case ResourceCDN:
-			sb.WriteString(fmt.Sprintf(`resource "aws_cloudfront_distribution" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_cloudfront_distribution" "%s" {
   comment = "%s"
   enabled = true
 
@@ -562,11 +561,11 @@ resource "aws_sqs_queue_policy" "%s_policy" {
   tags = local.common_tags
 }
 
-			`, res.Name, fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name)))
+			`, res.Name, fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name))
 
 		case ResourceServerless:
 			funcName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_lambda_function" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_lambda_function" "%s" {
   function_name = "%s"
   runtime       = "python3.12"
   handler       = "index.handler"
@@ -601,12 +600,12 @@ resource "aws_iam_role" "%s_lambda" {
 }
 
 `, res.Name, funcName,
-			res.Name, config.Environment,
-			res.Name, res.Name))
+				res.Name, config.Environment,
+				res.Name, res.Name)
 
 		case ResourceMonitoring:
 			alarmName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_cloudwatch_metric_alarm" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_cloudwatch_metric_alarm" "%s" {
   alarm_name          = "%s"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
@@ -621,29 +620,29 @@ resource "aws_iam_role" "%s_lambda" {
 }
 
 `, res.Name, alarmName,
-			config.Project, config.Environment, res.Name))
+				config.Project, config.Environment, res.Name)
 
 		case ResourceSecrets:
 			secretName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "aws_secretsmanager_secret" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_secretsmanager_secret" "%s" {
   name = "%s"
 
   tags = local.common_tags
 }
 
-`, res.Name, secretName))
+`, res.Name, secretName)
 
 		case ResourceDNS:
-			sb.WriteString(fmt.Sprintf(`resource "aws_route53_zone" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_route53_zone" "%s" {
   name = "%s"
 
   tags = local.common_tags
 }
 
-`, res.Name, res.Name))
+`, res.Name, res.Name)
 
 		case ResourceNetworking:
-			sb.WriteString(fmt.Sprintf(`resource "aws_vpc" "%s" {
+			fmt.Fprintf(&sb, `resource "aws_vpc" "%s" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
@@ -660,7 +659,7 @@ resource "aws_subnet" "%s" {
 }
 
 `, res.Name, res.Name,
-			res.Name, res.Name))
+				res.Name, res.Name)
 
 		}
 	}

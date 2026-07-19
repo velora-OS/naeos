@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ func TestAPIKeyRateLimitAllowed(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/health", nil)
 	req.Header.Set("X-API-Key", "test-key-123")
 	w := httptest.NewRecorder()
 
@@ -35,7 +36,7 @@ func TestAPIKeyRateLimitExceeded(t *testing.T) {
 	}))
 
 	for i := 0; i < 3; i++ {
-		req := httptest.NewRequest("GET", "/api/v1/health", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/health", nil)
 		req.Header.Set("X-API-Key", "limited-key")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
@@ -56,7 +57,7 @@ func TestFallbackToIPBasedLimiter(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/health", nil)
 	req.RemoteAddr = "192.168.1.100:12345"
 	w := httptest.NewRecorder()
 
@@ -75,7 +76,7 @@ func TestUnknownAPIKeyFallsBackToIP(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/health", nil)
 	req.Header.Set("X-API-Key", "unknown-key-value")
 	req.RemoteAddr = "10.0.0.1:9999"
 	w := httptest.NewRecorder()

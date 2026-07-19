@@ -36,15 +36,15 @@ type Worker interface {
 }
 
 type Coordinator struct {
-	workers     []Worker
-	taskCh      chan *Task
-	resultCh    chan *TaskResult
-	mu          sync.RWMutex
-	wg          sync.WaitGroup
-	handlers    map[string]func(ctx context.Context, task *Task) (*TaskResult, error)
-	metrics     *CoordinatorMetrics
-	draining    atomic.Bool
-	drainWg     sync.WaitGroup
+	workers  []Worker
+	taskCh   chan *Task
+	resultCh chan *TaskResult
+	mu       sync.RWMutex
+	wg       sync.WaitGroup
+	handlers map[string]func(ctx context.Context, task *Task) (*TaskResult, error)
+	metrics  *CoordinatorMetrics
+	draining atomic.Bool
+	drainWg  sync.WaitGroup
 }
 
 type CoordinatorMetrics struct {
@@ -565,5 +565,3 @@ func max64(a, b int64) int64 {
 	}
 	return b
 }
-
-

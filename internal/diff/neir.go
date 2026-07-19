@@ -338,15 +338,15 @@ func FormatNEIRDiff(diff *NEIRDiff) string {
 	}
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("NEIR Diff: %s\n", diff.Summary))
+	fmt.Fprintf(&sb, "NEIR Diff: %s\n", diff.Summary)
 	sb.WriteString(strings.Repeat("=", 50) + "\n\n")
 
 	if diff.ProjectDiff != nil && len(diff.ProjectDiff.FieldsModified) > 0 {
 		sb.WriteString("Project:\n")
 		if diff.ProjectDiff.NameChanged {
 			if diff.ProjectDiff.OldName != "" && diff.ProjectDiff.NewName != "" {
-				sb.WriteString(fmt.Sprintf("  \033[31m-%s\033[0m\n", diff.ProjectDiff.OldName))
-				sb.WriteString(fmt.Sprintf("  \033[32m+%s\033[0m\n", diff.ProjectDiff.NewName))
+				fmt.Fprintf(&sb, "  \033[31m-%s\033[0m\n", diff.ProjectDiff.OldName)
+				fmt.Fprintf(&sb, "  \033[32m+%s\033[0m\n", diff.ProjectDiff.NewName)
 			}
 		}
 		sb.WriteString("\n")
@@ -355,25 +355,25 @@ func FormatNEIRDiff(diff *NEIRDiff) string {
 	if diff.ServicesDiff != nil {
 		sd := diff.ServicesDiff
 		if len(sd.Added) > 0 {
-			sb.WriteString(fmt.Sprintf("\033[32mAdded services (%d):\033[0m\n", len(sd.Added)))
+			fmt.Fprintf(&sb, "\033[32mAdded services (%d):\033[0m\n", len(sd.Added))
 			for _, s := range sd.Added {
-				sb.WriteString(fmt.Sprintf("  \033[32m+ %s (port=%d)\033[0m\n", s.Name, s.Port))
+				fmt.Fprintf(&sb, "  \033[32m+ %s (port=%d)\033[0m\n", s.Name, s.Port)
 			}
 			sb.WriteString("\n")
 		}
 		if len(sd.Removed) > 0 {
-			sb.WriteString(fmt.Sprintf("\033[31mRemoved services (%d):\033[0m\n", len(sd.Removed)))
+			fmt.Fprintf(&sb, "\033[31mRemoved services (%d):\033[0m\n", len(sd.Removed))
 			for _, s := range sd.Removed {
-				sb.WriteString(fmt.Sprintf("  \033[31m- %s (port=%d)\033[0m\n", s.Name, s.Port))
+				fmt.Fprintf(&sb, "  \033[31m- %s (port=%d)\033[0m\n", s.Name, s.Port)
 			}
 			sb.WriteString("\n")
 		}
 		if len(sd.Modified) > 0 {
-			sb.WriteString(fmt.Sprintf("\033[33mModified services (%d):\033[0m\n", len(sd.Modified)))
+			fmt.Fprintf(&sb, "\033[33mModified services (%d):\033[0m\n", len(sd.Modified))
 			for _, m := range sd.Modified {
-				sb.WriteString(fmt.Sprintf("  \033[33m~ %s:\033[0m\n", m.Name))
+				fmt.Fprintf(&sb, "  \033[33m~ %s:\033[0m\n", m.Name)
 				for _, c := range m.Changes {
-					sb.WriteString(fmt.Sprintf("    %s: %v -> %v\n", c.Field, c.OldValue, c.NewValue))
+					fmt.Fprintf(&sb, "    %s: %v -> %v\n", c.Field, c.OldValue, c.NewValue)
 				}
 			}
 			sb.WriteString("\n")

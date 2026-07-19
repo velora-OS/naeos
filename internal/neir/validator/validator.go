@@ -110,13 +110,13 @@ func ValidateDetailed(neir any) ValidationResult {
 			result.Errors = append(result.Errors, "architecture.pattern is required when architecture section is present")
 		} else {
 			validPatterns := map[string]bool{
-				"layered":       true,
-				"clean":         true,
-				"hexagonal":     true,
-				"microkernel":   true,
-				"event-driven":  true,
-				"cqrs":          true,
-				"monolith":      true,
+				"layered":      true,
+				"clean":        true,
+				"hexagonal":    true,
+				"microkernel":  true,
+				"event-driven": true,
+				"cqrs":         true,
+				"monolith":     true,
 			}
 			if !validPatterns[pattern] {
 				result.Valid = false

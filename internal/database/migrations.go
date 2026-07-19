@@ -91,7 +91,7 @@ func LoadMigrations(dir string) ([]Migration, error) {
 func MigrationChecksum(migrations []Migration) string {
 	var sb strings.Builder
 	for _, m := range migrations {
-		sb.WriteString(fmt.Sprintf("%d:%s:%s:%s\n", m.Version, m.Name, m.Up, m.Down))
+		fmt.Fprintf(&sb, "%d:%s:%s:%s\n", m.Version, m.Name, m.Up, m.Down)
 	}
 	return fmt.Sprintf("%x", []byte(sb.String()))
 }

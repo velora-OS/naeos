@@ -52,14 +52,14 @@ type PluginInfo struct {
 
 // Manifest describes a plugin's capabilities, actions, and configuration schema.
 type Manifest struct {
-	Name         string                    `json:"name"`
-	Version      string                    `json:"version"`
-	Description  string                    `json:"description"`
-	Author       string                    `json:"author,omitempty"`
-	License      string                    `json:"license,omitempty"`
-	Dependencies []string                  `json:"dependencies,omitempty"`
-	Actions      []ActionManifest          `json:"actions,omitempty"`
-	Config       map[string]ConfigField    `json:"config,omitempty"`
+	Name         string                 `json:"name"`
+	Version      string                 `json:"version"`
+	Description  string                 `json:"description"`
+	Author       string                 `json:"author,omitempty"`
+	License      string                 `json:"license,omitempty"`
+	Dependencies []string               `json:"dependencies,omitempty"`
+	Actions      []ActionManifest       `json:"actions,omitempty"`
+	Config       map[string]ConfigField `json:"config,omitempty"`
 }
 
 // ActionManifest describes a single action a plugin can perform.
@@ -87,8 +87,8 @@ type BasePlugin struct {
 	DescriptionVal string
 }
 
-func (b *BasePlugin) Name() string        { return b.NameVal }
-func (b *BasePlugin) Version() string     { return b.VersionVal }
-func (b *BasePlugin) Description() string { return b.DescriptionVal }
+func (b *BasePlugin) Name() string                      { return b.NameVal }
+func (b *BasePlugin) Version() string                   { return b.VersionVal }
+func (b *BasePlugin) Description() string               { return b.DescriptionVal }
 func (b *BasePlugin) Initialize(_ *PluginContext) error { return nil }
-func (b *BasePlugin) Shutdown() error { return nil }
+func (b *BasePlugin) Shutdown() error                   { return nil }

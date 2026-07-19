@@ -135,7 +135,7 @@ func (e *MigrationEngine) registerBuiltinSteps() {
 
 			if _, ok := data["architecture"]; !ok {
 				data["architecture"] = map[string]any{
-					"pattern":     "hexagonal",
+					"pattern":    "hexagonal",
 					"principles": []any{"loose-coupling", "high-cohesion"},
 				}
 			}
@@ -200,7 +200,7 @@ func FormatMigrationPlan(plan []TransformStep) string {
 	var sb strings.Builder
 	sb.WriteString("Migration Plan:\n")
 	for i, step := range plan {
-		sb.WriteString(fmt.Sprintf("  %d. %s → %s: %s\n", i+1, step.FromVersion, step.ToVersion, step.Description))
+		fmt.Fprintf(&sb, "  %d. %s → %s: %s\n", i+1, step.FromVersion, step.ToVersion, step.Description)
 	}
 	return sb.String()
 }

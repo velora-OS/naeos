@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"github.com/NAEOS-foundation/naeos/internal/cicd"
+
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/cicd"
 )
 
 var (
@@ -25,8 +27,8 @@ func newCICDCommand() *cobra.Command {
 			}
 
 			config := &cicd.PipelineConfig{
-				Project:  "myapp",
-				Platform: platform,
+				Project:   "myapp",
+				Platform:  platform,
 				Languages: []string{"go"},
 				Trigger: cicd.TriggerConfig{
 					OnPush: true,
@@ -40,7 +42,7 @@ func newCICDCommand() *cobra.Command {
 			}
 
 			if cicdOutput != "" {
-				return os.WriteFile(cicdOutput, []byte(output), 0644)
+				return os.WriteFile(cicdOutput, []byte(output), 0o600)
 			}
 
 			fmt.Println(output)

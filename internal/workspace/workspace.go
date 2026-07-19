@@ -13,21 +13,21 @@ import (
 )
 
 type Workspace struct {
-	Name        string         `json:"name"`
-	Root        string         `json:"root"`
-	Modules     []ModuleRef    `json:"modules"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	Description string         `json:"description,omitempty"`
+	Name        string      `json:"name"`
+	Root        string      `json:"root"`
+	Modules     []ModuleRef `json:"modules"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	Description string      `json:"description,omitempty"`
 }
 
 type ModuleRef struct {
-	Name       string   `json:"name"`
-	Path       string   `json:"path"`
-	SpecFile   string   `json:"spec_file,omitempty"`
-	DependsOn  []string `json:"depends_on,omitempty"`
-	Version    string   `json:"version,omitempty"`
-	Checksum   string   `json:"checksum,omitempty"`
+	Name      string   `json:"name"`
+	Path      string   `json:"path"`
+	SpecFile  string   `json:"spec_file,omitempty"`
+	DependsOn []string `json:"depends_on,omitempty"`
+	Version   string   `json:"version,omitempty"`
+	Checksum  string   `json:"checksum,omitempty"`
 }
 
 type WorkspaceManager struct {
@@ -414,7 +414,7 @@ func (m *WorkspaceManager) LoadLock() (*LockFile, error) {
 }
 
 type DirtyInfo struct {
-	Module     string `json:"module"`
+	Module    string `json:"module"`
 	OldSum    string `json:"old_sum"`
 	NewSum    string `json:"new_sum"`
 	IsNew     bool   `json:"is_new"`
@@ -468,8 +468,8 @@ func (m *WorkspaceManager) DetectDirty() ([]DirtyInfo, error) {
 	for name := range lock.Modules {
 		if !currentModules[name] {
 			dirty = append(dirty, DirtyInfo{
-				Module:     name,
-				OldSum:     lock.Modules[name].Checksum,
+				Module:    name,
+				OldSum:    lock.Modules[name].Checksum,
 				IsRemoved: true,
 			})
 		}
@@ -541,13 +541,13 @@ func (m *WorkspaceManager) Validate() ([]ValidationIssue, error) {
 }
 
 type WorkspaceReport struct {
-	Name          string         `json:"name"`
-	Root          string         `json:"root"`
-	ModuleCount   int            `json:"module_count"`
-	BuildOrder    []string       `json:"build_order"`
-	Modules       []ModuleReport `json:"modules"`
-	HasCircular   bool           `json:"has_circular"`
-	GeneratedAt   time.Time      `json:"generated_at"`
+	Name        string         `json:"name"`
+	Root        string         `json:"root"`
+	ModuleCount int            `json:"module_count"`
+	BuildOrder  []string       `json:"build_order"`
+	Modules     []ModuleReport `json:"modules"`
+	HasCircular bool           `json:"has_circular"`
+	GeneratedAt time.Time      `json:"generated_at"`
 }
 
 type ModuleReport struct {

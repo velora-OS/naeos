@@ -16,25 +16,25 @@ type ArtifactKind string
 
 const (
 	// KindCode represents source code artifacts.
-	KindCode       ArtifactKind = "code"
+	KindCode ArtifactKind = "code"
 	// KindConfig represents configuration file artifacts.
-	KindConfig     ArtifactKind = "config"
+	KindConfig ArtifactKind = "config"
 	// KindDocs represents documentation artifacts.
-	KindDocs       ArtifactKind = "docs"
+	KindDocs ArtifactKind = "docs"
 	// KindDocker represents Dockerfile and compose artifacts.
-	KindDocker     ArtifactKind = "docker"
+	KindDocker ArtifactKind = "docker"
 	// KindCI represents CI/CD pipeline artifacts.
-	KindCI         ArtifactKind = "ci"
+	KindCI ArtifactKind = "ci"
 	// KindAI represents AI agent configuration artifacts.
-	KindAI         ArtifactKind = "ai"
+	KindAI ArtifactKind = "ai"
 	// KindTest represents test file artifacts.
-	KindTest       ArtifactKind = "test"
+	KindTest ArtifactKind = "test"
 	// KindMigration represents database migration artifacts.
-	KindMigration  ArtifactKind = "migration"
+	KindMigration ArtifactKind = "migration"
 	// KindProfile represents profile artifacts.
-	KindProfile    ArtifactKind = "profile"
+	KindProfile ArtifactKind = "profile"
 	// KindOther represents uncategorized artifacts.
-	KindOther      ArtifactKind = "other"
+	KindOther ArtifactKind = "other"
 )
 
 // Artifact represents a single build artifact with metadata and content.
@@ -55,29 +55,29 @@ type Artifact struct {
 
 // StoreManifest is the on-disk manifest that tracks all artifacts in a store.
 type StoreManifest struct {
-	Version   string      `json:"version"`
-	Project   string      `json:"project"`
-	Artifacts []Artifact  `json:"artifacts"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
+	Version   string     `json:"version"`
+	Project   string     `json:"project"`
+	Artifacts []Artifact `json:"artifacts"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // Store manages a collection of artifacts with deduplication and persistence.
 type Store struct {
-	root      string
-	manifest  StoreManifest
-	byPath    map[string]*Artifact
-	byKind    map[ArtifactKind][]*Artifact
-	byHash    map[string]*Artifact
+	root     string
+	manifest StoreManifest
+	byPath   map[string]*Artifact
+	byKind   map[ArtifactKind][]*Artifact
+	byHash   map[string]*Artifact
 }
 
 // NewStore creates a new artifact store rooted at the given directory.
 func NewStore(root string) *Store {
 	return &Store{
-		root:     root,
-		byPath:   make(map[string]*Artifact),
-		byKind:   make(map[ArtifactKind][]*Artifact),
-		byHash:   make(map[string]*Artifact),
+		root:   root,
+		byPath: make(map[string]*Artifact),
+		byKind: make(map[ArtifactKind][]*Artifact),
+		byHash: make(map[string]*Artifact),
 		manifest: StoreManifest{
 			Version:   "1.0",
 			CreatedAt: time.Now(),
@@ -138,9 +138,7 @@ func (s *Store) GetByHash(hash string) (*Artifact, bool) {
 // List returns all artifacts sorted by path.
 func (s *Store) List() []Artifact {
 	result := make([]Artifact, 0, len(s.manifest.Artifacts))
-	for _, a := range s.manifest.Artifacts {
-		result = append(result, a)
-	}
+	result = append(result, s.manifest.Artifacts...)
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Path < result[j].Path
 	})
@@ -188,7 +186,7 @@ func (s *Store) WriteToDisk() error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("create dir %s: %w", dir, err)
 		}
-		if err := os.WriteFile(filePath, a.Content, 0o644); err != nil {
+		if err := os.WriteFile(filePath, a.Content, 0o600); err != nil {
 			return fmt.Errorf("write %s: %w", a.Path, err)
 		}
 	}
@@ -198,7 +196,7 @@ func (s *Store) WriteToDisk() error {
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
-	return os.WriteFile(manifestPath, data, 0o644)
+	return os.WriteFile(manifestPath, data, 0o600)
 }
 
 // LoadFromDisk reads the artifact manifest and contents from disk into the store.

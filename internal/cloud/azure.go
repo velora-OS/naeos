@@ -23,10 +23,10 @@ func (a *AzureAdapter) Provider() CloudProvider {
 
 func (a *AzureAdapter) Validate(config *DeployConfig) error {
 	if config.Project == "" {
-		return fmt.Errorf("Azure resource group is required")
+		return fmt.Errorf("azure resource group is required")
 	}
 	if config.Region == "" {
-		return fmt.Errorf("Azure region is required")
+		return fmt.Errorf("azure region is required")
 	}
 	return nil
 }
@@ -80,58 +80,58 @@ func (a *AzureAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 					"location": config.Region,
 				},
 			})
-	case ResourceCDN:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "azurerm_cdn_frontdoor_profile",
-			Spec: map[string]any{
-				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceServerless:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "azurerm_linux_function_app",
-			Spec: map[string]any{
-				"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-				"location": config.Region,
-			},
-		})
-	case ResourceMonitoring:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "azurerm_monitor_action_group",
-			Spec: map[string]any{
-				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceSecrets:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "azurerm_key_vault",
-			Spec: map[string]any{
-				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceDNS:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "azurerm_dns_zone",
-			Spec: map[string]any{
-				"name": res.Name,
-			},
-		})
-	case ResourceNetworking:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "azurerm_virtual_network",
-			Spec: map[string]any{
-				"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-				"location": config.Region,
-			},
-		})
+		case ResourceCDN:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "azurerm_cdn_frontdoor_profile",
+				Spec: map[string]any{
+					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceServerless:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "azurerm_linux_function_app",
+				Spec: map[string]any{
+					"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+					"location": config.Region,
+				},
+			})
+		case ResourceMonitoring:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "azurerm_monitor_action_group",
+				Spec: map[string]any{
+					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceSecrets:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "azurerm_key_vault",
+				Spec: map[string]any{
+					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceDNS:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "azurerm_dns_zone",
+				Spec: map[string]any{
+					"name": res.Name,
+				},
+			})
+		case ResourceNetworking:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "azurerm_virtual_network",
+				Spec: map[string]any{
+					"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+					"location": config.Region,
+				},
+			})
+		}
 	}
-}
 
 	estimator := NewCostEstimator()
 	cost := estimator.EstimateCost(string(config.Provider), resources)
@@ -199,7 +199,7 @@ func (a *AzureAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 	}
 
 	sm := NewStateManager()
-	sm.Save(&DeploymentRecord{
+	_ = sm.Save(&DeploymentRecord{
 		Project:      config.Project,
 		Provider:     Azure,
 		Environment:  config.Environment,
@@ -219,7 +219,7 @@ func (a *AzureAdapter) Destroy(config *DeployConfig) error {
 		if err := tr.ApplyDestroy(); err == nil {
 			pool.Remove(config.Project, Azure)
 			sm := NewStateManager()
-			sm.Delete(config.Project, Azure)
+			_ = sm.Delete(config.Project, Azure)
 			return nil
 		}
 	}
@@ -232,7 +232,7 @@ func (a *AzureAdapter) Destroy(config *DeployConfig) error {
 			tr.Runner = a.Runner
 		}
 		if derr := tr.DestroyAll(); derr == nil {
-			sm.Delete(config.Project, Azure)
+			_ = sm.Delete(config.Project, Azure)
 			return nil
 		}
 	}
@@ -266,7 +266,7 @@ func (a *AzureAdapter) Destroy(config *DeployConfig) error {
 		return err
 	}
 
-	sm.Delete(config.Project, Azure)
+	_ = sm.Delete(config.Project, Azure)
 	return nil
 }
 
@@ -274,7 +274,7 @@ func (a *AzureAdapter) ExportTerraform(config *DeployConfig) (string, error) {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf(`terraform {
+	fmt.Fprintf(&sb, `terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -298,7 +298,7 @@ resource "azurerm_resource_group" "main" {
   }
 }
 
-`, config.Project, config.Region, config.Environment, config.Project, version.ProductName))
+`, config.Project, config.Region, config.Environment, config.Project, version.ProductName)
 
 	for _, res := range config.Resources {
 		switch res.Type {
@@ -309,7 +309,7 @@ resource "azurerm_resource_group" "main" {
 			if len(storageName) > 24 {
 				storageName = storageName[:24]
 			}
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_storage_account" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_storage_account" "%s" {
   name                     = "%s"
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
@@ -329,11 +329,11 @@ resource "azurerm_storage_container" "%s" {
 }
 
 `, res.Name, storageName,
-			config.Environment, config.Project,
-			res.Name, res.Name, res.Name))
+				config.Environment, config.Project,
+				res.Name, res.Name, res.Name)
 
 		case ResourceCompute:
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_container_group" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_container_group" "%s" {
   name                = "%s"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -363,16 +363,16 @@ resource "azurerm_storage_container" "%s" {
 }
 
 `, res.Name, res.Name,
-			res.Name, config.Project, res.Name,
-			config.Environment,
-			config.Environment, config.Project))
+				res.Name, config.Project, res.Name,
+				config.Environment,
+				config.Environment, config.Project)
 
 		case ResourceDatabase:
 			serverName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
 			// Azure server names: lowercase alphanumeric and hyphens
 			serverName = strings.ToLower(serverName)
 			dbName := strings.ReplaceAll(res.Name, "-", "_")
-			sb.WriteString(fmt.Sprintf(`resource "random_password" "%s_db" {
+			fmt.Fprintf(&sb, `resource "random_password" "%s_db" {
   length           = 32
   special          = true
   override_special = "!#$%%^&*()-_=+[]{}<>:?"
@@ -413,11 +413,11 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "%s" {
 }
 
 `, res.Name,
-			res.Name, serverName,
-			res.Name,
-			config.Environment, config.Project,
-			res.Name, dbName, res.Name,
-			res.Name, res.Name))
+				res.Name, serverName,
+				res.Name,
+				config.Environment, config.Project,
+				res.Name, dbName, res.Name,
+				res.Name, res.Name)
 
 		case ResourceCache:
 			redisName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
@@ -425,7 +425,7 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "%s" {
 			if len(redisName) > 64 {
 				redisName = redisName[:64]
 			}
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_redis_cache" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_redis_cache" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -441,10 +441,10 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "%s" {
 }
 
 `, res.Name, redisName,
-			config.Environment, config.Project))
+				config.Environment, config.Project)
 
 		case ResourceQueue:
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_servicebus_namespace" "main" {
+			fmt.Fprintf(&sb, `resource "azurerm_servicebus_namespace" "main" {
   name                = "%s-sb"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -468,11 +468,11 @@ resource "azurerm_servicebus_queue" "%s" {
 }
 
 `, config.Project,
-			config.Environment, config.Project,
-			res.Name, res.Name))
+				config.Environment, config.Project,
+				res.Name, res.Name)
 
 		case ResourceCDN:
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_cdn_frontdoor_profile" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_cdn_frontdoor_profile" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
   sku_name            = "Standard_AzureFrontDoor"
@@ -523,15 +523,15 @@ resource "azurerm_cdn_frontdoor_route" "%s" {
 }
 
 `, res.Name, res.Name,
-			config.Environment, config.Project,
-			res.Name, res.Name, res.Name,
-			res.Name, res.Name, res.Name,
-			res.Name, res.Name, res.Name,
-			res.Name, res.Name, res.Name, res.Name))
+				config.Environment, config.Project,
+				res.Name, res.Name, res.Name,
+				res.Name, res.Name, res.Name,
+				res.Name, res.Name, res.Name,
+				res.Name, res.Name, res.Name, res.Name)
 
 		case ResourceServerless:
 			funcAppName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_linux_function_app" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_linux_function_app" "%s" {
   name                       = "%s"
   resource_group_name        = azurerm_resource_group.main.name
   location                   = azurerm_resource_group.main.location
@@ -561,14 +561,14 @@ resource "azurerm_service_plan" "%s" {
 }
 
 `, res.Name, funcAppName,
-			res.Name, res.Name,
-			res.Name,
-			config.Environment, config.Project,
-			res.Name, res.Name,
-			config.Environment, config.Project))
+				res.Name, res.Name,
+				res.Name,
+				config.Environment, config.Project,
+				res.Name, res.Name,
+				config.Environment, config.Project)
 
 		case ResourceMonitoring:
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_monitor_action_group" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_monitor_action_group" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
   short_name          = "%s"
@@ -603,10 +603,10 @@ resource "azurerm_monitor_metric_alert" "%s" {
 }
 
 `, res.Name, res.Name, res.Name,
-			config.Environment, config.Project,
-			res.Name, res.Name,
-			config.Project, config.Environment, res.Name,
-			config.Environment, config.Project))
+				config.Environment, config.Project,
+				res.Name, res.Name,
+				config.Project, config.Environment, res.Name,
+				config.Environment, config.Project)
 
 		case ResourceSecrets:
 			vaultName := fmt.Sprintf("%s%s%s", config.Project, config.Environment, res.Name)
@@ -614,7 +614,7 @@ resource "azurerm_monitor_metric_alert" "%s" {
 			if len(vaultName) > 24 {
 				vaultName = vaultName[:24]
 			}
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_key_vault" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_key_vault" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -633,10 +633,10 @@ resource "azurerm_monitor_metric_alert" "%s" {
 data "azurerm_client_config" "current" {}
 
 `, res.Name, vaultName,
-			config.Environment, config.Project))
+				config.Environment, config.Project)
 
 		case ResourceDNS:
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_dns_zone" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_dns_zone" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
 
@@ -647,11 +647,11 @@ data "azurerm_client_config" "current" {}
 }
 
 `, res.Name, res.Name,
-			config.Environment, config.Project))
+				config.Environment, config.Project)
 
 		case ResourceNetworking:
 			vnetName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "azurerm_virtual_network" "%s" {
+			fmt.Fprintf(&sb, `resource "azurerm_virtual_network" "%s" {
   name                = "%s"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -671,8 +671,8 @@ resource "azurerm_subnet" "%s" {
 }
 
 `, res.Name, vnetName,
-			config.Environment, config.Project,
-			res.Name, res.Name, res.Name))
+				config.Environment, config.Project,
+				res.Name, res.Name, res.Name)
 
 		}
 	}

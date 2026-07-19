@@ -7,8 +7,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/NAEOS-foundation/naeos/internal/version"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
 func newHealthCommand() *cobra.Command {
@@ -114,21 +115,22 @@ func renderHealthReport(cmd *cobra.Command, report *HealthReport, format string)
 	case "yaml":
 		return FormatOutput(cmd.OutOrStdout(), report, "yaml")
 	default:
-		cmd.OutOrStdout().Write([]byte("NAEOS Health Report\n"))
-		cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Status: %s | Version: %s | Go: %s | %s\n", report.Status, report.Version, report.Go, report.Platform)))
-		cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 45) + "\n"))
+		_, _ = cmd.OutOrStdout().Write([]byte("NAEOS Health Report\n"))
+		fmt.Fprintf(cmd.OutOrStdout(), "Status: %s | Version: %s | Go: %s | %s\n", report.Status, report.Version, report.Go, report.Platform)
+		_, _ = cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 45) + "\n"))
 		for _, c := range report.Checks {
 			icon := "✓"
-			if c.Status == "degraded" {
+			switch c.Status {
+			case "degraded":
 				icon = "⚠"
-			} else if c.Status == "unhealthy" {
+			case "unhealthy":
 				icon = "✗"
 			}
 			msg := ""
 			if c.Message != "" {
 				msg = fmt.Sprintf(" — %s", c.Message)
 			}
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %s %s%s\n", icon, c.Name, msg)))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s %s%s\n", icon, c.Name, msg)
 		}
 	}
 	return nil

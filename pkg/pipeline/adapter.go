@@ -10,11 +10,11 @@ import (
 )
 
 type PipelineAdapter struct {
-	pipeline     *Pipeline
-	middleware   *pm.Chain
-	eventStore   eventsourcing.EventStore
-	runID        string
-	telemetryFn  func(stage string, duration time.Duration, err error)
+	pipeline    *Pipeline
+	middleware  *pm.Chain
+	eventStore  eventsourcing.EventStore
+	runID       string
+	telemetryFn func(stage string, duration time.Duration, err error)
 }
 
 func NewAdapter(p *Pipeline) *PipelineAdapter {

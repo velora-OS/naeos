@@ -1,6 +1,7 @@
 package marketplace
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,7 +50,11 @@ type RemotePluginList struct {
 
 func (r *RemoteRegistry) List() ([]RemotePlugin, error) {
 	url := r.baseURL + "/plugins"
-	resp, err := r.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch plugin list: %w", err)
 	}
@@ -117,15 +122,15 @@ func (r *RemoteRegistry) Install(name, version string) (string, error) {
 
 	metaPath := filepath.Join(r.installDir, name+".meta.json")
 	meta := map[string]any{
-		"name":        plugin.Name,
-		"version":     plugin.Version,
-		"description": plugin.Description,
-		"author":      plugin.Author,
-		"checksum":    plugin.SHA256,
+		"name":         plugin.Name,
+		"version":      plugin.Version,
+		"description":  plugin.Description,
+		"author":       plugin.Author,
+		"checksum":     plugin.SHA256,
 		"installed_at": time.Now().Format(time.RFC3339),
 	}
 	metaData, _ := json.MarshalIndent(meta, "", "  ")
-	_ = os.WriteFile(metaPath, metaData, 0o644)
+	_ = os.WriteFile(metaPath, metaData, 0o600)
 
 	return destPath, nil
 }
@@ -194,7 +199,11 @@ func (r *RemoteRegistry) resolvePlugin(name, version string) (*RemotePlugin, err
 }
 
 func (r *RemoteRegistry) downloadFile(url, destPath string) error {
-	resp, err := r.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return err
 	}

@@ -35,45 +35,45 @@ func NewCostEstimator() *CostEstimator {
 
 func (ce *CostEstimator) loadPricing() {
 	ce.pricing["aws"] = map[string]float64{
-		"aws_s3_bucket":                  1.15,
-		"aws_ecs_service":                8.47,
-		"aws_rds_instance":               12.41,
-		"aws_elasticache_cluster":        5.72,
-		"aws_sqs_queue":                  0.40,
-		"aws_cloudfront_distribution":    8.50,
-		"aws_lambda_function":            2.08,
-		"aws_cloudwatch_metric_alarm":    0.10,
-		"aws_secretsmanager_secret":      0.40,
-		"aws_route53_zone":               0.50,
-		"aws_vpc":                        0.00,
+		"aws_s3_bucket":               1.15,
+		"aws_ecs_service":             8.47,
+		"aws_rds_instance":            12.41,
+		"aws_elasticache_cluster":     5.72,
+		"aws_sqs_queue":               0.40,
+		"aws_cloudfront_distribution": 8.50,
+		"aws_lambda_function":         2.08,
+		"aws_cloudwatch_metric_alarm": 0.10,
+		"aws_secretsmanager_secret":   0.40,
+		"aws_route53_zone":            0.50,
+		"aws_vpc":                     0.00,
 	}
 
 	ce.pricing["gcp"] = map[string]float64{
-		"google_storage_bucket":            1.00,
-		"google_cloud_run_service":         7.35,
-		"google_sql_database_instance":     7.67,
-		"google_redis_instance":            5.87,
-		"google_pubsub_topic":              0.40,
-		"google_compute_backend_bucket":    6.00,
-		"google_cloudfunctions2_function":  1.80,
-		"google_monitoring_alert_policy":   0.10,
-		"google_secret_manager_secret":     0.06,
-		"google_dns_managed_zone":          0.20,
-		"google_compute_network":           0.00,
+		"google_storage_bucket":           1.00,
+		"google_cloud_run_service":        7.35,
+		"google_sql_database_instance":    7.67,
+		"google_redis_instance":           5.87,
+		"google_pubsub_topic":             0.40,
+		"google_compute_backend_bucket":   6.00,
+		"google_cloudfunctions2_function": 1.80,
+		"google_monitoring_alert_policy":  0.10,
+		"google_secret_manager_secret":    0.06,
+		"google_dns_managed_zone":         0.20,
+		"google_compute_network":          0.00,
 	}
 
 	ce.pricing["azure"] = map[string]float64{
-		"azurerm_storage_account":                    1.15,
-		"azurerm_container_group":                    9.12,
-		"azurerm_postgresql_flexible_server":         12.41,
-		"azurerm_redis_cache":                        5.30,
-		"azurerm_servicebus_queue":                   0.85,
-		"azurerm_cdn_frontdoor_profile":              8.50,
-		"azurerm_linux_function_app":                 1.90,
-		"azurerm_monitor_action_group":               0.10,
-		"azurerm_key_vault":                          0.03,
-		"azurerm_dns_zone":                           0.50,
-		"azurerm_virtual_network":                    0.00,
+		"azurerm_storage_account":            1.15,
+		"azurerm_container_group":            9.12,
+		"azurerm_postgresql_flexible_server": 12.41,
+		"azurerm_redis_cache":                5.30,
+		"azurerm_servicebus_queue":           0.85,
+		"azurerm_cdn_frontdoor_profile":      8.50,
+		"azurerm_linux_function_app":         1.90,
+		"azurerm_monitor_action_group":       0.10,
+		"azurerm_key_vault":                  0.03,
+		"azurerm_dns_zone":                   0.50,
+		"azurerm_virtual_network":            0.00,
 	}
 }
 
@@ -139,7 +139,7 @@ func (e CostEstimate) FormatCost() string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Estimated cost: $%.2f %s/month\n", e.TotalMonthlyUSD, e.Currency))
+	fmt.Fprintf(&sb, "Estimated cost: $%.2f %s/month\n", e.TotalMonthlyUSD, e.Currency)
 	sb.WriteString("Breakdown:\n")
 
 	keys := make([]string, 0, len(e.Breakdown))
@@ -149,7 +149,7 @@ func (e CostEstimate) FormatCost() string {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		sb.WriteString(fmt.Sprintf("  %s: $%.2f/month\n", k, e.Breakdown[k]))
+		fmt.Fprintf(&sb, "  %s: $%.2f/month\n", k, e.Breakdown[k])
 	}
 
 	return sb.String()

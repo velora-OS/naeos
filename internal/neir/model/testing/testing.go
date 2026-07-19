@@ -10,10 +10,10 @@ const (
 )
 
 type Testing struct {
-	Strategy  TestingStrategy   `json:"strategy,omitempty"`
-	Frameworks []string         `json:"frameworks,omitempty"`
-	Coverage  *Coverage         `json:"coverage,omitempty"`
-	Fixtures  []Fixture         `json:"fixtures,omitempty"`
+	Strategy   TestingStrategy   `json:"strategy,omitempty"`
+	Frameworks []string          `json:"frameworks,omitempty"`
+	Coverage   *Coverage         `json:"coverage,omitempty"`
+	Fixtures   []Fixture         `json:"fixtures,omitempty"`
 	Attributes map[string]string `json:"attributes,omitempty"`
 }
 

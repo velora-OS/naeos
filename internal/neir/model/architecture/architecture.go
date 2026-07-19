@@ -3,21 +3,21 @@ package architecture
 type Pattern string
 
 const (
-	PatternLayered    Pattern = "layered"
-	PatternClean      Pattern = "clean"
-	PatternHexagonal  Pattern = "hexagonal"
+	PatternLayered     Pattern = "layered"
+	PatternClean       Pattern = "clean"
+	PatternHexagonal   Pattern = "hexagonal"
 	PatternMicrokernel Pattern = "microkernel"
 	PatternEventDriven Pattern = "event-driven"
-	PatternCQRS       Pattern = "cqrs"
-	PatternMonolith   Pattern = "monolith"
+	PatternCQRS        Pattern = "cqrs"
+	PatternMonolith    Pattern = "monolith"
 )
 
 type Architecture struct {
-	Pattern     Pattern          `json:"pattern,omitempty"`
-	Style       string           `json:"style,omitempty"`
-	Description string           `json:"description,omitempty"`
-	Principles  []string         `json:"principles,omitempty"`
-	Layers      []Layer          `json:"layers,omitempty"`
+	Pattern     Pattern           `json:"pattern,omitempty"`
+	Style       string            `json:"style,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Principles  []string          `json:"principles,omitempty"`
+	Layers      []Layer           `json:"layers,omitempty"`
 	Attributes  map[string]string `json:"attributes,omitempty"`
 }
 

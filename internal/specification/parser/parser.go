@@ -2,10 +2,11 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
-	"gopkg.in/yaml.v3"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Parser interface {
@@ -46,7 +47,7 @@ type Architecture struct {
 }
 
 type Deployment struct {
-	Strategy string
+	Strategy     string
 	Environments []string
 }
 
@@ -425,9 +426,7 @@ func MergeSpecs(docs ...*SpecDocument) *SpecDocument {
 				merged.Modules = append(merged.Modules, m)
 			}
 		}
-		for _, s := range doc.Services {
-			merged.Services = append(merged.Services, s)
-		}
+		merged.Services = append(merged.Services, doc.Services...)
 		if doc.Architecture != nil && merged.Architecture == nil {
 			merged.Architecture = doc.Architecture
 		}

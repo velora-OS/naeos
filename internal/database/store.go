@@ -55,7 +55,7 @@ func (s *ConnectionStore) save() error {
 	if err != nil {
 		return fmt.Errorf("marshal connections: %w", err)
 	}
-	return os.WriteFile(s.filePath(), data, 0o644)
+	return os.WriteFile(s.filePath(), data, 0o600)
 }
 
 func (s *ConnectionStore) Add(name, driver string, config *Config) error {

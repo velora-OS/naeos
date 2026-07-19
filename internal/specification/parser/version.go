@@ -76,7 +76,7 @@ func (v SchemaVersion) CompatibleWith(minimum SchemaVersion) bool {
 }
 
 const (
-	MinSpecVersion = "0.1.0"
+	MinSpecVersion     = "0.1.0"
 	CurrentSpecVersion = "0.5.0"
 )
 

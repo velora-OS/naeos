@@ -1,7 +1,7 @@
 package lock
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // G501: MD5 is a user-selectable algorithm, not the default
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
@@ -22,10 +22,10 @@ const (
 )
 
 type LockFile struct {
-	Version   string          `json:"version"`
-	Generated string          `json:"generated"`
-	Artifacts []LockArtifact  `json:"artifacts"`
-	Checksum  string          `json:"checksum"`
+	Version   string         `json:"version"`
+	Generated string         `json:"generated"`
+	Artifacts []LockArtifact `json:"artifacts"`
+	Checksum  string         `json:"checksum"`
 	Algorithm HashAlgorithm  `json:"algorithm,omitempty"`
 }
 
@@ -93,7 +93,7 @@ func hashContent(content []byte, algo HashAlgorithm) string {
 		h := sha512.Sum512(content)
 		return hex.EncodeToString(h[:])
 	case HashMD5:
-		h := md5.Sum(content)
+		h := md5.Sum(content) //nolint:gosec // G401/G501: MD5 is a user-selectable algorithm, not the default
 		return hex.EncodeToString(h[:])
 	default:
 		h := sha256.Sum256(content)
@@ -175,8 +175,8 @@ func VerifyConcurrent(lock *LockFile, current []ArtifactInfo, workers int) *Veri
 	}
 
 	type hashResult struct {
-		path   string
-		hash   string
+		path string
+		hash string
 	}
 
 	results := make([]hashResult, len(current))

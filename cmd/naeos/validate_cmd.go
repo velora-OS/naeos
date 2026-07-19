@@ -60,7 +60,7 @@ Example:
 				return err
 			}
 
-			cfg, _, err := loadPipelineConfig(configPath, cliVerbose, languages, cliDryRun)
+			cfg, err := loadPipelineConfig(configPath, cliVerbose, languages, cliDryRun)
 			if err != nil {
 				return err
 			}
@@ -123,23 +123,23 @@ func renderValidation(cmd *cobra.Command, vr ValidationResult, format, filePath 
 		if filePath != "" {
 			return writeToFile(filePath, data)
 		}
-		cmd.OutOrStdout().Write(data)
-		cmd.OutOrStdout().Write([]byte("\n"))
+		_, _ = cmd.OutOrStdout().Write(data)
+		_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 		return nil
 	case "yaml":
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("status: %s\n", vr.Status))
-		sb.WriteString(fmt.Sprintf("valid: %t\n", vr.Valid))
+		fmt.Fprintf(&sb, "status: %s\n", vr.Status)
+		fmt.Fprintf(&sb, "valid: %t\n", vr.Valid)
 		if vr.Summary != "" {
-			sb.WriteString(fmt.Sprintf("summary: %s\n", vr.Summary))
+			fmt.Fprintf(&sb, "summary: %s\n", vr.Summary)
 		}
 		for _, e := range vr.Errors {
-			sb.WriteString(fmt.Sprintf("errors:\n  - code: %s\n    message: %s\n", e.Code, e.Message))
+			fmt.Fprintf(&sb, "errors:\n  - code: %s\n    message: %s\n", e.Code, e.Message)
 		}
 		if filePath != "" {
 			return writeToFile(filePath, []byte(sb.String()))
 		}
-		cmd.OutOrStdout().Write([]byte(sb.String()))
+		_, _ = cmd.OutOrStdout().Write([]byte(sb.String()))
 		return nil
 	default:
 		var sb strings.Builder
@@ -152,22 +152,22 @@ func renderValidation(cmd *cobra.Command, vr ValidationResult, format, filePath 
 		sb.WriteString("\n")
 
 		for _, e := range vr.Errors {
-			sb.WriteString(fmt.Sprintf("  [%s] %s\n", e.Code, e.Message))
+			fmt.Fprintf(&sb, "  [%s] %s\n", e.Code, e.Message)
 		}
 		for _, w := range vr.Warnings {
-			sb.WriteString(fmt.Sprintf("  ⚠ %s\n", w))
+			fmt.Fprintf(&sb, "  ⚠ %s\n", w)
 		}
 
 		if filePath != "" {
 			return writeToFile(filePath, []byte(sb.String()))
 		}
-		cmd.OutOrStdout().Write([]byte(sb.String()))
+		_, _ = cmd.OutOrStdout().Write([]byte(sb.String()))
 		return nil
 	}
 }
 
 func writeToFile(path string, data []byte) error {
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func newInspectCommand() *cobra.Command {
@@ -188,7 +188,7 @@ Example:
 				return err
 			}
 
-			cfg, _, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
+			cfg, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
 			if err != nil {
 				return err
 			}

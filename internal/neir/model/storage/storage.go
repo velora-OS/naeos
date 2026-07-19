@@ -3,12 +3,12 @@ package storage
 type StorageType string
 
 const (
-	TypeSQL     StorageType = "sql"
-	TypeNoSQL   StorageType = "nosql"
-	TypeFile    StorageType = "file"
-	TypeCache   StorageType = "cache"
-	TypeQueue   StorageType = "queue"
-	TypeBlob    StorageType = "blob"
+	TypeSQL   StorageType = "sql"
+	TypeNoSQL StorageType = "nosql"
+	TypeFile  StorageType = "file"
+	TypeCache StorageType = "cache"
+	TypeQueue StorageType = "queue"
+	TypeBlob  StorageType = "blob"
 )
 
 type Storage struct {

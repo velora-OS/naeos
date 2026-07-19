@@ -4,8 +4,8 @@ import "github.com/NAEOS-foundation/naeos/internal/neir/model/language"
 
 type GenerationConfig struct {
 	Languages []language.Language `json:"languages,omitempty"`
-	OutputDir string             `json:"output_dir,omitempty"`
-	ModuleDir string             `json:"module_dir,omitempty"`
+	OutputDir string              `json:"output_dir,omitempty"`
+	ModuleDir string              `json:"module_dir,omitempty"`
 }
 
 func (gc *GenerationConfig) HasLanguage(lang language.Language) bool {

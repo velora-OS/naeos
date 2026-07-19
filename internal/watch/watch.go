@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
 	naeoslog "github.com/NAEOS-foundation/naeos/internal/shared/log"
 )
 
@@ -164,7 +165,7 @@ func (w *Watcher) Snapshot() (map[string]int64, error) {
 func (w *Watcher) DetectChanges(prev map[string]int64) []WatchEvent {
 	var events []WatchEvent
 	for _, dir := range w.directories {
-		filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}

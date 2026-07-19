@@ -33,12 +33,12 @@ func (RustAdapter) GenerateModule(moduleName, modulePath, projectName string) []
 	mod := strutil.Slugify(moduleName)
 
 	return []engine.Artifact{
-		{Path: fmt.Sprintf("src/%s/mod.rs", mod), Content: []byte(fmt.Sprintf("pub mod handler;\npub mod service;\npub mod repository;\npub mod models;\n"))},
-		{Path: fmt.Sprintf("src/%s/handler.rs", mod), Content: []byte(fmt.Sprintf("use crate::service::Service;\n\npub struct Handler {\n    service: Box<dyn Service>,\n}\n\nimpl Handler {\n    pub fn new(service: Box<dyn Service>) -> Self {\n        Self { service }\n    }\n\n    pub fn handle(&self) -> String {\n        self.service.process()\n    }\n}\n"))},
+		{Path: fmt.Sprintf("src/%s/mod.rs", mod), Content: []byte("pub mod handler;\npub mod service;\npub mod repository;\npub mod models;\n")},
+		{Path: fmt.Sprintf("src/%s/handler.rs", mod), Content: []byte("use crate::service::Service;\n\npub struct Handler {\n    service: Box<dyn Service>,\n}\n\nimpl Handler {\n    pub fn new(service: Box<dyn Service>) -> Self {\n        Self { service }\n    }\n\n    pub fn handle(&self) -> String {\n        self.service.process()\n    }\n}\n")},
 		{Path: fmt.Sprintf("src/%s/service.rs", mod), Content: []byte("pub trait Service: Send + Sync {\n    fn process(&self) -> String;\n}\n\npub struct DefaultService;\n\nimpl Service for DefaultService {\n    fn process(&self) -> String {\n        \"processed\".to_string()\n    }\n}\n")},
 		{Path: fmt.Sprintf("src/%s/repository.rs", mod), Content: []byte("pub trait Repository: Send + Sync {\n    fn list(&self) -> Vec<String>;\n}\n")},
 		{Path: fmt.Sprintf("src/%s/models.rs", mod), Content: []byte("use serde::{Deserialize, Serialize};\n\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct Model {\n    pub name: String,\n}\n")},
-		{Path: fmt.Sprintf("tests/%s_test.rs", mod), Content: []byte(fmt.Sprintf("use crate::service::DefaultService;\n\n#[test]\nfn test_service() {\n    let svc = DefaultService;\n    assert_eq!(svc.process(), \"processed\");\n}\n"))},
+		{Path: fmt.Sprintf("tests/%s_test.rs", mod), Content: []byte("use crate::service::DefaultService;\n\n#[test]\nfn test_service() {\n    let svc = DefaultService;\n    assert_eq!(svc.process(), \"processed\");\n}\n")},
 	}
 }
 

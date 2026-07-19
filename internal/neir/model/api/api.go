@@ -20,10 +20,10 @@ type API struct {
 }
 
 type APIEndpoint struct {
-	Method     string `json:"method,omitempty"`
-	Path       string `json:"path,omitempty"`
-	Summary    string `json:"summary,omitempty"`
-	RequestRef string `json:"request_ref,omitempty"`
+	Method      string `json:"method,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	RequestRef  string `json:"request_ref,omitempty"`
 	ResponseRef string `json:"response_ref,omitempty"`
 }
 

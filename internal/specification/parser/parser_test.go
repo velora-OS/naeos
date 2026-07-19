@@ -251,20 +251,20 @@ func TestMergeSpecsSingle(t *testing.T) {
 
 func TestMergeSpecsMultiple(t *testing.T) {
 	doc1 := &SpecDocument{
-		Project: "p1",
-		Modules: []Module{{Name: "m1", Path: "./m1"}},
-		Services: []Service{{Name: "s1", Kind: "http"}},
+		Project:      "p1",
+		Modules:      []Module{{Name: "m1", Path: "./m1"}},
+		Services:     []Service{{Name: "s1", Kind: "http"}},
 		Architecture: &Architecture{Pattern: "hexagonal"},
 	}
 	doc2 := &SpecDocument{
-		Project: "p2",
-		Modules: []Module{{Name: "m2", Path: "./m2"}, {Name: "m1", Path: "./m1"}},
-		Services: []Service{{Name: "s2", Kind: "grpc"}},
+		Project:    "p2",
+		Modules:    []Module{{Name: "m2", Path: "./m2"}, {Name: "m1", Path: "./m1"}},
+		Services:   []Service{{Name: "s2", Kind: "grpc"}},
 		Deployment: &Deployment{Strategy: "canary"},
 	}
 	doc3 := &SpecDocument{
-		Project: "p3",
-		Testing: &Testing{Strategy: "integration"},
+		Project:    "p3",
+		Testing:    &Testing{Strategy: "integration"},
 		Generation: &Generation{Languages: []string{"go"}},
 	}
 

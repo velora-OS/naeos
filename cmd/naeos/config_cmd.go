@@ -5,8 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/NAEOS-foundation/naeos/internal/configschema"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/configschema"
 )
 
 func newConfigCmd() *cobra.Command {
@@ -56,11 +57,11 @@ Example:
 
 			errs, _ := configschema.ValidateData(data, format)
 			if len(errs) == 0 {
-				cmd.OutOrStdout().Write([]byte("✓ Config is valid\n"))
+				_, _ = cmd.OutOrStdout().Write([]byte("✓ Config is valid\n"))
 			} else {
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("✗ Found %d validation error(s):\n", len(errs))))
+				fmt.Fprintf(cmd.OutOrStdout(), "✗ Found %d validation error(s):\n", len(errs))
 				for _, e := range errs {
-					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  [%s] %s\n", e.Field, e.Message)))
+					fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s\n", e.Field, e.Message)
 				}
 			}
 			return nil
@@ -80,10 +81,10 @@ func newConfigShowCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			schema := configschema.DefaultSchema()
-			cmd.OutOrStdout().Write([]byte("NAEOS Configuration Schema\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Type: %s\n", schema.Type)))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Required: %s\n\n", strings.Join(schema.Required, ", "))))
-			cmd.OutOrStdout().Write([]byte("Properties:\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("NAEOS Configuration Schema\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "Type: %s\n", schema.Type)
+			fmt.Fprintf(cmd.OutOrStdout(), "Required: %s\n\n", strings.Join(schema.Required, ", "))
+			_, _ = cmd.OutOrStdout().Write([]byte("Properties:\n"))
 			for name, prop := range schema.Properties {
 				req := ""
 				for _, r := range schema.Required {
@@ -96,7 +97,7 @@ func newConfigShowCommand() *cobra.Command {
 				if prop.Default != nil {
 					def = fmt.Sprintf(" (default: %v)", prop.Default)
 				}
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-15s %-10s %s%s%s\n", name, prop.Type, prop.Description, def, req)))
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-15s %-10s %s%s%s\n", name, prop.Type, prop.Description, def, req)
 			}
 			return nil
 		},

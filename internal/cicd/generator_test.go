@@ -67,18 +67,6 @@ func testRustConfig() *PipelineConfig {
 	}
 }
 
-func testTypescriptConfig() *PipelineConfig {
-	return &PipelineConfig{
-		Project:   "tsapp",
-		Platform:  GitHubActions,
-		Languages: []string{"typescript"},
-		Trigger: TriggerConfig{
-			OnPush: true,
-			OnPR:   true,
-		},
-	}
-}
-
 func TestGitHubActionsGenerator_Name(t *testing.T) {
 	g := &GitHubActionsGenerator{}
 	if g.Name() != "GitHub Actions" {

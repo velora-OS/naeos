@@ -41,7 +41,7 @@ func TestExecuteWithContextCancellation(t *testing.T) {
 	w := NewWorkflow("test", steps)
 	err := w.ExecuteWithContext(ctx)
 	if err == nil {
-		t.Error("expected error from cancelled context")
+		t.Error("expected error from canceled context")
 	}
 }
 

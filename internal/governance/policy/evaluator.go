@@ -16,11 +16,11 @@ type Rule struct {
 }
 
 type EvaluationResult struct {
-	Passed    bool
-	RuleID    string
-	Message   string
-	Action    string
-	Priority  int
+	Passed   bool
+	RuleID   string
+	Message  string
+	Action   string
+	Priority int
 }
 
 type Evaluator interface {

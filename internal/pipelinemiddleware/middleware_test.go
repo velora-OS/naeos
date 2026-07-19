@@ -36,23 +36,6 @@ func contextAwareHandler(delay time.Duration) StageFunc {
 	}
 }
 
-type callTracker struct {
-	mu    sync.Mutex
-	calls []string
-}
-
-func (ct *callTracker) record(name string) {
-	ct.mu.Lock()
-	defer ct.mu.Unlock()
-	ct.calls = append(ct.calls, name)
-}
-
-func (ct *callTracker) count() int {
-	ct.mu.Lock()
-	defer ct.mu.Unlock()
-	return len(ct.calls)
-}
-
 type testMiddleware struct {
 	name    string
 	order   *[]string
@@ -580,7 +563,7 @@ func TestRateLimitMiddlewareName(t *testing.T) {
 
 func TestTimeoutMiddlewareCompletesInTime(t *testing.T) {
 	tmw := &TimeoutMiddleware{Timeout: time.Second}
-	wrapped := tmw.Wrap("test", contextAwareHandler(10 * time.Millisecond))
+	wrapped := tmw.Wrap("test", contextAwareHandler(10*time.Millisecond))
 	_, err := wrapped(context.Background(), &StageInput{Stage: "test"})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -598,7 +581,7 @@ func TestTimeoutMiddlewareTimesOut(t *testing.T) {
 
 func TestTimeoutMiddlewareDefault(t *testing.T) {
 	tmw := &TimeoutMiddleware{Timeout: 0}
-	wrapped := tmw.Wrap("test", contextAwareHandler(10 * time.Millisecond))
+	wrapped := tmw.Wrap("test", contextAwareHandler(10*time.Millisecond))
 	_, err := wrapped(context.Background(), &StageInput{Stage: "test"})
 	if err != nil {
 		t.Fatalf("expected no error with default timeout, got %v", err)

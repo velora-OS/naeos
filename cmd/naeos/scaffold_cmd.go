@@ -62,11 +62,11 @@ Example:
 				}
 
 				extraModuleFiles := map[string]string{
-					"internal/core/README.md":   "# core\n\nCore module for " + name + ".\n\n## Overview\n\nThis module contains the core business logic.\n",
-					"internal/core/package.go":  "package core\n\n// " + name + " core module.\n// Contains domain models and business logic.\n",
-					"internal/core/config.yaml": "name: core\nmodule: core\nversion: 0.1.0\ndescription: Core module for " + name + "\n",
-					"internal/core/domain.go":   "package core\n\n// Domain models for " + name + ".\n\ntype Entity struct {\n\tID   string\n\tName string\n}\n\nfunc NewEntity(id, name string) *Entity {\n\treturn &Entity{ID: id, Name: name}\n}\n",
-					"internal/core/service.go":  "package core\n\n// Service layer for " + name + ".\n\ntype Service struct {\n\trepo Repository\n}\n\nfunc NewService(repo Repository) *Service {\n\treturn &Service{repo: repo}\n}\n\nfunc (s *Service) Process(entity *Entity) error {\n\treturn s.repo.Save(entity)\n}\n",
+					"internal/core/README.md":     "# core\n\nCore module for " + name + ".\n\n## Overview\n\nThis module contains the core business logic.\n",
+					"internal/core/package.go":    "package core\n\n// " + name + " core module.\n// Contains domain models and business logic.\n",
+					"internal/core/config.yaml":   "name: core\nmodule: core\nversion: 0.1.0\ndescription: Core module for " + name + "\n",
+					"internal/core/domain.go":     "package core\n\n// Domain models for " + name + ".\n\ntype Entity struct {\n\tID   string\n\tName string\n}\n\nfunc NewEntity(id, name string) *Entity {\n\treturn &Entity{ID: id, Name: name}\n}\n",
+					"internal/core/service.go":    "package core\n\n// Service layer for " + name + ".\n\ntype Service struct {\n\trepo Repository\n}\n\nfunc NewService(repo Repository) *Service {\n\treturn &Service{repo: repo}\n}\n\nfunc (s *Service) Process(entity *Entity) error {\n\treturn s.repo.Save(entity)\n}\n",
 					"internal/core/repository.go": "package core\n\n// Repository interface for " + name + ".\n\ntype Repository interface {\n\tSave(entity *Entity) error\n\tFindByID(id string) (*Entity, error)\n}\n",
 				}
 				for fileName, content := range extraModuleFiles {
@@ -82,14 +82,14 @@ Example:
 			gitignore := "# Build artifacts\n/bin/\n/out/\n*.log\n*.exe\n*.test\n*.out\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n# OS\n.DS_Store\nThumbs.db\n"
 
 			baseFiles := map[string]string{
-				"README.md":        readme,
-				"spec.yaml":        spec,
-				"Makefile":         makefile,
-				".gitignore":       gitignore,
-				"config.yaml":      fmt.Sprintf("port: 8080\nname: %s\nversion: 0.1.0\n", name),
-				"config.json":      fmt.Sprintf("{\"port\": 8080, \"name\": \"%s\", \"version\": \"0.1.0\"}\n", name),
+				"README.md":           readme,
+				"spec.yaml":           spec,
+				"Makefile":            makefile,
+				".gitignore":          gitignore,
+				"config.yaml":         fmt.Sprintf("port: 8080\nname: %s\nversion: 0.1.0\n", name),
+				"config.json":         fmt.Sprintf("{\"port\": 8080, \"name\": \"%s\", \"version\": \"0.1.0\"}\n", name),
 				"docker-compose.yaml": fmt.Sprintf("version: '3.8'\nservices:\n  app:\n    build: .\n    ports:\n      - \"8080:8080\"\n    environment:\n      - PORT=8080\n      - NAME=%s\n", name),
-				"Dockerfile": fmt.Sprintf("FROM golang:1.21-alpine AS builder\nWORKDIR /app\nCOPY go.mod go.sum ./\nRUN go mod download\nCOPY . .\nRUN go build -o /app/bin/%s ./cmd/%s/\n\nFROM alpine:latest\nWORKDIR /app\nCOPY --from=builder /app/bin/%s .\nEXPOSE 8080\nCMD [\"./%s\"]\n", name, name, name, name),
+				"Dockerfile":          fmt.Sprintf("FROM golang:1.21-alpine AS builder\nWORKDIR /app\nCOPY go.mod go.sum ./\nRUN go mod download\nCOPY . .\nRUN go build -o /app/bin/%s ./cmd/%s/\n\nFROM alpine:latest\nWORKDIR /app\nCOPY --from=builder /app/bin/%s .\nEXPOSE 8080\nCMD [\"./%s\"]\n", name, name, name, name),
 			}
 
 			for fileName, content := range baseFiles {

@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -83,7 +84,7 @@ func TestReverseProxy(t *testing.T) {
 		t.Fatalf("NewReverseProxy failed: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	proxy.ServeHTTP(w, req)
 
@@ -113,7 +114,7 @@ func TestReverseProxyUpdateBackend(t *testing.T) {
 		t.Fatalf("UpdateBackend failed: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	proxy.ServeHTTP(w, req)
 
@@ -149,7 +150,7 @@ func TestLoadBalancingProxy(t *testing.T) {
 	lbp := NewLoadBalancingProxy(lb)
 
 	for i := 0; i < 10; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 		lbp.ServeHTTP(w, req)
 	}
@@ -163,7 +164,7 @@ func TestLoadBalancingProxyNoBackends(t *testing.T) {
 	lb := NewLoadBalancer()
 	lbp := NewLoadBalancingProxy(lb)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	lbp.ServeHTTP(w, req)
 
@@ -184,7 +185,7 @@ func TestRequestLogger(t *testing.T) {
 		}
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	logger.LogRequest(req, http.StatusOK, time.Millisecond)
 	if !logged {
 		t.Error("expected log to be called")
@@ -198,7 +199,7 @@ func TestProxyChain(t *testing.T) {
 		w.Write([]byte("response"))
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	chain.ServeHTTP(w, req)
 
@@ -210,7 +211,7 @@ func TestProxyChain(t *testing.T) {
 func TestProxyChainEmpty(t *testing.T) {
 	chain := NewProxyChain(nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	chain.ServeHTTP(w, req)
 

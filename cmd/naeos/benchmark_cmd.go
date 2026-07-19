@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos/pkg/pipeline"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/pkg/pipeline"
 )
 
 func newBenchmarkCommand() *cobra.Command {
@@ -26,7 +27,7 @@ Example:
   naeos benchmark --output json --iterations 100`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
+			cfg, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
 			if err != nil {
 				return err
 			}
@@ -89,15 +90,15 @@ Example:
 
 			var sb strings.Builder
 			sb.WriteString("NAEOS Benchmark Results\n")
-			sb.WriteString(fmt.Sprintf("Iterations: %d | Errors: %d\n", iterations, errCount))
+			fmt.Fprintf(&sb, "Iterations: %d | Errors: %d\n", iterations, errCount)
 			sb.WriteString(strings.Repeat("─", 45) + "\n")
-			sb.WriteString(fmt.Sprintf("  Average:  %s\n", avg.Round(time.Microsecond)))
-			sb.WriteString(fmt.Sprintf("  Min:      %s\n", minD.Round(time.Microsecond)))
-			sb.WriteString(fmt.Sprintf("  Max:      %s\n", maxD.Round(time.Microsecond)))
-			sb.WriteString(fmt.Sprintf("  Total:    %s\n", total.Round(time.Millisecond)))
-			sb.WriteString(fmt.Sprintf("  Ops/sec:  %.0f\n", float64(time.Second)/float64(avg)))
+			fmt.Fprintf(&sb, "  Average:  %s\n", avg.Round(time.Microsecond))
+			fmt.Fprintf(&sb, "  Min:      %s\n", minD.Round(time.Microsecond))
+			fmt.Fprintf(&sb, "  Max:      %s\n", maxD.Round(time.Microsecond))
+			fmt.Fprintf(&sb, "  Total:    %s\n", total.Round(time.Millisecond))
+			fmt.Fprintf(&sb, "  Ops/sec:  %.0f\n", float64(time.Second)/float64(avg))
 
-			cmd.OutOrStdout().Write([]byte(sb.String()))
+			_, _ = cmd.OutOrStdout().Write([]byte(sb.String()))
 			return nil
 		},
 	}

@@ -9,13 +9,13 @@ import (
 
 func TestToSpec(t *testing.T) {
 	cfg := &ProjectConfig{
-		Name:         "My Project",
-		ModulePath:   "./my-project",
-		Description:  "A test project",
-		Language:     "go",
-		Architecture: "hexagonal",
-		Deployment:   "rolling",
-		Port:         8080,
+		Name:          "My Project",
+		ModulePath:    "./my-project",
+		Description:   "A test project",
+		Language:      "go",
+		Architecture:  "hexagonal",
+		Deployment:    "rolling",
+		Port:          8080,
 		EnableTesting: true,
 	}
 	spec := cfg.ToSpec()

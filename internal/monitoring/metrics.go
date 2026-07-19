@@ -23,14 +23,14 @@ const (
 var defaultBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
 
 type Metric struct {
-	Name        string
-	Type        MetricType
-	Value       float64
-	Labels      map[string]string
-	Help        string
-	Buckets     []float64
-	Quantiles   []float64
-	CreatedAt   time.Time
+	Name      string
+	Type      MetricType
+	Value     float64
+	Labels    map[string]string
+	Help      string
+	Buckets   []float64
+	Quantiles []float64
+	CreatedAt time.Time
 }
 
 type MetricFamily struct {
@@ -48,11 +48,11 @@ type MetricFamily struct {
 // Registry
 
 type Registry struct {
-	metrics          map[string]*MetricFamily
-	mu               sync.RWMutex
-	maxCardinality   int
-	cleanupInterval  time.Duration
-	stopCleanup      chan struct{}
+	metrics         map[string]*MetricFamily
+	mu              sync.RWMutex
+	maxCardinality  int
+	cleanupInterval time.Duration
+	stopCleanup     chan struct{}
 }
 
 func NewRegistry() *Registry {
@@ -127,9 +127,9 @@ func (r *Registry) Register(name string, metricType MetricType, help string) {
 	}
 
 	family := &MetricFamily{
-		Name:    name,
-		Type:    metricType,
-		Help:    help,
+		Name:      name,
+		Type:      metricType,
+		Help:      help,
 		CreatedAt: time.Now(),
 	}
 	if metricType == Histogram {
@@ -621,7 +621,7 @@ func (m *Metrics) SetUptime(seconds float64) {
 func PrometheusHandler(registry *Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		w.Write([]byte(registry.FormatPrometheus()))
+		_, _ = w.Write([]byte(registry.FormatPrometheus()))
 	}
 }
 

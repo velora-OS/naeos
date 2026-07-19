@@ -73,8 +73,8 @@ func TestValidatorRejectsEmptyModulePath(t *testing.T) {
 
 func TestValidatorRejectsInvalidServicePort(t *testing.T) {
 	neir := &model.NEIR{
-		Project: &project.Project{Name: "test"},
-		Modules: []module.Module{{Name: "core", Path: "./internal/core"}},
+		Project:  &project.Project{Name: "test"},
+		Modules:  []module.Module{{Name: "core", Path: "./internal/core"}},
 		Services: []service.Service{{Name: "api", Port: 99999}},
 	}
 	result := ValidateDetailed(neir)

@@ -132,7 +132,7 @@ func (b *BaseDatabase) ping() error {
 	return nil
 }
 
-func (b *BaseDatabase) exec(query string, args ...any) (Result, error) {
+func (b *BaseDatabase) exec(_ string, _ ...any) (Result, error) {
 	if !b.connected {
 		return Result{}, fmt.Errorf("not connected")
 	}
@@ -141,7 +141,7 @@ func (b *BaseDatabase) exec(query string, args ...any) (Result, error) {
 	return Result{RowsAffected: 1}, nil
 }
 
-func (b *BaseDatabase) query(query string, args ...any) ([]Row, error) {
+func (b *BaseDatabase) query(_ string, _ ...any) ([]Row, error) {
 	if !b.connected {
 		return nil, fmt.Errorf("not connected")
 	}
@@ -150,7 +150,7 @@ func (b *BaseDatabase) query(query string, args ...any) ([]Row, error) {
 	return []Row{}, nil
 }
 
-func (b *BaseDatabase) queryRow(query string, args ...any) (Row, error) {
+func (b *BaseDatabase) queryRow(_ string, _ ...any) (Row, error) {
 	if !b.connected {
 		return nil, fmt.Errorf("not connected")
 	}
@@ -264,9 +264,9 @@ func NewPostgreSQL() *PostgreSQL {
 func (p *PostgreSQL) Name() string { return "postgresql" }
 
 func (p *PostgreSQL) Connect(config *Config) error { p.connect(config); return nil }
-func (p *PostgreSQL) Close() error                  { p.close(); return nil }
-func (p *PostgreSQL) Ping() error                   { return p.ping() }
-func (p *PostgreSQL) HealthCheck() error             { return p.healthCheck() }
+func (p *PostgreSQL) Close() error                 { p.close(); return nil }
+func (p *PostgreSQL) Ping() error                  { return p.ping() }
+func (p *PostgreSQL) HealthCheck() error           { return p.healthCheck() }
 
 func (p *PostgreSQL) Exec(query string, args ...any) (Result, error) {
 	return p.exec(query, args...)
@@ -289,7 +289,7 @@ func (p *PostgreSQL) QueryRowContext(_ context.Context, query string, args ...an
 	return p.queryRow(query, args...)
 }
 
-func (p *PostgreSQL) Begin() (Transaction, error)              { return p.begin() }
+func (p *PostgreSQL) Begin() (Transaction, error)                    { return p.begin() }
 func (p *PostgreSQL) BeginTx(_ context.Context) (Transaction, error) { return p.begin() }
 
 func (p *PostgreSQL) Migrate(migrations []Migration) error {
@@ -323,9 +323,9 @@ func NewMySQL() *MySQL {
 func (m *MySQL) Name() string { return "mysql" }
 
 func (m *MySQL) Connect(config *Config) error { m.connect(config); return nil }
-func (m *MySQL) Close() error                  { m.close(); return nil }
-func (m *MySQL) Ping() error                   { return m.ping() }
-func (m *MySQL) HealthCheck() error             { return m.healthCheck() }
+func (m *MySQL) Close() error                 { m.close(); return nil }
+func (m *MySQL) Ping() error                  { return m.ping() }
+func (m *MySQL) HealthCheck() error           { return m.healthCheck() }
 
 func (m *MySQL) Exec(query string, args ...any) (Result, error) {
 	return m.exec(query, args...)
@@ -348,7 +348,7 @@ func (m *MySQL) QueryRowContext(_ context.Context, query string, args ...any) (R
 	return m.queryRow(query, args...)
 }
 
-func (m *MySQL) Begin() (Transaction, error)              { return m.begin() }
+func (m *MySQL) Begin() (Transaction, error)                    { return m.begin() }
 func (m *MySQL) BeginTx(_ context.Context) (Transaction, error) { return m.begin() }
 
 func (m *MySQL) Migrate(migrations []Migration) error {
@@ -382,9 +382,9 @@ func NewSQLite() *SQLite {
 func (s *SQLite) Name() string { return "sqlite" }
 
 func (s *SQLite) Connect(config *Config) error { s.connect(config); return nil }
-func (s *SQLite) Close() error                  { s.close(); return nil }
-func (s *SQLite) Ping() error                   { return s.ping() }
-func (s *SQLite) HealthCheck() error             { return s.healthCheck() }
+func (s *SQLite) Close() error                 { s.close(); return nil }
+func (s *SQLite) Ping() error                  { return s.ping() }
+func (s *SQLite) HealthCheck() error           { return s.healthCheck() }
 
 func (s *SQLite) Exec(query string, args ...any) (Result, error) {
 	return s.exec(query, args...)
@@ -407,7 +407,7 @@ func (s *SQLite) QueryRowContext(_ context.Context, query string, args ...any) (
 	return s.queryRow(query, args...)
 }
 
-func (s *SQLite) Begin() (Transaction, error)              { return s.begin() }
+func (s *SQLite) Begin() (Transaction, error)                    { return s.begin() }
 func (s *SQLite) BeginTx(_ context.Context) (Transaction, error) { return s.begin() }
 
 func (s *SQLite) Migrate(migrations []Migration) error {
@@ -494,10 +494,10 @@ func (m *Manager) CloseAll() error {
 // Connection Pool
 
 type Pool struct {
-	maxOpen    int
-	maxIdle    int
+	maxOpen     int
+	maxIdle     int
 	maxLifetime time.Duration
-	conns      chan Database
+	conns       chan Database
 }
 
 func NewPool(maxOpen, maxIdle int, maxLifetime time.Duration) *Pool {

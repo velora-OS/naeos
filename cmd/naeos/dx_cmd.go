@@ -138,6 +138,6 @@ func newDXSnippetGetCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "snippet name (required)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }

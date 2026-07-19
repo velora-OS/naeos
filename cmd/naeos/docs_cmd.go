@@ -35,8 +35,12 @@ Example:
 			}
 			content := gen.GenerateAPIDocs(endpoints)
 			if outputDir != "" {
-				os.MkdirAll(outputDir, 0o755)
-				os.WriteFile(filepath.Join(outputDir, "api.md"), []byte(content), 0o600)
+				if err := os.MkdirAll(outputDir, 0o755); err != nil {
+					return fmt.Errorf("create output dir: %w", err)
+				}
+				if err := os.WriteFile(filepath.Join(outputDir, "api.md"), []byte(content), 0o600); err != nil {
+					return fmt.Errorf("write api.md: %w", err)
+				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Generated api.md in %s\n", outputDir)
 			} else {
 				fmt.Fprint(cmd.OutOrStdout(), content)
@@ -55,8 +59,12 @@ Example:
 				[]string{"core", "auth", "data"},
 			)
 			if outputDir != "" {
-				os.MkdirAll(outputDir, 0o755)
-				os.WriteFile(filepath.Join(outputDir, "architecture.md"), []byte(content), 0o600)
+				if err := os.MkdirAll(outputDir, 0o755); err != nil {
+					return fmt.Errorf("create output dir: %w", err)
+				}
+				if err := os.WriteFile(filepath.Join(outputDir, "architecture.md"), []byte(content), 0o600); err != nil {
+					return fmt.Errorf("write architecture.md: %w", err)
+				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Generated architecture.md in %s\n", outputDir)
 			} else {
 				fmt.Fprint(cmd.OutOrStdout(), content)

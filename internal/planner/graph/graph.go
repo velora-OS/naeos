@@ -303,9 +303,7 @@ func (g *PlannerGraph) Merge(other *PlannerGraph) error {
 	for _, n := range other.nodes {
 		g.nodes[n.ID] = n
 	}
-	for _, e := range other.edges {
-		g.edges = append(g.edges, e)
-	}
+	g.edges = append(g.edges, other.edges...)
 	return nil
 }
 
@@ -414,14 +412,14 @@ func (g *PlannerGraph) computeReachability() map[string]map[string]bool {
 func (g *PlannerGraph) removeEdge(pg *PlannerGraph, e Edge) {
 	filtered := pg.edges[:0]
 	for _, existing := range pg.edges {
-		if !(existing.From == e.From && existing.To == e.To && existing.Kind == e.Kind) {
+		if existing.From != e.From || existing.To != e.To || existing.Kind != e.Kind {
 			filtered = append(filtered, existing)
 		}
 	}
 	pg.edges = filtered
 }
 
-func (g *PlannerGraph) reachableWithoutEdge(originalReachable map[string]map[string]bool, removed Edge, temp *PlannerGraph) bool {
+func (g *PlannerGraph) reachableWithoutEdge(_ map[string]map[string]bool, removed Edge, temp *PlannerGraph) bool {
 	// Check if there's still a path from removed.From to removed.To in temp graph
 	// using BFS on temp graph
 	if _, ok := temp.nodes[removed.From]; !ok {
@@ -461,10 +459,10 @@ func (g *PlannerGraph) ToDOT() string {
 		if label == "" {
 			label = n.ID
 		}
-		sb.WriteString(fmt.Sprintf("  %q [label=%q, kind=%q];\n", n.ID, label, n.Kind))
+		fmt.Fprintf(&sb, "  %q [label=%q, kind=%q];\n", n.ID, label, n.Kind)
 	}
 	for _, e := range g.edges {
-		sb.WriteString(fmt.Sprintf("  %q -> %q [kind=%q];\n", e.From, e.To, e.Kind))
+		fmt.Fprintf(&sb, "  %q -> %q [kind=%q];\n", e.From, e.To, e.Kind)
 	}
 	sb.WriteString("}\n")
 	return sb.String()

@@ -13,10 +13,10 @@ import (
 )
 
 type CacheEntry struct {
-	Key       string            `json:"key"`
-	Result    *pipeline.Result  `json:"-"`
-	Timestamp time.Time         `json:"timestamp"`
-	HitCount  int               `json:"hit_count"`
+	Key       string           `json:"key"`
+	Result    *pipeline.Result `json:"-"`
+	Timestamp time.Time        `json:"timestamp"`
+	HitCount  int              `json:"hit_count"`
 }
 
 type Cache struct {
@@ -134,7 +134,9 @@ func (c *Cache) loadFromDisk() {
 	if c.dir == "" {
 		return
 	}
-	os.MkdirAll(c.dir, 0o755)
+	if err := os.MkdirAll(c.dir, 0o755); err != nil {
+		return
+	}
 
 	matches, err := filepath.Glob(filepath.Join(c.dir, "*.json"))
 	if err != nil {
@@ -158,7 +160,9 @@ func (c *Cache) saveToDisk(key string) {
 	if c.dir == "" {
 		return
 	}
-	os.MkdirAll(c.dir, 0o755)
+	if err := os.MkdirAll(c.dir, 0o755); err != nil {
+		return
+	}
 
 	entry := c.entries[key]
 	data, err := json.MarshalIndent(entry, "", "  ")
@@ -166,5 +170,5 @@ func (c *Cache) saveToDisk(key string) {
 		return
 	}
 
-	os.WriteFile(filepath.Join(c.dir, key+".json"), data, 0o644)
+	_ = os.WriteFile(filepath.Join(c.dir, key+".json"), data, 0o600)
 }

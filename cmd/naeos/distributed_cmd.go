@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos/internal/distributed"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/distributed"
 )
 
 func newDistributedCommand() *cobra.Command {
@@ -36,7 +37,7 @@ Example:
 }
 
 func runDistributed(cmd *cobra.Command, configPath string, workerCount int) error {
-	cfg, _, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
+	cfg, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
 	if err != nil {
 		return err
 	}
@@ -90,17 +91,17 @@ func runDistributed(cmd *cobra.Command, configPath string, workerCount int) erro
 	wg.Wait()
 	coordinator.Stop()
 
-	cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Distributed pipeline: %d workers, %d tasks\n", workerCount, len(tasks))))
-	cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Results: %s\n", aggregator.Summary())))
+	fmt.Fprintf(cmd.OutOrStdout(), "Distributed pipeline: %d workers, %d tasks\n", workerCount, len(tasks))
+	fmt.Fprintf(cmd.OutOrStdout(), "Results: %s\n", aggregator.Summary())
 
 	failed := aggregator.Failed()
 	if len(failed) > 0 {
-		cmd.OutOrStdout().Write([]byte("Failed tasks:\n"))
+		_, _ = cmd.OutOrStdout().Write([]byte("Failed tasks:\n"))
 		for _, f := range failed {
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  - %s: %s (worker: %s)\n", f.TaskID, f.Error, f.Worker)))
+			fmt.Fprintf(cmd.OutOrStdout(), "  - %s: %s (worker: %s)\n", f.TaskID, f.Error, f.Worker)
 		}
 	}
 
-	cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Pipeline: %s\n", cfg.Name)))
+	fmt.Fprintf(cmd.OutOrStdout(), "Pipeline: %s\n", cfg.Name)
 	return nil
 }

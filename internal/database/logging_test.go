@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 )
@@ -85,33 +86,33 @@ func TestLoggingDatabaseContextMethods(t *testing.T) {
 
 	db := NewLoggingDatabase(inner, nil)
 
-	_, err := db.ExecContext(nil, "SELECT 1")
+	_, err := db.ExecContext(context.TODO(), "SELECT 1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = db.QueryContext(nil, "SELECT 1")
+	_, err = db.QueryContext(context.TODO(), "SELECT 1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = db.QueryRowContext(nil, "SELECT 1")
+	_, err = db.QueryRowContext(context.TODO(), "SELECT 1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	tx, err := db.BeginTx(nil)
+	tx, err := db.BeginTx(context.TODO())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	tx.Commit()
 
-	err = db.MigrateContext(nil, []Migration{{Version: 1, Name: "init", Up: "CREATE TABLE IF NOT EXISTS _m(id INT)"}})
+	err = db.MigrateContext(context.TODO(), []Migration{{Version: 1, Name: "init", Up: "CREATE TABLE IF NOT EXISTS _m(id INT)"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	err = db.RollbackContext(nil, 0)
+	err = db.RollbackContext(context.TODO(), 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,5 +125,5 @@ func TestSlowQueryLogging(t *testing.T) {
 	logger := slog.Default()
 	db := NewLoggingDatabase(inner, logger)
 
-	_, _ = db.ExecContext(nil, "SELECT 1")
+	_, _ = db.ExecContext(context.TODO(), "SELECT 1")
 }

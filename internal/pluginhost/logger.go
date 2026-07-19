@@ -54,17 +54,17 @@ func (l *SimpleLogger) Debug(msg string, args ...any) {
 
 // SimpleMetrics is a no-op MetricsCollector.
 type SimpleMetrics struct {
-	mu        sync.RWMutex
-	counters  map[string]float64
-	gauges    map[string]float64
+	mu         sync.RWMutex
+	counters   map[string]float64
+	gauges     map[string]float64
 	histograms map[string][]float64
 }
 
 // NewSimpleMetrics creates a new SimpleMetrics.
 func NewSimpleMetrics() *SimpleMetrics {
 	return &SimpleMetrics{
-		counters:  make(map[string]float64),
-		gauges:    make(map[string]float64),
+		counters:   make(map[string]float64),
+		gauges:     make(map[string]float64),
 		histograms: make(map[string][]float64),
 	}
 }

@@ -3,18 +3,18 @@ package deployment
 type Strategy string
 
 const (
-	StrategyRolling  Strategy = "rolling"
+	StrategyRolling   Strategy = "rolling"
 	StrategyBlueGreen Strategy = "blue-green"
-	StrategyCanary   Strategy = "canary"
-	StrategyRecreate Strategy = "recreate"
+	StrategyCanary    Strategy = "canary"
+	StrategyRecreate  Strategy = "recreate"
 )
 
 type Deployment struct {
-	Target      string            `json:"target,omitempty"`
-	Strategy    Strategy          `json:"strategy,omitempty"`
-	Environments []Environment    `json:"environments,omitempty"`
-	Scaling     *Scaling          `json:"scaling,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
+	Target       string            `json:"target,omitempty"`
+	Strategy     Strategy          `json:"strategy,omitempty"`
+	Environments []Environment     `json:"environments,omitempty"`
+	Scaling      *Scaling          `json:"scaling,omitempty"`
+	Attributes   map[string]string `json:"attributes,omitempty"`
 }
 
 type Environment struct {
@@ -24,7 +24,7 @@ type Environment struct {
 }
 
 type Scaling struct {
-	Min     int `json:"min,omitempty"`
-	Max     int `json:"max,omitempty"`
+	Min      int `json:"min,omitempty"`
+	Max      int `json:"max,omitempty"`
 	Replicas int `json:"replicas,omitempty"`
 }

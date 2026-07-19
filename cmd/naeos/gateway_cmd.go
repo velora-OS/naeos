@@ -204,7 +204,7 @@ func newGatewayAddBackendCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "backend name (required)")
 	cmd.Flags().StringVar(&url, "url", "", "backend URL (required)")
 	cmd.Flags().IntVar(&weight, "weight", 1, "backend weight")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("url")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("url")
 	return cmd
 }

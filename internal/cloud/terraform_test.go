@@ -19,7 +19,7 @@ func (m *mockRunner) Run(name string, args []string, dir string) ([]byte, error)
 }
 
 type recordingRunner struct {
-	calls [][]string
+	calls  [][]string
 	stdout []byte
 	err    error
 }
@@ -474,11 +474,11 @@ func TestConcurrentStateAccess(t *testing.T) {
 	t.Parallel()
 	sm := NewStateManager()
 	record := &DeploymentRecord{
-		Project:     "test",
-		Provider:    AWS,
-		Environment: "dev",
-		Region:      "us-east-1",
-		Status:      "deployed",
+		Project:      "test",
+		Provider:     AWS,
+		Environment:  "dev",
+		Region:       "us-east-1",
+		Status:       "deployed",
 		TerraformDir: t.TempDir(),
 	}
 

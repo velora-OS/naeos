@@ -27,7 +27,7 @@ type Resource struct {
 }
 
 type Network struct {
-	Name   string   `json:"name"`
-	Kind   string   `json:"kind,omitempty"`
-	Ports  []int    `json:"ports,omitempty"`
+	Name  string `json:"name"`
+	Kind  string `json:"kind,omitempty"`
+	Ports []int  `json:"ports,omitempty"`
 }

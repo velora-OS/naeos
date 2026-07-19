@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/NAEOS-foundation/naeos/internal/cloud"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
+
+	"github.com/NAEOS-foundation/naeos/internal/cloud"
 )
 
 var (
@@ -240,12 +241,12 @@ func newCloudStatusCommand() *cobra.Command {
 				}
 
 				var state struct {
-					Provider   string                   `json:"provider"`
-					Project    string                   `json:"project"`
-					Region     string                   `json:"region"`
-					Status     string                   `json:"status"`
-					Timestamp  string                   `json:"timestamp"`
-					Resources  []cloud.DeployedResource  `json:"resources"`
+					Provider  string                   `json:"provider"`
+					Project   string                   `json:"project"`
+					Region    string                   `json:"region"`
+					Status    string                   `json:"status"`
+					Timestamp string                   `json:"timestamp"`
+					Resources []cloud.DeployedResource `json:"resources"`
 				}
 				if err := json.Unmarshal(data, &state); err != nil {
 					continue

@@ -26,7 +26,7 @@ Example:
 				return fmt.Errorf("missing required --input")
 			}
 
-			cfg, _, err := loadPipelineConfig(configPath, cliVerbose, nil, true)
+			cfg, err := loadPipelineConfig(configPath, cliVerbose, nil, true)
 			if err != nil {
 				return err
 			}

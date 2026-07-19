@@ -84,7 +84,7 @@ func newDBConnectCommand() *cobra.Command {
 	cmd.Flags().StringVar(&pass, "pass", "", "database password")
 	cmd.Flags().StringVar(&dbname, "database", "", "database name")
 	cmd.Flags().StringVar(&sslmode, "sslmode", "disable", "SSL mode")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -173,7 +173,7 @@ func newDBMigrateCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "connection name (required)")
 	cmd.Flags().StringVar(&migrationsDir, "dir", "", "migration directory (optional)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -196,7 +196,7 @@ func newDBDisconnectCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "connection name (required)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -275,6 +275,6 @@ func newDBStatusCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "connection name (required)")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format: text, json, yaml")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }

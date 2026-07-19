@@ -301,12 +301,12 @@ func TestPipelineWatcherStop(t *testing.T) {
 	// Stop should not panic even if watcher was never started
 	pw.Stop()
 
-	// Context should be cancelled after Stop
+	// Context should be canceled after Stop
 	select {
 	case <-pw.ctx.Done():
 		// expected
 	case <-time.After(1 * time.Second):
-		t.Fatal("expected context to be cancelled after Stop")
+		t.Fatal("expected context to be canceled after Stop")
 	}
 }
 

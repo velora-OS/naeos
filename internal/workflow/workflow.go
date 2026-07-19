@@ -16,7 +16,7 @@ const (
 	StateRunning   State = "running"
 	StateCompleted State = "completed"
 	StateFailed    State = "failed"
-	StateCancelled State = "cancelled"
+	StateCancelled State = "canceled"
 )
 
 type Transition struct {
@@ -147,7 +147,6 @@ type Workflow struct {
 	Machine      *StateMachine
 	Context      *WorkflowContext
 	EventHandler WorkflowEventHandler
-	mu           sync.RWMutex
 }
 
 func NewWorkflow(name string, steps []*WorkflowStep) *Workflow {
@@ -390,7 +389,7 @@ func (w *Workflow) SaveSnapshot(path string) error {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("write snapshot: %w", err)
 	}
 

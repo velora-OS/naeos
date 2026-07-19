@@ -98,10 +98,10 @@ func TestValidationEngineRequired(t *testing.T) {
 func TestValidationEngineTypes(t *testing.T) {
 	schema := &ValidationSchema{
 		Types: map[string]*TypeDefinition{
-			"name":    NewType("name", TypeString).Required().Build(),
-			"age":     NewType("age", TypeInteger).Build(),
-			"active":  NewType("active", TypeBoolean).Build(),
-			"tags":    NewType("tags", TypeArray).Items(NewType("item", TypeString)).Build(),
+			"name":   NewType("name", TypeString).Required().Build(),
+			"age":    NewType("age", TypeInteger).Build(),
+			"active": NewType("active", TypeBoolean).Build(),
+			"tags":   NewType("tags", TypeArray).Items(NewType("item", TypeString)).Build(),
 		},
 	}
 

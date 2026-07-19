@@ -5,8 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/NAEOS-foundation/naeos/internal/profiles"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/profiles"
 )
 
 func newProfileCommand() *cobra.Command {
@@ -41,12 +42,12 @@ func newProfileCompareCommand() *cobra.Command {
 				return fmt.Errorf("profile %q not found", args[1])
 			}
 
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Comparing: %s vs %s\n", a.Name, b.Name)))
-			cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 50) + "\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-20s %-15s %-15s\n", "Field", a.Name, b.Name)))
-			cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 50) + "\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-20s %-15s %-15s\n", "Industry", a.Industry, b.Industry)))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-20s %-15s %-15s\n", "Version", a.Version, b.Version)))
+			fmt.Fprintf(cmd.OutOrStdout(), "Comparing: %s vs %s\n", a.Name, b.Name)
+			_, _ = cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 50) + "\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s %-15s %-15s\n", "Field", a.Name, b.Name)
+			_, _ = cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 50) + "\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s %-15s %-15s\n", "Industry", a.Industry, b.Industry)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-20s %-15s %-15s\n", "Version", a.Version, b.Version)
 			return nil
 		},
 	}
@@ -65,10 +66,10 @@ func newProfileCategoriesCommand() *cobra.Command {
 			for _, p := range all {
 				cats[p.Industry]++
 			}
-			cmd.OutOrStdout().Write([]byte("Profile Categories:\n"))
-			cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 30) + "\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("Profile Categories:\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 30) + "\n"))
 			for cat, count := range cats {
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-20s %d profiles\n", cat, count)))
+				fmt.Fprintf(cmd.OutOrStdout(), "  %-20s %d profiles\n", cat, count)
 			}
 			return nil
 		},
@@ -196,7 +197,7 @@ func newProfileApplyCommand() *cobra.Command {
 			}
 
 			spec := reg.ToSpecYAML(p)
-			if err := os.WriteFile(output, []byte(spec), 0o644); err != nil {
+			if err := os.WriteFile(output, []byte(spec), 0o600); err != nil {
 				return fmt.Errorf("write spec: %w", err)
 			}
 

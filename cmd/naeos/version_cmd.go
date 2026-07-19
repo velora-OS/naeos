@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/NAEOS-foundation/naeos/internal/version"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/version"
 )
 
 func newVersionCommand() *cobra.Command {

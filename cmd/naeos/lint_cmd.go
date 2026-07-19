@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -46,9 +47,9 @@ Example:
 			}
 
 			type lintOutput struct {
-				File      string      `json:"file"`
-				Issues    []lintIssue `json:"issues"`
-				IssueCount int        `json:"issue_count"`
+				File       string      `json:"file"`
+				Issues     []lintIssue `json:"issues"`
+				IssueCount int         `json:"issue_count"`
 			}
 
 			var issues []lintIssue
@@ -72,8 +73,8 @@ Example:
 				if err != nil {
 					return fmt.Errorf("marshal lint result: %w", err)
 				}
-				cmd.OutOrStdout().Write(data)
-				cmd.OutOrStdout().Write([]byte("\n"))
+				_, _ = cmd.OutOrStdout().Write(data)
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 				return nil
 			}
 
@@ -95,7 +96,8 @@ Example:
 
 			if fix {
 				fixed := lint.Fix(string(data))
-				if err := os.WriteFile(inputFile, []byte(fixed), 0o600); err != nil {
+				cleanPath := filepath.Clean(inputFile)
+				if err := os.WriteFile(cleanPath, []byte(fixed), 0o600); err != nil { //nolint:gosec // G703: path is cleaned via filepath.Clean
 					return fmt.Errorf("write fixed file: %w", err)
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Applied fixes to %s\n", inputFile)

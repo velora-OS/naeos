@@ -38,7 +38,7 @@ func (ActixWebAdapter) GenerateModule(moduleName, modulePath, projectName string
 
 	return []engine.Artifact{
 		{Path: fmt.Sprintf("src/%s/mod.rs", mod), Content: []byte("pub mod handler;\npub mod service;\npub mod models;\n")},
-		{Path: fmt.Sprintf("src/%s/handler.rs", mod), Content: []byte(fmt.Sprintf("use actix_web::{get, web, HttpResponse, Responder};\n\npub struct Handler;\n\nimpl Handler {\n    pub async fn handle() -> impl Responder {\n        HttpResponse::Ok().body(\"handled\")\n    }\n}\n\n#[get(\"/\")]\npub async fn list() -> impl Responder {\n    HttpResponse::Ok().finish()\n}\n"))},
+		{Path: fmt.Sprintf("src/%s/handler.rs", mod), Content: []byte("use actix_web::{get, web, HttpResponse, Responder};\n\npub struct Handler;\n\nimpl Handler {\n    pub async fn handle() -> impl Responder {\n        HttpResponse::Ok().body(\"handled\")\n    }\n}\n\n#[get(\"/\")]\npub async fn list() -> impl Responder {\n    HttpResponse::Ok().finish()\n}\n")},
 		{Path: fmt.Sprintf("src/%s/service.rs", mod), Content: []byte("pub trait Service: Send + Sync {\n    fn process(&self) -> String;\n}\n\npub struct DefaultService;\n\nimpl Service for DefaultService {\n    fn process(&self) -> String {\n        \"processed\".to_string()\n    }\n}\n")},
 		{Path: fmt.Sprintf("src/%s/models.rs", mod), Content: []byte("use serde::{Deserialize, Serialize};\n\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct Model {\n    pub name: String,\n}\n")},
 		{Path: fmt.Sprintf("tests/%s_test.rs", mod), Content: []byte("use crate::service::DefaultService;\n\n#[test]\nfn test_service() {\n    let svc = DefaultService;\n    assert_eq!(svc.process(), \"processed\");\n}\n")},

@@ -93,20 +93,20 @@ func (p *PipelineProfile) Summary() string {
 	var sb strings.Builder
 	sb.WriteString("Pipeline Performance Profile\n")
 	sb.WriteString("============================\n\n")
-	sb.WriteString(fmt.Sprintf("Total time: %s\n\n", p.TotalTime.Round(time.Microsecond)))
+	fmt.Fprintf(&sb, "Total time: %s\n\n", p.TotalTime.Round(time.Microsecond))
 	sb.WriteString("Stage Breakdown:\n")
-	sb.WriteString(fmt.Sprintf("  %-20s %15s %8s %15s\n", "Stage", "Duration", "%", "Memory Alloc"))
-	sb.WriteString(fmt.Sprintf("  %-20s %15s %8s %15s\n", "-----", "--------", "--", "------------"))
+	fmt.Fprintf(&sb, "  %-20s %15s %8s %15s\n", "Stage", "Duration", "%", "Memory Alloc")
+	fmt.Fprintf(&sb, "  %-20s %15s %8s %15s\n", "-----", "--------", "--", "------------")
 	for _, stage := range p.Stages {
 		pct := 0.0
 		if p.TotalTime > 0 {
 			pct = float64(stage.Duration) / float64(p.TotalTime) * 100
 		}
-		sb.WriteString(fmt.Sprintf("  %-20s %15s %7.1f%% %15s\n",
+		fmt.Fprintf(&sb, "  %-20s %15s %7.1f%% %15s\n",
 			stage.Name,
 			stage.Duration.Round(time.Microsecond),
 			pct,
-			formatBytes(stage.Memory.Alloc)))
+			formatBytes(stage.Memory.Alloc))
 	}
 	return sb.String()
 }
@@ -213,11 +213,11 @@ func (r *BenchmarkResult) Histogram() string {
 		time.Second,
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Histogram: %s\n", r.Name))
+	fmt.Fprintf(&sb, "Histogram: %s\n", r.Name)
 	for i, upper := range buckets {
 		lower := time.Duration(0)
 		if i > 0 {
-			lower = buckets[i-1]
+			lower = buckets[i-1] //nolint:gosec // G602: bounds are safe, i > 0 is checked
 		}
 		count := 0
 		for _, d := range r.durations() {
@@ -226,7 +226,7 @@ func (r *BenchmarkResult) Histogram() string {
 			}
 		}
 		bar := strings.Repeat("#", count*40/max(r.Iterations, 1))
-		sb.WriteString(fmt.Sprintf("  [%10s, %10s) %4d %s\n", lower, upper, count, bar))
+		fmt.Fprintf(&sb, "  [%10s, %10s) %4d %s\n", lower, upper, count, bar)
 	}
 	return sb.String()
 }
@@ -236,12 +236,12 @@ func (r *BenchmarkResult) durations() []time.Duration {
 }
 
 type ProfileSnapshot struct {
-	Name        string            `json:"name"`
-	TotalTime   time.Duration     `json:"total_time"`
-	StageCount  int               `json:"stage_count"`
-	StageDurs   []time.Duration   `json:"stage_durations"`
-	StageNames  []string          `json:"stage_names"`
-	Timestamp   time.Time         `json:"timestamp"`
+	Name       string          `json:"name"`
+	TotalTime  time.Duration   `json:"total_time"`
+	StageCount int             `json:"stage_count"`
+	StageDurs  []time.Duration `json:"stage_durations"`
+	StageNames []string        `json:"stage_names"`
+	Timestamp  time.Time       `json:"timestamp"`
 }
 
 func (p *PipelineProfile) Snapshot() *ProfileSnapshot {
@@ -265,7 +265,7 @@ func SaveProfile(path string, profile *PipelineProfile) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func LoadProfile(path string) (*ProfileSnapshot, error) {
@@ -281,12 +281,12 @@ func LoadProfile(path string) (*ProfileSnapshot, error) {
 }
 
 type ProfileComparison struct {
-	StageName    string         `json:"stage_name"`
-	Baseline     time.Duration  `json:"baseline"`
-	Compare      time.Duration  `json:"compare"`
-	Diff         time.Duration  `json:"diff"`
-	PercentDiff  float64        `json:"percent_diff"`
-	Regression   bool           `json:"regression"`
+	StageName   string        `json:"stage_name"`
+	Baseline    time.Duration `json:"baseline"`
+	Compare     time.Duration `json:"compare"`
+	Diff        time.Duration `json:"diff"`
+	PercentDiff float64       `json:"percent_diff"`
+	Regression  bool          `json:"regression"`
 }
 
 func CompareProfiles(baseline, compare *ProfileSnapshot) []ProfileComparison {
@@ -337,7 +337,11 @@ func (t *GCPauseTracker) Snapshot() {
 	runtime.ReadMemStats(&m)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.pauses = append(t.pauses, time.Duration(m.PauseTotalNs))
+	pauseNs := m.PauseTotalNs
+	if pauseNs > uint64(math.MaxInt64) {
+		pauseNs = uint64(math.MaxInt64)
+	}
+	t.pauses = append(t.pauses, time.Duration(pauseNs))
 }
 
 func (t *GCPauseTracker) Pauses() []time.Duration {

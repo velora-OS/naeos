@@ -316,13 +316,11 @@ func (cb *CircuitBreakerMiddleware) Wrap(stage string, next StageFunc) StageFunc
 		}
 
 		cb.mu.Lock()
-		state := cb.getState()
-		switch state {
+		switch state := cb.getState(); state {
 		case CircuitOpen:
 			if time.Since(cb.lastFailureAt) > resetTimeout {
 				atomic.StoreInt32(&cb.state, int32(CircuitHalfOpen))
 				atomic.StoreInt32(&cb.successCount, 0)
-				state = CircuitHalfOpen
 			} else {
 				cb.mu.Unlock()
 				return nil, fmt.Errorf("circuit breaker is open for stage %q", stage)

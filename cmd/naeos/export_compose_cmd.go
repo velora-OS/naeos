@@ -34,7 +34,7 @@ Example:
 				return fmt.Errorf("missing required --input")
 			}
 
-			cfg, _, err := loadPipelineConfig(configPath, cliVerbose, languages, cliDryRun)
+			cfg, err := loadPipelineConfig(configPath, cliVerbose, languages, cliDryRun)
 			if err != nil {
 				return err
 			}
@@ -66,7 +66,7 @@ Example:
 				if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 					return err
 				}
-				if err := os.WriteFile(outPath, a.Content, 0o644); err != nil {
+				if err := os.WriteFile(outPath, a.Content, 0o600); err != nil {
 					return fmt.Errorf("write %s: %w", a.Path, err)
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "generated: %s\n", outPath)

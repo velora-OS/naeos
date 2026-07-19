@@ -28,15 +28,15 @@ type Config struct {
 }
 
 type Request struct {
-	Method string                 `json:"method"`
+	Method string         `json:"method"`
 	Params map[string]any `json:"params"`
 }
 
 type Response struct {
-	OK      bool        `json:"ok"`
-	Result  any `json:"result,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Elapsed int64       `json:"elapsed_ms"`
+	OK      bool   `json:"ok"`
+	Result  any    `json:"result,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Elapsed int64  `json:"elapsed_ms"`
 }
 
 func New(cfg Config) *Sandbox {
@@ -90,7 +90,7 @@ func (s *Sandbox) Exec(ctx context.Context, pluginPath string, req Request) (*Re
 	select {
 	case <-reqCtx.Done():
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 		return &Response{
 			OK:    false,
@@ -184,7 +184,7 @@ func (s *Sandbox) ExecWASM(ctx context.Context, wasmPath string, req Request) (*
 	inputPath := filepath.Join(tmpDir, "input.json")
 	outputPath := filepath.Join(tmpDir, "output.json")
 
-	if err := os.WriteFile(inputPath, data, 0o644); err != nil {
+	if err := os.WriteFile(inputPath, data, 0o600); err != nil {
 		return nil, fmt.Errorf("write input: %w", err)
 	}
 

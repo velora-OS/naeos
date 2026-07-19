@@ -14,12 +14,12 @@ import (
 // Config Store
 
 type Config struct {
-	data      map[string]any
-	version   int
-	lastMod   time.Time
-	filePath  string
-	watchers  []ConfigWatcher
-	mu        sync.RWMutex
+	data     map[string]any
+	version  int
+	lastMod  time.Time
+	filePath string
+	watchers []ConfigWatcher
+	mu       sync.RWMutex
 }
 
 type ConfigWatcher func(old, new map[string]any)
@@ -191,7 +191,7 @@ func (c *Config) Save() error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	return os.WriteFile(c.filePath, data, 0644)
+	return os.WriteFile(c.filePath, data, 0o600)
 }
 
 func (c *Config) Snapshot() map[string]any {
@@ -254,7 +254,7 @@ func (fw *FileWatcher) watch() {
 		case <-fw.stopCh:
 			return
 		case <-ticker.C:
-			fw.config.Load()
+			_ = fw.config.Load()
 		}
 	}
 }

@@ -66,18 +66,18 @@ func (a *claudeAdapter) buildClaudeMd(neir *model.NEIR) string {
 	sb.WriteString("This file provides context for Claude Code when working on this project.\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("## Project: %s\n\n", neir.Project.Name))
+		fmt.Fprintf(&sb, "## Project: %s\n\n", neir.Project.Name)
 		if neir.Project.Description != "" {
-			sb.WriteString(fmt.Sprintf("%s\n\n", neir.Project.Description))
+			fmt.Fprintf(&sb, "%s\n\n", neir.Project.Description)
 		}
 	}
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("## Architecture\n\nPattern: **%s**\n\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "## Architecture\n\nPattern: **%s**\n\n", neir.Architecture.Pattern)
 		if len(neir.Architecture.Principles) > 0 {
 			sb.WriteString("Principles:\n")
 			for _, p := range neir.Architecture.Principles {
-				sb.WriteString(fmt.Sprintf("- %s\n", p))
+				fmt.Fprintf(&sb, "- %s\n", p)
 			}
 			sb.WriteString("\n")
 		}
@@ -86,12 +86,12 @@ func (a *claudeAdapter) buildClaudeMd(neir *model.NEIR) string {
 	if len(neir.Modules) > 0 {
 		sb.WriteString("## Modules\n\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("### %s\nPath: `%s`\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "### %s\nPath: `%s`\n", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("Description: %s\n", m.Description))
+				fmt.Fprintf(&sb, "Description: %s\n", m.Description)
 			}
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("Dependencies: %s\n", strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "Dependencies: %s\n", strings.Join(m.Dependencies, ", "))
 			}
 			sb.WriteString("\n")
 		}
@@ -100,11 +100,11 @@ func (a *claudeAdapter) buildClaudeMd(neir *model.NEIR) string {
 	if len(neir.Services) > 0 {
 		sb.WriteString("## Services\n\n")
 		for _, s := range neir.Services {
-			sb.WriteString(fmt.Sprintf("### %s\nType: %s, Port: %d\n\n", s.Name, s.Kind, s.Port))
+			fmt.Fprintf(&sb, "### %s\nType: %s, Port: %d\n\n", s.Name, s.Kind, s.Port)
 			if len(s.Endpoints) > 0 {
 				sb.WriteString("Endpoints:\n")
 				for _, ep := range s.Endpoints {
-					sb.WriteString(fmt.Sprintf("- `%s %s` → %s\n", ep.Method, ep.Path, ep.Action))
+					fmt.Fprintf(&sb, "- `%s %s` → %s\n", ep.Method, ep.Path, ep.Action)
 				}
 				sb.WriteString("\n")
 			}
@@ -113,7 +113,7 @@ func (a *claudeAdapter) buildClaudeMd(neir *model.NEIR) string {
 
 	if neir.Security != nil && neir.Security.Authentication != nil {
 		sb.WriteString("## Security\n\n")
-		sb.WriteString(fmt.Sprintf("Authentication: %s via %s\n\n", neir.Security.Authentication.Method, neir.Security.Authentication.Provider))
+		fmt.Fprintf(&sb, "Authentication: %s via %s\n\n", neir.Security.Authentication.Method, neir.Security.Authentication.Provider)
 	}
 
 	sb.WriteString("## Guidelines\n\n")
@@ -135,9 +135,9 @@ func (a *claudeAdapter) buildContextBundle(neir *model.NEIR) string {
 		sb.WriteString("## Dependency Graph\n\n")
 		for _, m := range neir.Modules {
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("%s → %s\n", m.Name, strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "%s → %s\n", m.Name, strings.Join(m.Dependencies, ", "))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s (no dependencies)\n", m.Name))
+				fmt.Fprintf(&sb, "%s (no dependencies)\n", m.Name)
 			}
 		}
 		sb.WriteString("\n")
@@ -146,7 +146,7 @@ func (a *claudeAdapter) buildContextBundle(neir *model.NEIR) string {
 	if len(neir.Components) > 0 {
 		sb.WriteString("## Component Map\n\n")
 		for _, c := range neir.Components {
-			sb.WriteString(fmt.Sprintf("- **%s** (%s) in `%s`\n", c.Name, c.Kind, c.Module))
+			fmt.Fprintf(&sb, "- **%s** (%s) in `%s`\n", c.Name, c.Kind, c.Module)
 		}
 		sb.WriteString("\n")
 	}
@@ -159,7 +159,7 @@ func (a *claudeAdapter) buildRules(neir *model.NEIR) string {
 	sb.WriteString("# Claude Code Rules\n\n")
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("Architecture pattern: %s\n\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "Architecture pattern: %s\n\n", neir.Architecture.Pattern)
 	}
 
 	sb.WriteString("## Code Rules\n\n")
@@ -172,7 +172,7 @@ func (a *claudeAdapter) buildRules(neir *model.NEIR) string {
 	if len(neir.Modules) > 0 {
 		sb.WriteString("\n## Module Rules\n\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("- `%s` should not import from unrelated modules\n", m.Name))
+			fmt.Fprintf(&sb, "- `%s` should not import from unrelated modules\n", m.Name)
 		}
 	}
 

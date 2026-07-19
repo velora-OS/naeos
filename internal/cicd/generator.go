@@ -14,12 +14,12 @@ const (
 )
 
 type PipelineConfig struct {
-	Project    string
-	Platform   CICDPlatform
-	Languages  []string
-	Steps      []PipelineStep
-	Trigger    TriggerConfig
-	Secrets    []string
+	Project   string
+	Platform  CICDPlatform
+	Languages []string
+	Steps     []PipelineStep
+	Trigger   TriggerConfig
+	Secrets   []string
 }
 
 type PipelineStep struct {

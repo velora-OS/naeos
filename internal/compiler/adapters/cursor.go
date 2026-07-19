@@ -58,10 +58,10 @@ func (a *cursorAdapter) buildRulesFile(neir *model.NEIR) string {
 	sb.WriteString("# Cursor Rules\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("project_name: %s\n", neir.Project.Name))
+		fmt.Fprintf(&sb, "project_name: %s\n", neir.Project.Name)
 	}
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("architecture: %s\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "architecture: %s\n", neir.Architecture.Pattern)
 	}
 
 	sb.WriteString("\n## Instructions\n\n")
@@ -70,9 +70,9 @@ func (a *cursorAdapter) buildRulesFile(neir *model.NEIR) string {
 	if len(neir.Modules) > 0 {
 		sb.WriteString("### Modules\n\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("- `%s` at `%s`\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "- `%s` at `%s`\n", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("  > %s\n", m.Description))
+				fmt.Fprintf(&sb, "  > %s\n", m.Description)
 			}
 		}
 		sb.WriteString("\n")
@@ -81,9 +81,9 @@ func (a *cursorAdapter) buildRulesFile(neir *model.NEIR) string {
 	if len(neir.Services) > 0 {
 		sb.WriteString("### Services\n\n")
 		for _, s := range neir.Services {
-			sb.WriteString(fmt.Sprintf("- **%s** (%s, port %d)\n", s.Name, s.Kind, s.Port))
+			fmt.Fprintf(&sb, "- **%s** (%s, port %d)\n", s.Name, s.Kind, s.Port)
 			for _, ep := range s.Endpoints {
-				sb.WriteString(fmt.Sprintf("  - %s %s -> %s\n", ep.Method, ep.Path, ep.Action))
+				fmt.Fprintf(&sb, "  - %s %s -> %s\n", ep.Method, ep.Path, ep.Action)
 			}
 		}
 		sb.WriteString("\n")
@@ -92,7 +92,7 @@ func (a *cursorAdapter) buildRulesFile(neir *model.NEIR) string {
 	if len(neir.Components) > 0 {
 		sb.WriteString("### Components\n\n")
 		for _, c := range neir.Components {
-			sb.WriteString(fmt.Sprintf("- `%s` [%s] module: `%s`\n", c.Name, c.Kind, c.Module))
+			fmt.Fprintf(&sb, "- `%s` [%s] module: `%s`\n", c.Name, c.Kind, c.Module)
 		}
 		sb.WriteString("\n")
 	}
@@ -113,14 +113,14 @@ func (a *cursorAdapter) buildContextFile(neir *model.NEIR) string {
 	sb.WriteString("Additional project context for AI-assisted coding.\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("Project: %s v%s\n", neir.Project.Name, neir.Project.Version))
+		fmt.Fprintf(&sb, "Project: %s v%s\n", neir.Project.Name, neir.Project.Version)
 	}
 
 	if len(neir.Modules) > 0 {
 		sb.WriteString("\n## Module Dependency Map\n\n")
 		for _, m := range neir.Modules {
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("%s depends on: %s\n", m.Name, strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "%s depends on: %s\n", m.Name, strings.Join(m.Dependencies, ", "))
 			}
 		}
 	}
@@ -128,9 +128,9 @@ func (a *cursorAdapter) buildContextFile(neir *model.NEIR) string {
 	if len(neir.APIs) > 0 {
 		sb.WriteString("\n## API Endpoints\n\n")
 		for _, api := range neir.APIs {
-			sb.WriteString(fmt.Sprintf("### %s v%s (%s)\n", api.Name, api.Version, api.Protocol))
+			fmt.Fprintf(&sb, "### %s v%s (%s)\n", api.Name, api.Version, api.Protocol)
 			for _, ep := range api.Endpoints {
-				sb.WriteString(fmt.Sprintf("- %s %s: %s\n", ep.Method, ep.Path, ep.Summary))
+				fmt.Fprintf(&sb, "- %s %s: %s\n", ep.Method, ep.Path, ep.Summary)
 			}
 		}
 	}

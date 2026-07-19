@@ -2,6 +2,7 @@ package ai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,7 @@ type LLMProvider string
 
 const (
 	// ProviderOpenAI is the OpenAI LLM provider.
-	ProviderOpenAI    LLMProvider = "openai"
+	ProviderOpenAI LLMProvider = "openai"
 	// ProviderAnthropic is the Anthropic LLM provider.
 	ProviderAnthropic LLMProvider = "anthropic"
 )
@@ -62,7 +63,7 @@ type openAIResponse struct {
 type anthropicRequest struct {
 	Model     string        `json:"model"`
 	MaxTokens int           `json:"max_tokens"`
-	Messages   []chatMessage `json:"messages"`
+	Messages  []chatMessage `json:"messages"`
 }
 
 type anthropicResponse struct {
@@ -178,7 +179,7 @@ func (s *LLMService) callOpenAI(prompt string) (string, error) {
 	}
 	url := baseURL + "/v1/chat/completions"
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -232,7 +233,7 @@ func (s *LLMService) callAnthropic(prompt string) (string, error) {
 	}
 	url := baseURL + "/v1/messages"
 
-	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -274,8 +275,6 @@ func cleanJSON(s string) string {
 	} else if strings.HasPrefix(s, "```") {
 		s = strings.TrimPrefix(s, "```")
 	}
-	if strings.HasSuffix(s, "```") {
-		s = strings.TrimSuffix(s, "```")
-	}
+	s = strings.TrimSuffix(s, "```")
 	return strings.TrimSpace(s)
 }

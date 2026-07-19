@@ -146,7 +146,7 @@ func TestAuditLogConcurrency(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go func(i int) {
+		go func(_ int) {
 			defer wg.Done()
 			log.Add("test", "file.txt", "concurrent")
 		}(i)

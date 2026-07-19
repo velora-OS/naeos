@@ -9,25 +9,25 @@ import (
 type ChangeType string
 
 const (
-	ChangeAdded    ChangeType = "added"
-	ChangeRemoved  ChangeType = "removed"
-	ChangeModified ChangeType = "modified"
+	ChangeAdded     ChangeType = "added"
+	ChangeRemoved   ChangeType = "removed"
+	ChangeModified  ChangeType = "modified"
 	ChangeUnchanged ChangeType = "unchanged"
 )
 
 type FileDiff struct {
-	Path     string
-	Type     ChangeType
-	OldSize  int
-	NewSize  int
-	Lines    []DiffLine
-	Stats    DiffStats
+	Path    string
+	Type    ChangeType
+	OldSize int
+	NewSize int
+	Lines   []DiffLine
+	Stats   DiffStats
 }
 
 type DiffLine struct {
-	OldNum int
-	NewNum int
-	Type   ChangeType
+	OldNum  int
+	NewNum  int
+	Type    ChangeType
 	Content string
 }
 
@@ -36,10 +36,6 @@ type DiffStats struct {
 	Removed  int
 	Modified int
 	Context  int
-}
-
-type traceEntry struct {
-	k int
 }
 
 func ComputeDiff(oldContent, newContent string, path string) *FileDiff {
@@ -63,10 +59,10 @@ func ComputeDiff(oldContent, newContent string, path string) *FileDiff {
 	}
 	if oldContent == newContent {
 		return &FileDiff{
-			Path:     path,
-			Type:     ChangeUnchanged,
-			OldSize:  len(oldContent),
-			NewSize:  len(newContent),
+			Path:    path,
+			Type:    ChangeUnchanged,
+			OldSize: len(oldContent),
+			NewSize: len(newContent),
 		}
 	}
 
@@ -228,24 +224,24 @@ func FormatDiff(diff *FileDiff) string {
 
 	switch diff.Type {
 	case ChangeAdded:
-		sb.WriteString(fmt.Sprintf("\033[32m+++ %s (added)\033[0m\n", diff.Path))
+		fmt.Fprintf(&sb, "\033[32m+++ %s (added)\033[0m\n", diff.Path)
 	case ChangeRemoved:
-		sb.WriteString(fmt.Sprintf("\033[31m--- %s (removed)\033[0m\n", diff.Path))
+		fmt.Fprintf(&sb, "\033[31m--- %s (removed)\033[0m\n", diff.Path)
 	case ChangeUnchanged:
-		sb.WriteString(fmt.Sprintf("    %s (unchanged)\n", diff.Path))
+		fmt.Fprintf(&sb, "    %s (unchanged)\n", diff.Path)
 		return sb.String()
 	case ChangeModified:
-		sb.WriteString(fmt.Sprintf("\033[33m~~~ %s (modified: %d -> %d bytes)\033[0m\n", diff.Path, diff.OldSize, diff.NewSize))
+		fmt.Fprintf(&sb, "\033[33m~~~ %s (modified: %d -> %d bytes)\033[0m\n", diff.Path, diff.OldSize, diff.NewSize)
 	}
 
 	for _, line := range diff.Lines {
 		switch line.Type {
 		case ChangeAdded:
-			sb.WriteString(fmt.Sprintf("\033[32m+ %s\033[0m\n", line.Content))
+			fmt.Fprintf(&sb, "\033[32m+ %s\033[0m\n", line.Content)
 		case ChangeRemoved:
-			sb.WriteString(fmt.Sprintf("\033[31m- %s\033[0m\n", line.Content))
+			fmt.Fprintf(&sb, "\033[31m- %s\033[0m\n", line.Content)
 		default:
-			sb.WriteString(fmt.Sprintf("  %s\n", line.Content))
+			fmt.Fprintf(&sb, "  %s\n", line.Content)
 		}
 	}
 	return sb.String()
@@ -256,19 +252,19 @@ func FormatUnified(diff *FileDiff, contextLines int) string {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("--- a/%s\n", diff.Path))
-	sb.WriteString(fmt.Sprintf("+++ b/%s\n", diff.Path))
+	fmt.Fprintf(&sb, "--- a/%s\n", diff.Path)
+	fmt.Fprintf(&sb, "+++ b/%s\n", diff.Path)
 
 	if diff.Type == ChangeAdded {
 		for i, line := range diff.Lines {
-			sb.WriteString(fmt.Sprintf("+%s\n", line.Content))
+			fmt.Fprintf(&sb, "+%s\n", line.Content)
 			_ = i
 		}
 		return sb.String()
 	}
 	if diff.Type == ChangeRemoved {
 		for _, line := range diff.Lines {
-			sb.WriteString(fmt.Sprintf("-%s\n", line.Content))
+			fmt.Fprintf(&sb, "-%s\n", line.Content)
 		}
 		return sb.String()
 	}
@@ -323,15 +319,15 @@ func FormatUnified(diff *FileDiff, contextLines int) string {
 				newCount++
 			}
 		}
-		sb.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount))
+		fmt.Fprintf(&sb, "@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount)
 		for _, line := range diff.Lines[h.Start:h.End] {
 			switch line.Type {
 			case ChangeAdded:
-				sb.WriteString(fmt.Sprintf("+%s\n", line.Content))
+				fmt.Fprintf(&sb, "+%s\n", line.Content)
 			case ChangeRemoved:
-				sb.WriteString(fmt.Sprintf("-%s\n", line.Content))
+				fmt.Fprintf(&sb, "-%s\n", line.Content)
 			default:
-				sb.WriteString(fmt.Sprintf(" %s\n", line.Content))
+				fmt.Fprintf(&sb, " %s\n", line.Content)
 			}
 		}
 	}

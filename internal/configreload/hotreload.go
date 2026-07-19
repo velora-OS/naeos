@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
 	naeoslog "github.com/NAEOS-foundation/naeos/internal/shared/log"
 )
 
 type HotReloader struct {
-	config   *Config
-	watcher  *fsnotify.Watcher
-	interval time.Duration
-	stopCh   chan struct{}
-	running  bool
-	mu       sync.RWMutex
+	config  *Config
+	watcher *fsnotify.Watcher
+	stopCh  chan struct{}
+	running bool
+	mu      sync.RWMutex
 }
 
 func NewHotReloader(config *Config) *HotReloader {

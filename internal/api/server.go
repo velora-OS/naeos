@@ -161,38 +161,6 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	return s
 }
 
-func (s *Server) auditEvent(r *http.Request, action, resource, resourceID, status, details string) {
-	if s.auditor == nil {
-		return
-	}
-	userID := ""
-	ip := ""
-	ua := ""
-	if r != nil {
-		if uid := r.Header.Get("X-User-ID"); uid != "" {
-			userID = uid
-		}
-		ip = r.RemoteAddr
-		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-			ip = fwd
-		}
-		ua = r.UserAgent()
-	}
-	if err := s.auditor.Log(audit.AuditEvent{
-		UserID:     userID,
-		Action:     action,
-		Resource:   resource,
-		ResourceID: resourceID,
-		IP:         ip,
-		UserAgent:  ua,
-		Status:     status,
-		Details:    details,
-	}); err != nil {
-		slog.Error("failed to write audit event", "error", err,
-			"action", action, "resource", resource)
-	}
-}
-
 func (s *Server) setupRoutes() {
 	// Monitoring endpoints
 	s.Router.HandleFunc("/metrics", s.handleMetrics)
@@ -380,7 +348,7 @@ func containsHeader(headers []string, target string) bool {
 func (s *Server) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		Success: status >= 200 && status < 300,
 		Data:    data,
 	})
@@ -389,7 +357,7 @@ func (s *Server) writeJSON(w http.ResponseWriter, status int, data any) {
 func (s *Server) writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		Success: false,
 		Error:   message,
 		Data: ErrorResponse{
@@ -565,7 +533,7 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 		s.pipelinesMu.Unlock()
 
 		if s.db != nil {
-			s.db.Exec("INSERT INTO pipeline_runs (id, status, project, modules, services, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+			_, _ = s.db.Exec("INSERT INTO pipeline_runs (id, status, project, modules, services, created_at) VALUES (?, ?, ?, ?, ?, ?)",
 				run.ID, run.Status, run.Project, run.Modules, run.Services, run.CreatedAt)
 		}
 
@@ -609,7 +577,7 @@ func (s *Server) handleArtifacts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		list := s.store.List()
-		offset, limit := parsePagination(r, 50, 200)
+		offset, limit := parsePagination(r)
 		total := len(list)
 		start := offset
 		if start > total {
@@ -900,7 +868,7 @@ func (s *Server) handleCloudStatus(w http.ResponseWriter, r *http.Request) {
 	s.deployMu.RLock()
 	defer s.deployMu.RUnlock()
 
-	offset, limit := parsePagination(r, 50, 200)
+	offset, limit := parsePagination(r)
 	total := len(s.deployments)
 	start := offset
 	if start > total {
@@ -922,7 +890,7 @@ func (s *Server) handlePlugins(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		plugins := s.plugins.List()
-		offset, limit := parsePagination(r, 50, 200)
+		offset, limit := parsePagination(r)
 		total := len(plugins)
 		start := offset
 		if start > total {
@@ -1062,7 +1030,7 @@ func (s *Server) handleConfigSchema(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePipelines(w http.ResponseWriter, r *http.Request) {
 	s.pipelinesMu.RLock()
-	offset, limit := parsePagination(r, 50, 200)
+	offset, limit := parsePagination(r)
 	total := len(s.pipelines)
 	start := offset
 	if start > total {
@@ -1099,12 +1067,12 @@ func (s *Server) handleOIDCDiscovery(w http.ResponseWriter, r *http.Request) {
 	issuer := s.issuerFromRequest(r)
 	doc := s.jwt.OIDCDiscoveryDocument(issuer)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(doc)
+	_ = json.NewEncoder(w).Encode(doc)
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	w.Write([]byte(s.metricsRegistry.FormatPrometheus()))
+	_, _ = w.Write([]byte(s.metricsRegistry.FormatPrometheus()))
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -1137,10 +1105,10 @@ func joinStrings(ss []string) string {
 	return result
 }
 
-func parsePagination(r *http.Request, defaultLimit, maxLimit int) (offset, limit int) {
-	limit = defaultLimit
+func parsePagination(r *http.Request) (offset, limit int) {
+	limit = 50
 	if l := r.URL.Query().Get("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= maxLimit {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 200 {
 			limit = v
 		}
 	}
@@ -1179,7 +1147,7 @@ func (s *Server) Start() error {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		s.server.Shutdown(ctx)
+		_ = s.server.Shutdown(ctx)
 	}()
 
 	slog.Info("starting NAEOS API server", "addr", s.Addr, "component", "api-server")

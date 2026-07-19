@@ -59,16 +59,16 @@ func (a *codexAdapter) buildInstructions(neir *model.NEIR) string {
 	sb.WriteString("Instructions for AI agents working on this project.\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("## Project: %s\n\n", neir.Project.Name))
+		fmt.Fprintf(&sb, "## Project: %s\n\n", neir.Project.Name)
 		if neir.Project.Description != "" {
-			sb.WriteString(fmt.Sprintf("%s\n\n", neir.Project.Description))
+			fmt.Fprintf(&sb, "%s\n\n", neir.Project.Description)
 		}
 	}
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("## Architecture: %s\n\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "## Architecture: %s\n\n", neir.Architecture.Pattern)
 		for _, p := range neir.Architecture.Principles {
-			sb.WriteString(fmt.Sprintf("- %s\n", p))
+			fmt.Fprintf(&sb, "- %s\n", p)
 		}
 		sb.WriteString("\n")
 	}
@@ -76,12 +76,12 @@ func (a *codexAdapter) buildInstructions(neir *model.NEIR) string {
 	sb.WriteString("## Module Structure\n\n")
 	if len(neir.Modules) > 0 {
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("### %s\nPath: `%s`\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "### %s\nPath: `%s`\n", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("%s\n", m.Description))
+				fmt.Fprintf(&sb, "%s\n", m.Description)
 			}
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("Dependencies: %s\n", strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "Dependencies: %s\n", strings.Join(m.Dependencies, ", "))
 			}
 			sb.WriteString("\n")
 		}
@@ -90,9 +90,9 @@ func (a *codexAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Services) > 0 {
 		sb.WriteString("## Services\n\n")
 		for _, s := range neir.Services {
-			sb.WriteString(fmt.Sprintf("### %s (%s, port %d)\n", s.Name, s.Kind, s.Port))
+			fmt.Fprintf(&sb, "### %s (%s, port %d)\n", s.Name, s.Kind, s.Port)
 			for _, ep := range s.Endpoints {
-				sb.WriteString(fmt.Sprintf("- %s %s → %s\n", ep.Method, ep.Path, ep.Action))
+				fmt.Fprintf(&sb, "- %s %s → %s\n", ep.Method, ep.Path, ep.Action)
 			}
 			sb.WriteString("\n")
 		}
@@ -101,16 +101,16 @@ func (a *codexAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Components) > 0 {
 		sb.WriteString("## Components\n\n")
 		for _, c := range neir.Components {
-			sb.WriteString(fmt.Sprintf("- `%s` [%s] in `%s`\n", c.Name, c.Kind, c.Module))
+			fmt.Fprintf(&sb, "- `%s` [%s] in `%s`\n", c.Name, c.Kind, c.Module)
 		}
 		sb.WriteString("\n")
 	}
 
 	if neir.Deployment != nil {
-		sb.WriteString(fmt.Sprintf("## Deployment: %s\n\n", neir.Deployment.Strategy))
+		fmt.Fprintf(&sb, "## Deployment: %s\n\n", neir.Deployment.Strategy)
 		if len(neir.Deployment.Environments) > 0 {
 			for _, env := range neir.Deployment.Environments {
-				sb.WriteString(fmt.Sprintf("- %s (%s)\n", env.Name, env.Kind))
+				fmt.Fprintf(&sb, "- %s (%s)\n", env.Name, env.Kind)
 			}
 		}
 		sb.WriteString("\n")
@@ -134,25 +134,25 @@ func (a *codexAdapter) buildContextFile(neir *model.NEIR) string {
 	if len(neir.Storage) > 0 {
 		sb.WriteString("## Storage\n\n")
 		for _, st := range neir.Storage {
-			sb.WriteString(fmt.Sprintf("- %s (%s) via %s\n", st.Name, st.Type, st.Provider))
+			fmt.Fprintf(&sb, "- %s (%s) via %s\n", st.Name, st.Type, st.Provider)
 			for _, col := range st.Collections {
-				sb.WriteString(fmt.Sprintf("  - %s\n", col.Name))
+				fmt.Fprintf(&sb, "  - %s\n", col.Name)
 			}
 		}
 		sb.WriteString("\n")
 	}
 
 	if neir.Infrastructure != nil {
-		sb.WriteString(fmt.Sprintf("## Infrastructure: %s\n\n", neir.Infrastructure.Provider))
+		fmt.Fprintf(&sb, "## Infrastructure: %s\n\n", neir.Infrastructure.Provider)
 		for _, r := range neir.Infrastructure.Resources {
-			sb.WriteString(fmt.Sprintf("- %s (%s)\n", r.Name, r.Kind))
+			fmt.Fprintf(&sb, "- %s (%s)\n", r.Name, r.Kind)
 		}
 	}
 
 	if neir.AI != nil && len(neir.AI.Models) > 0 {
 		sb.WriteString("\n## AI Models\n\n")
 		for _, m := range neir.AI.Models {
-			sb.WriteString(fmt.Sprintf("- %s (%s) v%s\n", m.Name, m.Kind, m.Version))
+			fmt.Fprintf(&sb, "- %s (%s) v%s\n", m.Name, m.Kind, m.Version)
 		}
 	}
 

@@ -63,11 +63,11 @@ type Filterable interface {
 }
 
 type Filter struct {
-	Name        string
-	Pattern     string
-	Tags        []string
-	MinVersion  string
-	MaxVersion  string
+	Name       string
+	Pattern    string
+	Tags       []string
+	MinVersion string
+	MaxVersion string
 }
 
 type Sortable interface {
@@ -82,11 +82,11 @@ type Paginated interface {
 }
 
 type PaginatedResult struct {
-	Items       any
-	Page        int
-	PageSize    int
-	TotalItems  int
-	TotalPages  int
+	Items      any
+	Page       int
+	PageSize   int
+	TotalItems int
+	TotalPages int
 }
 
 func (p PaginatedResult) HasNext() bool {
@@ -242,7 +242,7 @@ func (sv StringValidator) ValidateValue(value any) ValidationResult {
 	s, ok := value.(string)
 	if !ok {
 		return ValidationResult{
-			Valid: false,
+			Valid:  false,
 			Errors: []ValidationError{{Field: "value", Message: "expected string", Code: "type_error"}},
 		}
 	}
@@ -292,7 +292,7 @@ func (iv IntValidator) ValidateValue(value any) ValidationResult {
 		n = int(v)
 	default:
 		return ValidationResult{
-			Valid: false,
+			Valid:  false,
 			Errors: []ValidationError{{Field: "value", Message: "expected number", Code: "type_error"}},
 		}
 	}

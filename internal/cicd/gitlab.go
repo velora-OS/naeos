@@ -86,7 +86,7 @@ func (g *GitLabCIGenerator) Generate(config *PipelineConfig) (string, error) {
 
 	// Custom steps
 	for _, step := range config.Steps {
-		sb.WriteString(fmt.Sprintf("    - %s\n", step.Command))
+		fmt.Fprintf(&sb, "    - %s\n", step.Command)
 	}
 	sb.WriteString("\n")
 

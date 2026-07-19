@@ -102,7 +102,7 @@ func newAuthCreateUserCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "user name (required)")
 	cmd.Flags().StringVar(&email, "email", "", "user email")
 	cmd.Flags().StringArrayVar(&roles, "role", nil, "user roles")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -130,8 +130,8 @@ func newAuthCreateKeyCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "key name (required)")
 	cmd.Flags().StringVar(&userID, "user-id", "", "associated user ID (required)")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("user-id")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("user-id")
 	return cmd
 }
 

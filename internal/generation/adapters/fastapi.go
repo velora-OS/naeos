@@ -29,7 +29,7 @@ func (FastAPIAdapter) GenerateProject(projectName string) []engine.Artifact {
 		{Path: "README.md", Content: []byte(fmt.Sprintf("# %s\n\nGenerated FastAPI project from NAEOS.\n\n## Quick Start\n\n```bash\npip install -e .\nuvicorn %s.__main__:app --reload\n```\n\n## Test\n\n```bash\npytest\n```\n", projectName, pkg))},
 		{Path: "pyproject.toml", Content: []byte(fmt.Sprintf("[build-system]\nrequires = [\"setuptools>=68.0\", \"wheel\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"%s\"\nversion = \"0.1.0\"\nrequires-python = \">=3.11\"\ndependencies = [\"fastapi\", \"uvicorn[standard]\"]\n\n[project.scripts]\n%s = \"%s.__main__:main\"\n\n[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n", slug, pkg, pkg))},
 		{Path: fmt.Sprintf("%s/__init__.py", pkg), Content: []byte(fmt.Sprintf("\"\"\"%s package.\"\"\"\n\n__version__ = \"0.1.0\"\n", projectName))},
-		{Path: fmt.Sprintf("%s/__main__.py", pkg), Content: []byte(fmt.Sprintf("import uvicorn\nfrom .app import app\n\ndef main() -> None:\n    uvicorn.run(app, host=\"0.0.0.0\", port=8000)\n\nif __name__ == \"__main__\":\n    main()\n"))},
+		{Path: fmt.Sprintf("%s/__main__.py", pkg), Content: []byte("import uvicorn\nfrom .app import app\n\ndef main() -> None:\n    uvicorn.run(app, host=\"0.0.0.0\", port=8000)\n\nif __name__ == \"__main__\":\n    main()\n")},
 		{Path: fmt.Sprintf("%s/app.py", pkg), Content: []byte(fmt.Sprintf("from fastapi import FastAPI\n\napp = FastAPI(title=\"%s\")\n\n@app.get(\"/\")\nasync def root():\n    return {\"message\": \"Hello World\"}\n", projectName))},
 	}
 }

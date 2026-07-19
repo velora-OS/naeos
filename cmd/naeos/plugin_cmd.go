@@ -292,12 +292,12 @@ func newPluginSearchCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := args[0]
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Searching for plugins: %s\n", query)))
-			cmd.OutOrStdout().Write([]byte("───────────────────────────────────────────\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-25s %-10s %s\n", "Name", "Version", "Description")))
-			cmd.OutOrStdout().Write([]byte("───────────────────────────────────────────\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-25s %-10s %s\n", query+"-lint", "1.0.0", "Lint plugin for "+query)))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-25s %-10s %s\n", query+"-test", "1.0.0", "Test runner for "+query)))
+			fmt.Fprintf(cmd.OutOrStdout(), "Searching for plugins: %s\n", query)
+			_, _ = cmd.OutOrStdout().Write([]byte("───────────────────────────────────────────\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-25s %-10s %s\n", "Name", "Version", "Description")
+			_, _ = cmd.OutOrStdout().Write([]byte("───────────────────────────────────────────\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-25s %-10s %s\n", query+"-lint", "1.0.0", "Lint plugin for "+query)
+			fmt.Fprintf(cmd.OutOrStdout(), "  %-25s %-10s %s\n", query+"-test", "1.0.0", "Test runner for "+query)
 			return nil
 		},
 	}
@@ -341,14 +341,14 @@ func main() {
 				if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 					return fmt.Errorf("create dir: %w", err)
 				}
-				if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+				if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
 					return fmt.Errorf("write %s: %w", path, err)
 				}
 			}
 
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Created plugin skeleton: %s/\n", pluginDir)))
-			cmd.OutOrStdout().Write([]byte("  • naeos.yaml  — plugin manifest\n"))
-			cmd.OutOrStdout().Write([]byte("  • main.go     — plugin entry point\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "Created plugin skeleton: %s/\n", pluginDir)
+			_, _ = cmd.OutOrStdout().Write([]byte("  • naeos.yaml  — plugin manifest\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("  • main.go     — plugin entry point\n"))
 			return nil
 		},
 	}

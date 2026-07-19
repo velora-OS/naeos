@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/NAEOS-foundation/naeos/internal/websocket"
 	"github.com/NAEOS-foundation/naeos/pkg/pipeline"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -40,7 +42,7 @@ func newWebSocketCommand() *cobra.Command {
 					return err
 				}
 
-				cfg, _, err := loadPipelineConfig(wsConfigPath, cliVerbose, nil, cliDryRun)
+				cfg, err := loadPipelineConfig(wsConfigPath, cliVerbose, nil, cliDryRun)
 				if err != nil {
 					return err
 				}
@@ -61,7 +63,11 @@ func newWebSocketCommand() *cobra.Command {
 			}
 
 			fmt.Printf("WebSocket server starting on ws://localhost%s/ws\n", wsPort)
-			return http.ListenAndServe(wsPort, nil)
+			srv := &http.Server{
+				Addr:              wsPort,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			return srv.ListenAndServe()
 		},
 	}
 

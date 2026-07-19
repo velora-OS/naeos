@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 )
 
 type Wizard struct {
@@ -14,20 +13,20 @@ type Wizard struct {
 }
 
 type ProjectConfig struct {
-	Name             string
-	ModulePath       string
-	Language         string
-	Architecture     string
-	Deployment       string
-	Port             int
-	OutputDir        string
-	Description      string
-	EnableAuth       bool
-	EnableTesting    bool
-	EnableDocker     bool
-	EnableCI         bool
-	DryRun           bool
-	NonInteractive   bool
+	Name           string
+	ModulePath     string
+	Language       string
+	Architecture   string
+	Deployment     string
+	Port           int
+	OutputDir      string
+	Description    string
+	EnableAuth     bool
+	EnableTesting  bool
+	EnableDocker   bool
+	EnableCI       bool
+	DryRun         bool
+	NonInteractive bool
 }
 
 func NewWizard() *Wizard {
@@ -136,18 +135,18 @@ func (w *Wizard) askYesNo(prompt string, defaultVal bool) bool {
 
 func (cfg *ProjectConfig) ToSpec() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("project: %s\n", strings.ToLower(strings.ReplaceAll(cfg.Name, " ", "-"))))
+	fmt.Fprintf(&sb, "project: %s\n", strings.ToLower(strings.ReplaceAll(cfg.Name, " ", "-")))
 	if cfg.Description != "" {
-		sb.WriteString(fmt.Sprintf("description: %s\n", cfg.Description))
+		fmt.Fprintf(&sb, "description: %s\n", cfg.Description)
 	}
 	sb.WriteString("\nmodules:\n")
-	sb.WriteString(fmt.Sprintf("  - name: core\n    path: %s\n", cfg.ModulePath))
+	fmt.Fprintf(&sb, "  - name: core\n    path: %s\n", cfg.ModulePath)
 	sb.WriteString("\nservices:\n")
-	sb.WriteString(fmt.Sprintf("  - name: api\n    kind: http\n    port: %d\n", cfg.Port))
+	fmt.Fprintf(&sb, "  - name: api\n    kind: http\n    port: %d\n", cfg.Port)
 	sb.WriteString("\narchitecture:\n")
-	sb.WriteString(fmt.Sprintf("  pattern: %s\n", cfg.Architecture))
+	fmt.Fprintf(&sb, "  pattern: %s\n", cfg.Architecture)
 	sb.WriteString("\ndeployment:\n")
-	sb.WriteString(fmt.Sprintf("  strategy: %s\n", cfg.Deployment))
+	fmt.Fprintf(&sb, "  strategy: %s\n", cfg.Deployment)
 	if cfg.EnableTesting {
 		sb.WriteString("\ntesting:\n")
 		sb.WriteString("  strategy: unit\n")
@@ -176,14 +175,14 @@ func (s *Scaffolder) Generate(cfg *ProjectConfig) ([]ScaffoldFile, error) {
 	baseDir := cfg.OutputDir
 
 	s.files = nil
-	s.addFile(filepath.Join(baseDir, projectName+".spec.yaml"), s.generateSpec(cfg), 0o644)
-	s.addFile(filepath.Join(baseDir, ".gitignore"), s.generateGitignore(cfg), 0o644)
-	s.addFile(filepath.Join(baseDir, "README.md"), s.generateREADME(cfg), 0o644)
-	s.addFile(filepath.Join(baseDir, "Makefile"), s.generateMakefile(cfg), 0o644)
+	s.addFile(filepath.Join(baseDir, projectName+".spec.yaml"), s.generateSpec(cfg))
+	s.addFile(filepath.Join(baseDir, ".gitignore"), s.generateGitignore(cfg))
+	s.addFile(filepath.Join(baseDir, "README.md"), s.generateREADME(cfg))
+	s.addFile(filepath.Join(baseDir, "Makefile"), s.generateMakefile(cfg))
 
 	switch cfg.Language {
 	case "go":
-		s.addGoProject(cfg, projectName, baseDir)
+		s.addGoProject(cfg, baseDir)
 	case "typescript":
 		s.addTypeScriptProject(cfg, projectName, baseDir)
 	case "python":
@@ -191,25 +190,25 @@ func (s *Scaffolder) Generate(cfg *ProjectConfig) ([]ScaffoldFile, error) {
 	}
 
 	if cfg.EnableDocker {
-		s.addFile(filepath.Join(baseDir, "Dockerfile"), s.generateDockerfile(cfg), 0o644)
-		s.addFile(filepath.Join(baseDir, "docker-compose.yml"), s.generateDockerCompose(cfg), 0o644)
+		s.addFile(filepath.Join(baseDir, "Dockerfile"), s.generateDockerfile(cfg))
+		s.addFile(filepath.Join(baseDir, "docker-compose.yml"), s.generateDockerCompose(cfg))
 	}
 	if cfg.EnableCI {
-		s.addFile(filepath.Join(baseDir, ".github", "workflows", "ci.yml"), s.generateCIWorkflow(cfg), 0o644)
+		s.addFile(filepath.Join(baseDir, ".github", "workflows", "ci.yml"), s.generateCIWorkflow(cfg))
 	}
 
 	return s.files, nil
 }
 
-func (s *Scaffolder) addFile(path, content string, mode os.FileMode) {
-	s.files = append(s.files, ScaffoldFile{Path: path, Content: content, Mode: mode})
+func (s *Scaffolder) addFile(path, content string) {
+	s.files = append(s.files, ScaffoldFile{Path: path, Content: content, Mode: 0o644})
 }
 
-func (s *Scaffolder) addGoProject(cfg *ProjectConfig, name, baseDir string) {
-	s.addFile(filepath.Join(baseDir, "go.mod"), fmt.Sprintf("module %s\n\ngo 1.25\n", cfg.ModulePath), 0o644)
-	s.addFile(filepath.Join(baseDir, "main.go"), s.generateMainGo(cfg), 0o644)
+func (s *Scaffolder) addGoProject(cfg *ProjectConfig, baseDir string) {
+	s.addFile(filepath.Join(baseDir, "go.mod"), fmt.Sprintf("module %s\n\ngo 1.25\n", cfg.ModulePath))
+	s.addFile(filepath.Join(baseDir, "main.go"), s.generateMainGo(cfg))
 	if cfg.EnableTesting {
-		s.addFile(filepath.Join(baseDir, "main_test.go"), s.generateMainTest(cfg), 0o644)
+		s.addFile(filepath.Join(baseDir, "main_test.go"), s.generateMainTest(cfg))
 	}
 }
 
@@ -224,7 +223,7 @@ func (s *Scaffolder) addTypeScriptProject(cfg *ProjectConfig, name, baseDir stri
   }
 }
 `, name)
-	s.addFile(filepath.Join(baseDir, "package.json"), pkgJSON, 0o644)
+	s.addFile(filepath.Join(baseDir, "package.json"), pkgJSON)
 	s.addFile(filepath.Join(baseDir, "tsconfig.json"), `{
   "compilerOptions": {
     "target": "ES2022",
@@ -234,8 +233,8 @@ func (s *Scaffolder) addTypeScriptProject(cfg *ProjectConfig, name, baseDir stri
     "strict": true
   }
 }
-`, 0o644)
-	s.addFile(filepath.Join(baseDir, "src", "index.ts"), s.generateTSIndex(cfg), 0o644)
+`)
+	s.addFile(filepath.Join(baseDir, "src", "index.ts"), s.generateTSIndex(cfg))
 }
 
 func (s *Scaffolder) addPythonProject(cfg *ProjectConfig, name, baseDir string) {
@@ -243,9 +242,9 @@ func (s *Scaffolder) addPythonProject(cfg *ProjectConfig, name, baseDir string) 
 name = "%s"
 version = "0.1.0"
 requires-python = ">=3.10"
-`, name), 0o644)
-	s.addFile(filepath.Join(baseDir, "src", "__init__.py"), "", 0o644)
-	s.addFile(filepath.Join(baseDir, "src", "main.py"), s.generatePythonMain(cfg), 0o644)
+`, name))
+	s.addFile(filepath.Join(baseDir, "src", "__init__.py"), "")
+	s.addFile(filepath.Join(baseDir, "src", "main.py"), s.generatePythonMain(cfg))
 }
 
 func (s *Scaffolder) generateSpec(cfg *ProjectConfig) string {
@@ -494,24 +493,6 @@ func (s *Scaffolder) Execute(cfg *ProjectConfig) error {
 		}
 	}
 	return nil
-}
-
-var funcMap = template.FuncMap{
-	"upper": strings.ToUpper,
-	"lower": strings.ToLower,
-	"title": strings.Title,
-}
-
-func renderTemplate(name, tmpl string, data any) (string, error) {
-	t, err := template.New(name).Funcs(funcMap).Parse(tmpl)
-	if err != nil {
-		return "", err
-	}
-	var sb strings.Builder
-	if err := t.Execute(&sb, data); err != nil {
-		return "", err
-	}
-	return sb.String(), nil
 }
 
 func ValidateConfig(cfg *ProjectConfig) []string {

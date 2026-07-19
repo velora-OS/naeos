@@ -33,7 +33,7 @@ func New() (*Dashboard, error) {
 
 func (d *Dashboard) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	d.templates.ExecuteTemplate(w, "index.html", nil)
+	_ = d.templates.ExecuteTemplate(w, "index.html", nil)
 }
 
 type Stats struct {
@@ -44,9 +44,9 @@ type Stats struct {
 }
 
 var (
-	globalStats  Stats
-	statsMu      sync.RWMutex
-	statsFile    string
+	globalStats Stats
+	statsMu     sync.RWMutex
+	statsFile   string
 )
 
 func GetStats() *Stats {
@@ -93,7 +93,7 @@ func persistStats() {
 	if err != nil {
 		return
 	}
-	os.WriteFile(statsFile, data, 0o644)
+	_ = os.WriteFile(statsFile, data, 0o600)
 }
 
 func loadStats() {
@@ -104,7 +104,7 @@ func loadStats() {
 	if err != nil {
 		return
 	}
-	json.Unmarshal(data, &globalStats)
+	_ = json.Unmarshal(data, &globalStats)
 }
 
 // --- DashboardConfig ---
@@ -469,7 +469,7 @@ func (ah *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ah.handleHealth(w, r)
 	default:
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(APIResponse{
+		_ = json.NewEncoder(w).Encode(APIResponse{
 			OK:        false,
 			Error:     "not found",
 			Timestamp: time.Now().Format(time.RFC3339),
@@ -477,10 +477,10 @@ func (ah *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (ah *APIHandler) handleStats(w http.ResponseWriter, r *http.Request) {
+func (ah *APIHandler) handleStats(w http.ResponseWriter, _ *http.Request) {
 	stats := GetStats()
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		OK:        true,
 		Data:      stats,
 		Timestamp: time.Now().Format(time.RFC3339),
@@ -502,7 +502,7 @@ func (ah *APIHandler) handleActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	if lim := q.Get("limit"); lim != "" {
 		var n int
-		fmt.Sscanf(lim, "%d", &n)
+		_, _ = fmt.Sscanf(lim, "%d", &n)
 		if n > 0 {
 			filter.Limit = n
 		}
@@ -510,14 +510,14 @@ func (ah *APIHandler) handleActivity(w http.ResponseWriter, r *http.Request) {
 
 	entries := ah.log.Filter(filter)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		OK:        true,
 		Data:      entries,
 		Timestamp: time.Now().Format(time.RFC3339),
 	})
 }
 
-func (ah *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (ah *APIHandler) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	all := ah.health.All()
 	total, healthyCount, degradedCount, unhealthyCount := ah.health.Summary()
 
@@ -532,7 +532,7 @@ func (ah *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(APIResponse{
+	_ = json.NewEncoder(w).Encode(APIResponse{
 		OK:        true,
 		Data:      payload,
 		Timestamp: time.Now().Format(time.RFC3339),

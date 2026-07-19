@@ -22,15 +22,15 @@ const (
 )
 
 type TypeDefinition struct {
-	Name     string
-	Type     SpecType
-	Required bool
-	Default  any
+	Name        string
+	Type        SpecType
+	Required    bool
+	Default     any
 	Constraints []Constraint
-	Items    *TypeDefinition
-	Properties map[string]*TypeDefinition
-	Ref      string
-	Union    []*TypeDefinition
+	Items       *TypeDefinition
+	Properties  map[string]*TypeDefinition
+	Ref         string
+	Union       []*TypeDefinition
 }
 
 type Constraint struct {
@@ -47,11 +47,11 @@ type ValidationRule struct {
 }
 
 type ValidationSchema struct {
-	Types      map[string]*TypeDefinition
-	Rules      []*ValidationRule
-	Required   []string
-	Unique     []string
-	Custom     []*CustomValidator
+	Types    map[string]*TypeDefinition
+	Rules    []*ValidationRule
+	Required []string
+	Unique   []string
+	Custom   []*CustomValidator
 }
 
 type CustomValidator struct {

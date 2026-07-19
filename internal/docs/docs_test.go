@@ -9,10 +9,6 @@ func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
-func lines(s string) []string {
-	return strings.Split(strings.TrimRight(s, "\n"), "\n")
-}
-
 // --- DocGenerator tests ---
 
 func TestNewGenerator(t *testing.T) {

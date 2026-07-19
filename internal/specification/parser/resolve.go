@@ -12,9 +12,9 @@ var envPattern = regexp.MustCompile(`\$env\{([^}]+)\}`)
 var refPattern = regexp.MustCompile(`\$ref\{([^}]+)\}`)
 
 type VariableResolver struct {
-	vars  map[string]string
-	refs  map[string]any
-	envs  map[string]string
+	vars map[string]string
+	refs map[string]any
+	envs map[string]string
 }
 
 func NewVariableResolver() *VariableResolver {
@@ -116,10 +116,10 @@ type ValidationIssue struct {
 }
 
 type ValidationResult struct {
-	Valid      bool
-	Issues     []ValidationIssue
-	Warnings   []ValidationIssue
-	ModuleCount int
+	Valid        bool
+	Issues       []ValidationIssue
+	Warnings     []ValidationIssue
+	ModuleCount  int
 	ServiceCount int
 }
 

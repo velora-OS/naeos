@@ -66,21 +66,21 @@ func (a *openCodeAdapter) buildInstructions(neir *model.NEIR) string {
 	sb.WriteString("Instructions for OpenCode agents working on this project.\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("## Project: %s\n\n", neir.Project.Name))
+		fmt.Fprintf(&sb, "## Project: %s\n\n", neir.Project.Name)
 		if neir.Project.Description != "" {
-			sb.WriteString(fmt.Sprintf("%s\n\n", neir.Project.Description))
+			fmt.Fprintf(&sb, "%s\n\n", neir.Project.Description)
 		}
 		if neir.Project.Version != "" {
-			sb.WriteString(fmt.Sprintf("Version: %s\n\n", neir.Project.Version))
+			fmt.Fprintf(&sb, "Version: %s\n\n", neir.Project.Version)
 		}
 	}
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("## Architecture: %s\n\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "## Architecture: %s\n\n", neir.Architecture.Pattern)
 		if len(neir.Architecture.Principles) > 0 {
 			sb.WriteString("Principles:\n")
 			for _, p := range neir.Architecture.Principles {
-				sb.WriteString(fmt.Sprintf("- %s\n", p))
+				fmt.Fprintf(&sb, "- %s\n", p)
 			}
 			sb.WriteString("\n")
 		}
@@ -89,12 +89,12 @@ func (a *openCodeAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Modules) > 0 {
 		sb.WriteString("## Modules\n\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("### %s\nPath: `%s`\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "### %s\nPath: `%s`\n", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("%s\n", m.Description))
+				fmt.Fprintf(&sb, "%s\n", m.Description)
 			}
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("Dependencies: %s\n", strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "Dependencies: %s\n", strings.Join(m.Dependencies, ", "))
 			}
 			sb.WriteString("\n")
 		}
@@ -103,9 +103,9 @@ func (a *openCodeAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Services) > 0 {
 		sb.WriteString("## Services\n\n")
 		for _, s := range neir.Services {
-			sb.WriteString(fmt.Sprintf("### %s (%s, port %d)\n", s.Name, s.Kind, s.Port))
+			fmt.Fprintf(&sb, "### %s (%s, port %d)\n", s.Name, s.Kind, s.Port)
 			for _, ep := range s.Endpoints {
-				sb.WriteString(fmt.Sprintf("- %s %s → %s\n", ep.Method, ep.Path, ep.Action))
+				fmt.Fprintf(&sb, "- %s %s → %s\n", ep.Method, ep.Path, ep.Action)
 			}
 			sb.WriteString("\n")
 		}
@@ -114,7 +114,7 @@ func (a *openCodeAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Components) > 0 {
 		sb.WriteString("## Components\n\n")
 		for _, c := range neir.Components {
-			sb.WriteString(fmt.Sprintf("- `%s` [%s] in `%s`\n", c.Name, c.Kind, c.Module))
+			fmt.Fprintf(&sb, "- `%s` [%s] in `%s`\n", c.Name, c.Kind, c.Module)
 		}
 		sb.WriteString("\n")
 	}
@@ -122,9 +122,9 @@ func (a *openCodeAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.APIs) > 0 {
 		sb.WriteString("## APIs\n\n")
 		for _, api := range neir.APIs {
-			sb.WriteString(fmt.Sprintf("### %s v%s (%s)\n", api.Name, api.Version, api.Protocol))
+			fmt.Fprintf(&sb, "### %s v%s (%s)\n", api.Name, api.Version, api.Protocol)
 			for _, ep := range api.Endpoints {
-				sb.WriteString(fmt.Sprintf("- %s %s: %s\n", ep.Method, ep.Path, ep.Summary))
+				fmt.Fprintf(&sb, "- %s %s: %s\n", ep.Method, ep.Path, ep.Summary)
 			}
 			sb.WriteString("\n")
 		}
@@ -133,23 +133,23 @@ func (a *openCodeAdapter) buildInstructions(neir *model.NEIR) string {
 	if neir.Security != nil {
 		sb.WriteString("## Security\n\n")
 		if neir.Security.Authentication != nil {
-			sb.WriteString(fmt.Sprintf("- Auth: %s via %s\n", neir.Security.Authentication.Method, neir.Security.Authentication.Provider))
+			fmt.Fprintf(&sb, "- Auth: %s via %s\n", neir.Security.Authentication.Method, neir.Security.Authentication.Provider)
 		}
 		if neir.Security.Authorization != nil {
-			sb.WriteString(fmt.Sprintf("- Authorization: %s\n", neir.Security.Authorization.Model))
+			fmt.Fprintf(&sb, "- Authorization: %s\n", neir.Security.Authorization.Model)
 		}
 		if neir.Security.Encryption != nil {
-			sb.WriteString(fmt.Sprintf("- Encryption: in_transit=%v, at_rest=%v\n", neir.Security.Encryption.InTransit, neir.Security.Encryption.AtRest))
+			fmt.Fprintf(&sb, "- Encryption: in_transit=%v, at_rest=%v\n", neir.Security.Encryption.InTransit, neir.Security.Encryption.AtRest)
 		}
 		sb.WriteString("\n")
 	}
 
 	if neir.Deployment != nil {
-		sb.WriteString(fmt.Sprintf("## Deployment: %s\n\n", neir.Deployment.Strategy))
+		fmt.Fprintf(&sb, "## Deployment: %s\n\n", neir.Deployment.Strategy)
 	}
 
 	if neir.Testing != nil {
-		sb.WriteString(fmt.Sprintf("## Testing: %s\n\n", neir.Testing.Strategy))
+		fmt.Fprintf(&sb, "## Testing: %s\n\n", neir.Testing.Strategy)
 	}
 
 	sb.WriteString("## Guidelines\n\n")
@@ -172,9 +172,9 @@ func (a *openCodeAdapter) buildContextFile(neir *model.NEIR) string {
 		sb.WriteString("## Dependency Graph\n\n")
 		for _, m := range neir.Modules {
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("%s → %s\n", m.Name, strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "%s → %s\n", m.Name, strings.Join(m.Dependencies, ", "))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s (root)\n", m.Name))
+				fmt.Fprintf(&sb, "%s (root)\n", m.Name)
 			}
 		}
 		sb.WriteString("\n")
@@ -183,15 +183,15 @@ func (a *openCodeAdapter) buildContextFile(neir *model.NEIR) string {
 	if len(neir.Storage) > 0 {
 		sb.WriteString("## Storage\n\n")
 		for _, st := range neir.Storage {
-			sb.WriteString(fmt.Sprintf("- %s (%s, %s)\n", st.Name, st.Type, st.Provider))
+			fmt.Fprintf(&sb, "- %s (%s, %s)\n", st.Name, st.Type, st.Provider)
 		}
 		sb.WriteString("\n")
 	}
 
 	if neir.Infrastructure != nil {
-		sb.WriteString(fmt.Sprintf("## Infrastructure: %s (%s)\n\n", neir.Infrastructure.Provider, neir.Infrastructure.Region))
+		fmt.Fprintf(&sb, "## Infrastructure: %s (%s)\n\n", neir.Infrastructure.Provider, neir.Infrastructure.Region)
 		for _, r := range neir.Infrastructure.Resources {
-			sb.WriteString(fmt.Sprintf("- %s (%s)\n", r.Name, r.Kind))
+			fmt.Fprintf(&sb, "- %s (%s)\n", r.Name, r.Kind)
 		}
 		sb.WriteString("\n")
 	}
@@ -199,7 +199,7 @@ func (a *openCodeAdapter) buildContextFile(neir *model.NEIR) string {
 	if neir.AI != nil && len(neir.AI.Models) > 0 {
 		sb.WriteString("## AI Models\n\n")
 		for _, m := range neir.AI.Models {
-			sb.WriteString(fmt.Sprintf("- %s (%s v%s)\n", m.Name, m.Kind, m.Version))
+			fmt.Fprintf(&sb, "- %s (%s v%s)\n", m.Name, m.Kind, m.Version)
 		}
 		sb.WriteString("\n")
 	}
@@ -207,10 +207,10 @@ func (a *openCodeAdapter) buildContextFile(neir *model.NEIR) string {
 	if neir.Documentation != nil && (len(neir.Documentation.ADRs) > 0 || len(neir.Documentation.RFCs) > 0) {
 		sb.WriteString("## Design Documents\n\n")
 		for _, doc := range neir.Documentation.ADRs {
-			sb.WriteString(fmt.Sprintf("- ADR: %s\n", doc.Title))
+			fmt.Fprintf(&sb, "- ADR: %s\n", doc.Title)
 		}
 		for _, doc := range neir.Documentation.RFCs {
-			sb.WriteString(fmt.Sprintf("- RFC: %s\n", doc.Title))
+			fmt.Fprintf(&sb, "- RFC: %s\n", doc.Title)
 		}
 	}
 
@@ -222,7 +222,7 @@ func (a *openCodeAdapter) buildRulesFile(neir *model.NEIR) string {
 	sb.WriteString("# OpenCode Rules\n\n")
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("Architecture: %s\n\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "Architecture: %s\n\n", neir.Architecture.Pattern)
 	}
 
 	sb.WriteString("## Code Rules\n\n")
@@ -236,7 +236,7 @@ func (a *openCodeAdapter) buildRulesFile(neir *model.NEIR) string {
 	if len(neir.Modules) > 0 {
 		sb.WriteString("\n## Module Boundaries\n\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("- `%s` should only depend on: %s\n", m.Name, strings.Join(m.Dependencies, ", ")))
+			fmt.Fprintf(&sb, "- `%s` should only depend on: %s\n", m.Name, strings.Join(m.Dependencies, ", "))
 		}
 	}
 

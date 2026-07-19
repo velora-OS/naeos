@@ -34,7 +34,7 @@ func TestConnectionPool(t *testing.T) {
 
 	pool.Release(conn)
 
-	total, avail, inUse = pool.Stats()
+	_, avail, inUse = pool.Stats()
 	if inUse != 0 {
 		t.Errorf("expected 0 in use, got %d", inUse)
 	}

@@ -120,7 +120,3 @@ func (j *JWTValidator) OIDCDiscoveryDocument(issuer string) *OIDCDiscovery {
 		IDTokenSigningAlgValuesSupported: []string{"HS256"},
 	}
 }
-
-func baseURLRawEncode(data []byte) string {
-	return base64.RawURLEncoding.EncodeToString(data)
-}

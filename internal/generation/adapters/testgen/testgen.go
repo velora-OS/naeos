@@ -197,16 +197,16 @@ func TestIntegration(t *testing.T) {
 }
 `, projectName)
 	case language.LanguageTypeScript:
-		return fmt.Sprintf(`import { describe, it, expect } from 'vitest';
+		return `import { describe, it, expect } from 'vitest';
 
 describe('integration', () => {
   it('should work end to end', () => {
     expect(true).toBe(true);
   });
 });
-`)
+`
 	case language.LanguagePython:
-		return fmt.Sprintf(`import unittest
+		return `import unittest
 
 class TestIntegration(unittest.TestCase):
     def test_full_pipeline(self):
@@ -214,9 +214,9 @@ class TestIntegration(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-`)
+`
 	case language.LanguageJava:
-		return fmt.Sprintf(`import org.junit.jupiter.api.Test;
+		return `import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class IntegrationTest {
@@ -225,16 +225,16 @@ class IntegrationTest {
         assertTrue(true);
     }
 }
-`)
+`
 	case language.LanguageRust:
-		return fmt.Sprintf(`#[cfg(test)]
+		return `#[cfg(test)]
 mod tests {
     #[test]
     fn test_integration() {
         assert!(true);
     }
 }
-`)
+`
 	default:
 		return ""
 	}

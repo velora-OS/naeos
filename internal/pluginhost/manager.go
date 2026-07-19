@@ -26,9 +26,9 @@ type Manager struct {
 
 // PluginConfig is the persisted plugin configuration.
 type PluginConfig struct {
-	Plugins []PluginInfo    `json:"plugins"`
-	Sandbox SandboxConfig  `json:"sandbox,omitempty"`
-	Lazy    bool            `json:"lazy,omitempty"`
+	Plugins []PluginInfo  `json:"plugins"`
+	Sandbox SandboxConfig `json:"sandbox,omitempty"`
+	Lazy    bool          `json:"lazy,omitempty"`
 }
 
 // NewManager creates a new PluginManager for the given directory.

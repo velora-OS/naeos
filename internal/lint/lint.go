@@ -9,6 +9,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var specProjectStartRe = regexp.MustCompile(`^[a-zA-Z0-9]`)
+var projectNameFormatRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
 type Severity string
 
 const (
@@ -135,7 +138,7 @@ func basicYAMLRules() []LintRule {
 									Rule:     "project-name-format",
 									Message:  "project name is empty",
 								})
-							} else if matched, _ := regexp.MatchString(`^[a-z0-9][a-z0-9-]*$`, name); !matched {
+							} else if matched := projectNameFormatRe.MatchString(name); !matched {
 								issues = append(issues, LintIssue{
 									Severity: SeverityWarning,
 									Rule:     "project-name-format",
@@ -296,29 +299,29 @@ func basicYAMLRules() []LintRule {
 						continue
 					}
 
-				for j := len(stack) - 1; j >= 0; j-- {
-					entry := stack[j]
-					if entry.depth > depth {
-						continue
+					for j := len(stack) - 1; j >= 0; j-- {
+						entry := stack[j]
+						if entry.depth > depth {
+							continue
+						}
+						if entry.depth < depth {
+							break
+						}
+						if entry.depth == depth && entry.key == key {
+							issues = append(issues, LintIssue{
+								Line:     i + 1,
+								Severity: SeverityWarning,
+								Rule:     "yaml-nested-duplicate-keys",
+								Message:  fmt.Sprintf("duplicate key %q at same indentation level (first at line %d)", key, entry.line),
+							})
+							break
+						}
 					}
-					if entry.depth < depth {
-						break
-					}
-					if entry.depth == depth && entry.key == key {
-						issues = append(issues, LintIssue{
-							Line:     i + 1,
-							Severity: SeverityWarning,
-							Rule:     "yaml-nested-duplicate-keys",
-							Message:  fmt.Sprintf("duplicate key %q at same indentation level (first at line %d)", key, entry.line),
-						})
-						break
-					}
-				}
 
-				for len(stack) > 0 && stack[len(stack)-1].depth >= depth {
-					stack = stack[:len(stack)-1]
-				}
-				stack = append(stack, keyEntry{key: key, line: i + 1, depth: depth})
+					for len(stack) > 0 && stack[len(stack)-1].depth >= depth {
+						stack = stack[:len(stack)-1]
+					}
+					stack = append(stack, keyEntry{key: key, line: i + 1, depth: depth})
 				}
 				return issues
 			},
@@ -335,7 +338,7 @@ func basicYAMLRules() []LintRule {
 						parts := strings.SplitN(trimmed, ":", 2)
 						if len(parts) == 2 {
 							val := strings.TrimSpace(parts[1])
-							if (val == "\"true\"" || val == "\"false\"" || val == "'true'" || val == "'false'") {
+							if val == "\"true\"" || val == "\"false\"" || val == "'true'" || val == "'false'" {
 								issues = append(issues, LintIssue{
 									Line:     i + 1,
 									Severity: SeverityWarning,
@@ -350,36 +353,6 @@ func basicYAMLRules() []LintRule {
 			},
 		},
 	}
-}
-
-func checkYAMLDuplicates(node *yaml.Node, path string) []LintIssue {
-	var issues []LintIssue
-	if node.Kind == yaml.MappingNode {
-		seen := make(map[string]int)
-		for i := 0; i < len(node.Content)-1; i += 2 {
-			key := node.Content[i].Value
-			fullPath := key
-			if path != "" {
-				fullPath = path + "." + key
-			}
-			if prev, exists := seen[key]; exists {
-				issues = append(issues, LintIssue{
-					Line:     node.Content[i].Line,
-					Severity: SeverityWarning,
-					Rule:     "yaml-nested-duplicate-keys",
-					Message:  fmt.Sprintf("duplicate key %q in mapping (first at line %d)", fullPath, prev),
-				})
-			}
-			seen[key] = node.Content[i].Line
-
-			issues = append(issues, checkYAMLDuplicates(node.Content[i+1], fullPath)...)
-		}
-	} else if node.Kind == yaml.SequenceNode {
-		for _, child := range node.Content {
-			issues = append(issues, checkYAMLDuplicates(child, path)...)
-		}
-	}
-	return issues
 }
 
 func specValidationRules() []LintRule {
@@ -424,7 +397,7 @@ func ValidateSpec(content string) []LintIssue {
 	} else if name, ok := raw["project"].(string); ok {
 		if strings.TrimSpace(name) == "" {
 			issues = append(issues, LintIssue{Severity: SeverityError, Rule: "spec-project-empty", Message: "project name is empty"})
-		} else if matched, _ := regexp.MatchString(`^[a-zA-Z0-9]`, name); !matched {
+		} else if matched := specProjectStartRe.MatchString(name); !matched {
 			issues = append(issues, LintIssue{Severity: SeverityWarning, Rule: "spec-project-format", Message: fmt.Sprintf("project name %q should start with alphanumeric character", name)})
 		}
 	}

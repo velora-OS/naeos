@@ -8,8 +8,8 @@ import (
 
 func TestNormalizerConvertsParsedSpecToStructuredValues(t *testing.T) {
 	doc := &parser.SpecDocument{
-		Project: "acme-api",
-		Modules: []parser.Module{{Name: "auth", Path: "./internal/auth"}},
+		Project:  "acme-api",
+		Modules:  []parser.Module{{Name: "auth", Path: "./internal/auth"}},
 		Services: []parser.Service{{Name: "gateway", Kind: "http", Port: 8080}},
 	}
 

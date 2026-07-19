@@ -35,7 +35,7 @@ func (PythonAdapter) GenerateModule(moduleName, modulePath, projectName string) 
 
 	return []engine.Artifact{
 		{Path: fmt.Sprintf("%s/__init__.py", dir), Content: []byte(fmt.Sprintf("\"\"\"%s module.\"\"\"\n", moduleName))},
-		{Path: fmt.Sprintf("%s/handler.py", dir), Content: []byte(fmt.Sprintf("from .service import Service\n\n\nclass Handler:\n    def __init__(self, service: Service):\n        self.service = service\n\n    def handle(self) -> str:\n        return self.service.process()\n"))},
+		{Path: fmt.Sprintf("%s/handler.py", dir), Content: []byte("from .service import Service\n\n\nclass Handler:\n    def __init__(self, service: Service):\n        self.service = service\n\n    def handle(self) -> str:\n        return self.service.process()\n")},
 		{Path: fmt.Sprintf("%s/service.py", dir), Content: []byte("from abc import ABC, abstractmethod\n\n\nclass Service(ABC):\n    @abstractmethod\n    def process(self) -> str:\n        ...\n\n\nclass DefaultService(Service):\n    def process(self) -> str:\n        return \"processed\"\n")},
 		{Path: fmt.Sprintf("%s/repository.py", dir), Content: []byte("from abc import ABC, abstractmethod\n\n\nclass Repository(ABC):\n    @abstractmethod\n    def list(self) -> list[str]:\n        ...\n")},
 		{Path: fmt.Sprintf("%s/models.py", dir), Content: []byte("from dataclasses import dataclass\n\n\n@dataclass\nclass Model:\n    name: str\n")},

@@ -85,7 +85,7 @@ func newSearchIndexCommand() *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "document title")
 	cmd.Flags().StringVar(&content, "content", "", "document content")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "document tags")
-	cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("id")
 	return cmd
 }
 
@@ -122,9 +122,9 @@ func newSearchQueryCommand() *cobra.Command {
 			}
 
 			type searchOutput struct {
-				Index string     `json:"index"`
-				Term  string     `json:"term"`
-				Total int        `json:"total"`
+				Index string      `json:"index"`
+				Term  string      `json:"term"`
+				Total int         `json:"total"`
 				Hits  []searchHit `json:"hits"`
 			}
 
@@ -150,8 +150,8 @@ func newSearchQueryCommand() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("marshal search result: %w", err)
 				}
-				cmd.OutOrStdout().Write(data)
-				cmd.OutOrStdout().Write([]byte("\n"))
+				_, _ = cmd.OutOrStdout().Write(data)
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 				return nil
 			}
 
@@ -169,7 +169,7 @@ func newSearchQueryCommand() *cobra.Command {
 	cmd.Flags().StringVar(&term, "term", "", "search term (required)")
 	cmd.Flags().IntVar(&limit, "limit", 10, "max results")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "output format: text, json")
-	cmd.MarkFlagRequired("term")
+	_ = cmd.MarkFlagRequired("term")
 	return cmd
 }
 
@@ -219,7 +219,7 @@ func newSearchDeleteCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "default", "search index name")
 	cmd.Flags().StringVar(&id, "id", "", "document ID (required)")
-	cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("id")
 	return cmd
 }
 

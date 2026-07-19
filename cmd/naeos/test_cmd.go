@@ -104,7 +104,7 @@ func renderTestResultsJSON(cmd *cobra.Command, results []testrunner.TestResult) 
 	if err != nil {
 		return err
 	}
-	cmd.OutOrStdout().Write(data)
-	cmd.OutOrStdout().Write([]byte("\n"))
+	_, _ = cmd.OutOrStdout().Write(data)
+	_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 	return nil
 }

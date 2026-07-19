@@ -26,9 +26,9 @@ func (d *Detector) Detect() *DetectionResult {
 	var matchedFiles []string
 
 	checks := []struct {
-		file    string
-		lang    string
-		weight  float64
+		file   string
+		lang   string
+		weight float64
 	}{
 		{"go.mod", "go", 1.0},
 		{"go.sum", "go", 0.3},

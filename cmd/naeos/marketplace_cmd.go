@@ -66,8 +66,8 @@ Example:
 				if err != nil {
 					return fmt.Errorf("marshal search results: %w", err)
 				}
-				cmd.OutOrStdout().Write(data)
-				cmd.OutOrStdout().Write([]byte("\n"))
+				_, _ = cmd.OutOrStdout().Write(data)
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 				return nil
 			}
 

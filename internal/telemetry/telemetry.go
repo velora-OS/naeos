@@ -2,10 +2,11 @@ package telemetry
 
 import (
 	"bytes"
+	"context"
+	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -41,7 +42,7 @@ type Span struct {
 	EndTime    time.Time         `json:"end_time,omitempty"`
 	Labels     map[string]string `json:"labels,omitempty"`
 	Status     string            `json:"status"`
-	Attributes SpanAttributes   `json:"attributes,omitempty"`
+	Attributes *SpanAttributes   `json:"attributes,omitempty"`
 }
 
 type Exporter interface {
@@ -103,7 +104,7 @@ func (s *Service) EndSpan(span *Span) {
 	defer s.mu.Unlock()
 	s.spans = append(s.spans, *span)
 	if len(s.spans) >= s.config.BatchSize {
-		s.flushUnsafe()
+		_ = s.flushUnsafe()
 	}
 }
 
@@ -171,7 +172,12 @@ func (e *HTTPExporter) Flush() error {
 		return fmt.Errorf("marshal spans: %w", err)
 	}
 
-	resp, err := e.client.Post(e.endpoint+"/v1/traces", "application/json", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", e.endpoint+"/v1/traces", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := e.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("export spans: %w", err)
 	}
@@ -219,7 +225,9 @@ func NewProbabilisticSampler(rate float64) *ProbabilisticSampler {
 }
 
 func (p *ProbabilisticSampler) Sample(string) bool {
-	return rand.Float64() < p.Rate
+	var buf [1]byte
+	_, _ = crand.Read(buf[:])
+	return float64(buf[0])/256.0 < p.Rate
 }
 
 type RateLimiterSampler struct {
@@ -258,15 +266,15 @@ func (r *RateLimiterSampler) Sample(string) bool {
 // --- SpanAttributes ---
 
 type attrValue struct {
-	t    string
-	s    string
-	i    int64
-	f    float64
-	b    bool
+	t string
+	s string
+	i int64
+	f float64
+	b bool
 }
 
 type SpanAttributes struct {
-	mu   sync.RWMutex
+	mu    sync.RWMutex
 	attrs map[string]attrValue
 }
 

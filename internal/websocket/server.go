@@ -50,14 +50,14 @@ type Message struct {
 
 func NewServer() *Server {
 	s := &Server{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		rooms:      NewRoomManager(),
+		clients:     make(map[*Client]bool),
+		broadcast:   make(chan []byte, 256),
+		register:    make(chan *Client),
+		unregister:  make(chan *Client),
+		rooms:       NewRoomManager(),
 		clientRooms: make(map[*Client]map[string]bool),
-		history:    NewHistory(100),
-		metrics:    NewMetricsCollector(),
+		history:     NewHistory(100),
+		metrics:     NewMetricsCollector(),
 	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -189,7 +189,7 @@ func (s *Server) ClientIDs() []string {
 func (s *Server) Stop() {
 	s.mu.Lock()
 	for client := range s.clients {
-		client.writeMessage(websocket.CloseMessage,
+		_ = client.writeMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "server shutting down"))
 		close(client.send)
 		delete(s.clients, client)
@@ -204,9 +204,9 @@ func (c *Client) readPump() {
 	}()
 
 	c.conn.SetReadLimit(65536)
-	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
@@ -241,7 +241,7 @@ func (c *Client) readPump() {
 		switch incoming.Type {
 		case "ping":
 			pong, _ := json.Marshal(Message{Type: "pong", Time: time.Now()})
-			c.writeMessage(websocket.TextMessage, pong)
+			_ = c.writeMessage(websocket.TextMessage, pong)
 		}
 	}
 }
@@ -256,16 +256,16 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !ok {
-				c.writeMessage(websocket.CloseMessage,
+				_ = c.writeMessage(websocket.CloseMessage,
 					websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				return
 			}
-			c.writeMessage(websocket.TextMessage, message)
+			_ = c.writeMessage(websocket.TextMessage, message)
 
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.writeMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

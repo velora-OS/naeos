@@ -47,11 +47,11 @@ func Minutely() *Schedule {
 // Scheduler
 
 type Scheduler struct {
-	jobs       map[string]*Job
-	running    bool
-	stopCh     chan struct{}
-	tickRate   time.Duration
-	mu         sync.RWMutex
+	jobs     map[string]*Job
+	running  bool
+	stopCh   chan struct{}
+	tickRate time.Duration
+	mu       sync.RWMutex
 }
 
 func New() *Scheduler {
@@ -201,11 +201,11 @@ func NewJob(id, name string, schedule *Schedule, fn JobFunc) *Job {
 // Stats
 
 type Stats struct {
-	TotalJobs    int
-	EnabledJobs  int
-	RunningJobs  int
-	TotalRuns    int
-	TotalErrors  int
+	TotalJobs   int
+	EnabledJobs int
+	RunningJobs int
+	TotalRuns   int
+	TotalErrors int
 }
 
 func (s *Scheduler) Stats() *Stats {

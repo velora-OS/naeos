@@ -22,21 +22,21 @@ type Schema struct {
 }
 
 type Property struct {
-	Type        string     `json:"type"`
-	Description string     `json:"description"`
-	Default     any        `json:"default,omitempty"`
-	Enum        []any      `json:"enum,omitempty"`
-	MinLength   *int       `json:"min_length,omitempty"`
-	MaxLength   *int       `json:"max_length,omitempty"`
-	Pattern     string     `json:"pattern,omitempty"`
-	Minimum     *float64   `json:"minimum,omitempty"`
-	Maximum     *float64   `json:"maximum,omitempty"`
-	Items       *Property  `json:"items,omitempty"`
+	Type        string              `json:"type"`
+	Description string              `json:"description"`
+	Default     any                 `json:"default,omitempty"`
+	Enum        []any               `json:"enum,omitempty"`
+	MinLength   *int                `json:"min_length,omitempty"`
+	MaxLength   *int                `json:"max_length,omitempty"`
+	Pattern     string              `json:"pattern,omitempty"`
+	Minimum     *float64            `json:"minimum,omitempty"`
+	Maximum     *float64            `json:"maximum,omitempty"`
+	Items       *Property           `json:"items,omitempty"`
 	Properties  map[string]Property `json:"properties,omitempty"`
-	Required    []string   `json:"required,omitempty"`
-	Deprecated  bool       `json:"deprecated,omitempty"`
-	ReadOnly    bool       `json:"read_only,omitempty"`
-	Examples    []any      `json:"examples,omitempty"`
+	Required    []string            `json:"required,omitempty"`
+	Deprecated  bool                `json:"deprecated,omitempty"`
+	ReadOnly    bool                `json:"read_only,omitempty"`
+	Examples    []any               `json:"examples,omitempty"`
 }
 
 type ValidationError struct {
@@ -193,7 +193,7 @@ func validateProperty(field string, value any, prop Property) []ValidationError 
 			Message: fmt.Sprintf("field '%s' should be of type %s", field, prop.Type),
 		})
 	}
-	if prop.Enum != nil && len(prop.Enum) > 0 {
+	if len(prop.Enum) > 0 {
 		found := false
 		for _, enumVal := range prop.Enum {
 			if fmt.Sprintf("%v", value) == fmt.Sprintf("%v", enumVal) {
@@ -401,14 +401,14 @@ func (s *Schema) GenerateDocumentation() string {
 	if title == "" {
 		title = "Configuration Schema"
 	}
-	sb.WriteString(fmt.Sprintf("# %s\n\n", title))
+	fmt.Fprintf(&sb, "# %s\n\n", title)
 	if s.Description != "" {
-		sb.WriteString(fmt.Sprintf("%s\n\n", s.Description))
+		fmt.Fprintf(&sb, "%s\n\n", s.Description)
 	}
 	if len(s.Required) > 0 {
 		sb.WriteString("## Required Fields\n\n")
 		for _, field := range s.Required {
-			sb.WriteString(fmt.Sprintf("- `%s`\n", field))
+			fmt.Fprintf(&sb, "- `%s`\n", field)
 		}
 		sb.WriteString("\n")
 	}
@@ -420,30 +420,30 @@ func (s *Schema) GenerateDocumentation() string {
 	sort.Strings(names)
 	for _, name := range names {
 		prop := s.Properties[name]
-		sb.WriteString(fmt.Sprintf("### `%s` (%s)\n\n", name, prop.Type))
+		fmt.Fprintf(&sb, "### `%s` (%s)\n\n", name, prop.Type)
 		if prop.Description != "" {
-			sb.WriteString(fmt.Sprintf("%s\n\n", prop.Description))
+			fmt.Fprintf(&sb, "%s\n\n", prop.Description)
 		}
 		if prop.Default != nil {
-			sb.WriteString(fmt.Sprintf("- Default: `%v`\n", prop.Default))
+			fmt.Fprintf(&sb, "- Default: `%v`\n", prop.Default)
 		}
 		if len(prop.Enum) > 0 {
-			sb.WriteString(fmt.Sprintf("- Allowed values: %v\n", prop.Enum))
+			fmt.Fprintf(&sb, "- Allowed values: %v\n", prop.Enum)
 		}
 		if prop.MinLength != nil {
-			sb.WriteString(fmt.Sprintf("- Min length: %d\n", *prop.MinLength))
+			fmt.Fprintf(&sb, "- Min length: %d\n", *prop.MinLength)
 		}
 		if prop.MaxLength != nil {
-			sb.WriteString(fmt.Sprintf("- Max length: %d\n", *prop.MaxLength))
+			fmt.Fprintf(&sb, "- Max length: %d\n", *prop.MaxLength)
 		}
 		if prop.Pattern != "" {
-			sb.WriteString(fmt.Sprintf("- Pattern: `%s`\n", prop.Pattern))
+			fmt.Fprintf(&sb, "- Pattern: `%s`\n", prop.Pattern)
 		}
 		if prop.Minimum != nil {
-			sb.WriteString(fmt.Sprintf("- Minimum: %v\n", *prop.Minimum))
+			fmt.Fprintf(&sb, "- Minimum: %v\n", *prop.Minimum)
 		}
 		if prop.Maximum != nil {
-			sb.WriteString(fmt.Sprintf("- Maximum: %v\n", *prop.Maximum))
+			fmt.Fprintf(&sb, "- Maximum: %v\n", *prop.Maximum)
 		}
 		if prop.Deprecated {
 			sb.WriteString("- **DEPRECATED**\n")
@@ -473,5 +473,5 @@ func LoadSchemaFromFile(path string) (*Schema, error) {
 	return &schema, nil
 }
 
-func intPtr(n int) *int       { return &n }
+func intPtr(n int) *int             { return &n }
 func float64Ptr(n float64) *float64 { return &n }

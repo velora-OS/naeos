@@ -32,15 +32,15 @@ Example:
 			var sb strings.Builder
 			sb.WriteString("Migration Status\n")
 			sb.WriteString(strings.Repeat("─", 50) + "\n")
-			sb.WriteString(fmt.Sprintf("  %-20s %-15s %-15s\n", "Database", "Version", "Status"))
+			fmt.Fprintf(&sb, "  %-20s %-15s %-15s\n", "Database", "Version", "Status")
 			sb.WriteString(strings.Repeat("─", 50) + "\n")
-			sb.WriteString(fmt.Sprintf("  %-20s %-15s %-15s\n", "postgresql", "0", "not connected"))
-			sb.WriteString(fmt.Sprintf("  %-20s %-15s %-15s\n", "mysql", "0", "not connected"))
-			sb.WriteString(fmt.Sprintf("  %-20s %-15s %-15s\n", "sqlite", "0", "not connected"))
+			fmt.Fprintf(&sb, "  %-20s %-15s %-15s\n", "postgresql", "0", "not connected")
+			fmt.Fprintf(&sb, "  %-20s %-15s %-15s\n", "mysql", "0", "not connected")
+			fmt.Fprintf(&sb, "  %-20s %-15s %-15s\n", "sqlite", "0", "not connected")
 			sb.WriteString(strings.Repeat("─", 50) + "\n")
 			sb.WriteString("Note: Connect to a database to see actual migration status.\n")
 
-			cmd.OutOrStdout().Write([]byte(sb.String()))
+			_, _ = cmd.OutOrStdout().Write([]byte(sb.String()))
 			return nil
 		},
 	}

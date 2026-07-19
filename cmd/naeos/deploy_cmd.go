@@ -56,7 +56,7 @@ Example:
 func runDeploy(cmd *cobra.Command, configPath, target, environment string, dryRun bool) error {
 	out := cmd.OutOrStdout()
 
-	cfg, _, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
+	cfg, err := loadPipelineConfig(configPath, cliVerbose, nil, cliDryRun)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func runDeploy(cmd *cobra.Command, configPath, target, environment string, dryRu
 	}
 
 	fmt.Fprintf(out, "Executing: %s %s\n", deployCmd.Command, strings.Join(deployCmd.Args, " "))
-	c := exec.Command(deployCmd.Command, deployCmd.Args...)
+	c := exec.CommandContext(cmd.Context(), deployCmd.Command, deployCmd.Args...) //nolint:gosec // G204: command and args are from hardcoded DeployTarget definitions
 	c.Stdout = out
 	c.Stderr = os.Stderr
 	if err := c.Run(); err != nil {
@@ -128,7 +128,7 @@ func cpDir(src, dst string) error {
 		if info.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G122: path is from filepath.Walk under known root
 		if err != nil {
 			return err
 		}

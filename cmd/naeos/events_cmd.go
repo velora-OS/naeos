@@ -6,8 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/NAEOS-foundation/naeos/internal/eventsourcing"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/eventsourcing"
 )
 
 func newEventsCommand() *cobra.Command {
@@ -48,7 +49,7 @@ Example:
 			}
 
 			if len(events) == 0 {
-				cmd.OutOrStdout().Write([]byte("No events to replay.\n"))
+				_, _ = cmd.OutOrStdout().Write([]byte("No events to replay.\n"))
 				return nil
 			}
 
@@ -65,13 +66,13 @@ Example:
 			}
 
 			if outputPath != "" {
-				if err := os.WriteFile(outputPath, output, 0o644); err != nil {
+				if err := os.WriteFile(outputPath, output, 0o600); err != nil {
 					return fmt.Errorf("write output: %w", err)
 				}
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Replayed %d events → %s\n", len(events), outputPath)))
+				fmt.Fprintf(cmd.OutOrStdout(), "Replayed %d events → %s\n", len(events), outputPath)
 			} else {
-				cmd.OutOrStdout().Write(output)
-				cmd.OutOrStdout().Write([]byte("\n"))
+				_, _ = cmd.OutOrStdout().Write(output)
+				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 			}
 			return nil
 		},
@@ -103,7 +104,7 @@ func newEventsListCommand() *cobra.Command {
 			}
 
 			for _, e := range events {
-				cmd.OutOrStdout().Write([]byte(eventsourcing.FormatEvent(e) + "\n"))
+				_, _ = cmd.OutOrStdout().Write([]byte(eventsourcing.FormatEvent(e) + "\n"))
 			}
 			return nil
 		},

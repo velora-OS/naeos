@@ -139,9 +139,9 @@ Example:
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if listTemplates {
-				cmd.OutOrStdout().Write([]byte("Available templates:\n\n"))
+				_, _ = cmd.OutOrStdout().Write([]byte("Available templates:\n\n"))
 				for name := range initTemplates {
-					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %-15s %s\n", name, templateDescription(name))))
+					fmt.Fprintf(cmd.OutOrStdout(), "  %-15s %s\n", name, templateDescription(name))
 				}
 				return nil
 			}
@@ -152,11 +152,11 @@ Example:
 			}
 
 			if projectName != "" {
-				content = strings.Replace(content, "my-project", projectName, -1)
-				content = strings.Replace(content, "my-microservices", projectName, -1)
-				content = strings.Replace(content, "my-rest-api", projectName, -1)
-				content = strings.Replace(content, "my-fullstack", projectName, -1)
-				content = strings.Replace(content, "my-k8s-app", projectName, -1)
+				content = strings.ReplaceAll(content, "my-project", projectName)
+				content = strings.ReplaceAll(content, "my-microservices", projectName)
+				content = strings.ReplaceAll(content, "my-rest-api", projectName)
+				content = strings.ReplaceAll(content, "my-fullstack", projectName)
+				content = strings.ReplaceAll(content, "my-k8s-app", projectName)
 			}
 
 			if err := os.WriteFile(output, []byte(content), 0o600); err != nil {
@@ -168,18 +168,18 @@ Example:
 				ext = "hcl"
 			}
 
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Created %s (template: %s)\n", output, template)))
+			fmt.Fprintf(cmd.OutOrStdout(), "Created %s (template: %s)\n", output, template)
 			if ext == "yaml" {
 				steps := "\nNext steps:\n"
 				steps += "  1. Edit " + output + " to customize your project\n"
 				steps += "  2. Run 'naeos validate --input spec.yaml' to validate\n"
 				steps += "  3. Run 'naeos run' to generate artifacts\n"
-				cmd.OutOrStdout().Write([]byte(steps))
+				_, _ = cmd.OutOrStdout().Write([]byte(steps))
 			} else {
 				steps := "\nNext steps:\n"
 				steps += "  1. Edit " + output + " to customize your project\n"
 				steps += "  2. Run 'naeos import --input " + output + "' to convert to YAML\n"
-				cmd.OutOrStdout().Write([]byte(steps))
+				_, _ = cmd.OutOrStdout().Write([]byte(steps))
 			}
 			return nil
 		},
@@ -194,12 +194,12 @@ Example:
 
 func templateDescription(name string) string {
 	descriptions := map[string]string{
-		"basic":          "Minimal config with Go",
-		"microservices":  "Multi-service microservices architecture",
-		"rest-api":       "Single REST API service",
-		"fullstack":      "Fullstack: backend + frontend + worker",
-		"kubernetes":     "Production-ready Kubernetes deployment",
-		"hcl":            "HCL format specification",
+		"basic":         "Minimal config with Go",
+		"microservices": "Multi-service microservices architecture",
+		"rest-api":      "Single REST API service",
+		"fullstack":     "Fullstack: backend + frontend + worker",
+		"kubernetes":    "Production-ready Kubernetes deployment",
+		"hcl":           "HCL format specification",
 	}
 	if d, ok := descriptions[name]; ok {
 		return d

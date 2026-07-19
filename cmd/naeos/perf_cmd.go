@@ -59,7 +59,7 @@ func newPerfPoolCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "pool name (required)")
 	cmd.Flags().IntVar(&min, "min", 2, "minimum connections")
 	cmd.Flags().IntVar(&max, "max", 10, "maximum connections")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -86,7 +86,7 @@ func newPerfPoolAcquireCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "pool name (required)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -124,7 +124,7 @@ func newPerfPoolStatsCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "pool name (required)")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format: text, json, yaml")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -148,8 +148,8 @@ func newPerfCacheSetCommand() *cobra.Command {
 	cmd.Flags().StringVar(&key, "key", "", "cache key (required)")
 	cmd.Flags().StringVar(&value, "value", "", "cache value (required)")
 	cmd.Flags().DurationVar(&ttl, "ttl", 5*time.Minute, "time to live")
-	cmd.MarkFlagRequired("key")
-	cmd.MarkFlagRequired("value")
+	_ = cmd.MarkFlagRequired("key")
+	_ = cmd.MarkFlagRequired("value")
 	return cmd
 }
 
@@ -175,7 +175,7 @@ func newPerfCacheGetCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&key, "key", "", "cache key (required)")
-	cmd.MarkFlagRequired("key")
+	_ = cmd.MarkFlagRequired("key")
 	return cmd
 }
 

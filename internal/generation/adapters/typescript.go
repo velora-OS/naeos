@@ -64,12 +64,12 @@ func (TypeScriptAdapter) GenerateModule(moduleName, modulePath, projectName stri
 	dir := fmt.Sprintf("src/%s", strutil.Slugify(moduleName))
 
 	return []engine.Artifact{
-		{Path: fmt.Sprintf("%s/index.ts", dir), Content: []byte(fmt.Sprintf("export * from \"./handler\";\nexport * from \"./service\";\nexport * from \"./repository\";\n"))},
-		{Path: fmt.Sprintf("%s/handler.ts", dir), Content: []byte(fmt.Sprintf("import { Service } from \"./service\";\n\nexport class Handler {\n  constructor(private service: Service) {}\n\n  handle(): string {\n    return this.service.process();\n  }\n}\n"))},
+		{Path: fmt.Sprintf("%s/index.ts", dir), Content: []byte("export * from \"./handler\";\nexport * from \"./service\";\nexport * from \"./repository\";\n")},
+		{Path: fmt.Sprintf("%s/handler.ts", dir), Content: []byte("import { Service } from \"./service\";\n\nexport class Handler {\n  constructor(private service: Service) {}\n\n  handle(): string {\n    return this.service.process();\n  }\n}\n")},
 		{Path: fmt.Sprintf("%s/service.ts", dir), Content: []byte("export interface Service {\n  process(): string;\n}\n\nexport class DefaultService implements Service {\n  process(): string {\n    return \"processed\";\n  }\n}\n")},
 		{Path: fmt.Sprintf("%s/repository.ts", dir), Content: []byte("export interface Repository {\n  list(): string[];\n}\n")},
 		{Path: fmt.Sprintf("%s/types.ts", dir), Content: []byte("export interface Model {\n  name: string;\n}\n")},
-		{Path: fmt.Sprintf("%s/handler.test.ts", dir), Content: []byte(fmt.Sprintf("import { describe, it, expect } from \"vitest\";\nimport { Handler } from \"./handler\";\nimport { DefaultService } from \"./service\";\n\ndescribe(\"Handler\", () => {\n  it(\"should handle request\", () => {\n    const service = new DefaultService();\n    const handler = new Handler(service);\n    expect(handler.handle()).toBe(\"processed\");\n  });\n});\n"))},
+		{Path: fmt.Sprintf("%s/handler.test.ts", dir), Content: []byte("import { describe, it, expect } from \"vitest\";\nimport { Handler } from \"./handler\";\nimport { DefaultService } from \"./service\";\n\ndescribe(\"Handler\", () => {\n  it(\"should handle request\", () => {\n    const service = new DefaultService();\n    const handler = new Handler(service);\n    expect(handler.handle()).toBe(\"processed\");\n  });\n});\n")},
 	}
 }
 

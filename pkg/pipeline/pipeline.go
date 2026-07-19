@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/NAEOS-foundation/naeos/internal/generation/adapters"
 	"github.com/NAEOS-foundation/naeos/internal/generation/engine"
 	"github.com/NAEOS-foundation/naeos/internal/generation/renderers"
@@ -28,7 +30,6 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/specification/resolver"
 	cfgpkg "github.com/NAEOS-foundation/naeos/pkg/config"
 	"github.com/NAEOS-foundation/naeos/pkg/kernel"
-	"golang.org/x/sync/errgroup"
 )
 
 type Config struct {
@@ -576,7 +577,7 @@ func (p *Pipeline) Validate(input string) (*Result, error) {
 func (p *Pipeline) ValidateContext(ctx context.Context, input string) (*Result, error) {
 	return p.executeWithKernel(func() (*Result, error) {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("context cancelled: %w", err)
+			return nil, fmt.Errorf("context canceled: %w", err)
 		}
 		return p.validateWithoutKernel(input)
 	})
@@ -589,7 +590,7 @@ func (p *Pipeline) Run(input string) (*Result, error) {
 func (p *Pipeline) RunContext(ctx context.Context, input string) (*Result, error) {
 	return p.executeWithKernel(func() (*Result, error) {
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("context cancelled: %w", err)
+			return nil, fmt.Errorf("context canceled: %w", err)
 		}
 
 		if err := p.executeHooks(p.getHookFuncs().BeforeRun, "run"); err != nil {

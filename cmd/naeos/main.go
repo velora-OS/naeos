@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	cliVerbose     bool
-	cliDryRun      bool
+	cliVerbose      bool
+	cliDryRun       bool
 	cliOutputFormat string
 )
 

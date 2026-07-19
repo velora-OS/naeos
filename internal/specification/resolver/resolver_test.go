@@ -8,8 +8,8 @@ import (
 
 func TestResolverBuildsContextFromNormalizedSpec(t *testing.T) {
 	norm := &normalizer.NormalizedSpec{Values: map[string]any{
-		"project": "acme-api",
-		"modules": []map[string]any{{"name": "auth", "path": "./internal/auth"}},
+		"project":  "acme-api",
+		"modules":  []map[string]any{{"name": "auth", "path": "./internal/auth"}},
 		"services": []map[string]any{{"name": "gateway", "kind": "http", "port": 8080}},
 	}}
 

@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -297,7 +298,7 @@ func TestHandler(t *testing.T) {
 	handler := Handler(schema)
 
 	body := `{"query": "{ hello }"}`
-	req := httptest.NewRequest("POST", "/graphql", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/graphql", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -313,7 +314,7 @@ func TestHandlerGETIntrospect(t *testing.T) {
 	schema := testSchema()
 	handler := Handler(schema)
 
-	req := httptest.NewRequest("GET", "/graphql?introspect=true", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/graphql?introspect=true", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -329,7 +330,7 @@ func TestHandlerMethodNotAllowed(t *testing.T) {
 	schema := testSchema()
 	handler := Handler(schema)
 
-	req := httptest.NewRequest("DELETE", "/graphql", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/graphql", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -342,7 +343,7 @@ func TestHandlerInvalidBody(t *testing.T) {
 	schema := testSchema()
 	handler := Handler(schema)
 
-	req := httptest.NewRequest("POST", "/graphql", strings.NewReader("not json"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/graphql", strings.NewReader("not json"))
 	w := httptest.NewRecorder()
 	handler(w, req)
 

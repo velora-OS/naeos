@@ -99,7 +99,7 @@ func (s *RealSQLite) Ping() error {
 	if s.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return s.db.Ping()
+	return s.db.PingContext(context.Background())
 }
 
 func (s *RealSQLite) Exec(query string, args ...any) (Result, error) {
@@ -251,12 +251,12 @@ func (s *RealSQLite) MigrateContext(ctx context.Context, migrations []Migration)
 		}
 
 		if _, err := tx.ExecContext(ctx, migration.Up); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %d: %w", migration.Version, err)
 		}
 
 		if _, err := tx.ExecContext(ctx, "INSERT INTO _migrations (version, name, down_sql) VALUES (?, ?, ?)", migration.Version, migration.Name, migration.Down); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("record migration %d: %w", migration.Version, err)
 		}
 
@@ -300,13 +300,13 @@ func (s *RealSQLite) RollbackContext(ctx context.Context, version int) error {
 
 		if migration.Down != "" {
 			if _, err := tx.ExecContext(ctx, migration.Down); err != nil {
-				tx.Rollback()
+				_ = tx.Rollback()
 				return fmt.Errorf("execute down migration %d (%s): %w", migration.Version, migration.Name, err)
 			}
 		}
 
 		if _, err := tx.ExecContext(ctx, "DELETE FROM _migrations WHERE version = ?", migration.Version); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("remove migration record %d: %w", migration.Version, err)
 		}
 
@@ -322,7 +322,7 @@ func (s *RealSQLite) HealthCheck() error {
 	if s.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return s.db.Ping()
+	return s.db.PingContext(context.Background())
 }
 
 type RealSQLiteTx struct {

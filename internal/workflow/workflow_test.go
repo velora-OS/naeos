@@ -138,7 +138,7 @@ func TestWorkflowCancel(t *testing.T) {
 	wf.Cancel()
 
 	if wf.Status() != StateCancelled {
-		t.Errorf("expected cancelled, got %s", wf.Status())
+		t.Errorf("expected canceled, got %s", wf.Status())
 	}
 }
 

@@ -1,6 +1,7 @@
 package monitoring
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -242,7 +243,7 @@ func TestMetricsIncPipelines(t *testing.T) {
 func TestHealthHandler(t *testing.T) {
 	handler := HealthHandler()
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -258,7 +259,7 @@ func TestHealthHandler(t *testing.T) {
 func TestReadyHandler(t *testing.T) {
 	handler := ReadyHandler()
 
-	req := httptest.NewRequest("GET", "/ready", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/ready", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -278,7 +279,7 @@ func TestPrometheusHandler(t *testing.T) {
 
 	handler := PrometheusHandler(reg)
 
-	req := httptest.NewRequest("GET", "/metrics", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/metrics", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
 
@@ -322,7 +323,7 @@ func TestMetricsMiddleware(t *testing.T) {
 
 	handler := middleware(inner)
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -350,7 +351,7 @@ func TestMetricsMiddlewareCapturesStatus(t *testing.T) {
 				w.WriteHeader(tt.statusCode)
 			})
 			handler := middleware(inner)
-			req := httptest.NewRequest("GET", "/test", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
 
@@ -389,7 +390,7 @@ func TestMetricsMiddlewareCapturesDuration(t *testing.T) {
 	})
 
 	handler := middleware(inner)
-	req := httptest.NewRequest("GET", "/slow", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/slow", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

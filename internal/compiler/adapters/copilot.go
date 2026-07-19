@@ -53,9 +53,9 @@ func (a *copilotAdapter) Compile(neir *model.NEIR) (*compiler.CompiledOutput, er
 	}
 
 	return &compiler.CompiledOutput{
-		Target:  compiler.TargetCopilot,
-		Files:   files,
-		Summary: fmt.Sprintf("Generated %d files for GitHub Copilot (%s)", len(files), projectName),
+		Target:     compiler.TargetCopilot,
+		Files:      files,
+		Summary:    fmt.Sprintf("Generated %d files for GitHub Copilot (%s)", len(files), projectName),
 		CompiledAt: time.Now(),
 	}, nil
 }
@@ -66,17 +66,17 @@ func (a *copilotAdapter) buildInstructions(neir *model.NEIR) string {
 	sb.WriteString("This file contains project-specific instructions for GitHub Copilot.\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("## Project: %s\n\n", neir.Project.Name))
+		fmt.Fprintf(&sb, "## Project: %s\n\n", neir.Project.Name)
 		if neir.Project.Description != "" {
-			sb.WriteString(fmt.Sprintf("%s\n\n", neir.Project.Description))
+			fmt.Fprintf(&sb, "%s\n\n", neir.Project.Description)
 		}
 	}
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("## Architecture Pattern: %s\n\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "## Architecture Pattern: %s\n\n", neir.Architecture.Pattern)
 		sb.WriteString("Follow these architectural principles:\n")
 		for _, p := range neir.Architecture.Principles {
-			sb.WriteString(fmt.Sprintf("- %s\n", p))
+			fmt.Fprintf(&sb, "- %s\n", p)
 		}
 		sb.WriteString("\n")
 	}
@@ -84,9 +84,9 @@ func (a *copilotAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Modules) > 0 {
 		sb.WriteString("## Module Structure\n\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "- **%s**: %s\n", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("  %s\n", m.Description))
+				fmt.Fprintf(&sb, "  %s\n", m.Description)
 			}
 		}
 		sb.WriteString("\n")
@@ -95,7 +95,7 @@ func (a *copilotAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Components) > 0 {
 		sb.WriteString("## Components\n\n")
 		for _, c := range neir.Components {
-			sb.WriteString(fmt.Sprintf("- `%s` (%s) in module `%s`\n", c.Name, c.Kind, c.Module))
+			fmt.Fprintf(&sb, "- `%s` (%s) in module `%s`\n", c.Name, c.Kind, c.Module)
 		}
 		sb.WriteString("\n")
 	}
@@ -103,9 +103,9 @@ func (a *copilotAdapter) buildInstructions(neir *model.NEIR) string {
 	if len(neir.Services) > 0 {
 		sb.WriteString("## Services\n\n")
 		for _, s := range neir.Services {
-			sb.WriteString(fmt.Sprintf("### %s (%s, port %d)\n", s.Name, s.Kind, s.Port))
+			fmt.Fprintf(&sb, "### %s (%s, port %d)\n", s.Name, s.Kind, s.Port)
 			for _, ep := range s.Endpoints {
-				sb.WriteString(fmt.Sprintf("- `%s %s` -> `%s`\n", ep.Method, ep.Path, ep.Action))
+				fmt.Fprintf(&sb, "- `%s %s` -> `%s`\n", ep.Method, ep.Path, ep.Action)
 			}
 			sb.WriteString("\n")
 		}
@@ -125,14 +125,14 @@ func (a *copilotAdapter) buildContextFile(neir *model.NEIR) string {
 	sb.WriteString("# Project Context for Copilot\n\n")
 	sb.WriteString("Use this file as additional context when generating code.\n\n")
 	sb.WriteString("```yaml\n")
-	sb.WriteString(fmt.Sprintf("project: %s\n", neir.Project.Name))
+	fmt.Fprintf(&sb, "project: %s\n", neir.Project.Name)
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("architecture: %s\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "architecture: %s\n", neir.Architecture.Pattern)
 	}
 	if len(neir.Modules) > 0 {
 		sb.WriteString("modules:\n")
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("  - name: %s\n    path: %s\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "  - name: %s\n    path: %s\n", m.Name, m.Path)
 		}
 	}
 	sb.WriteString("```\n")
@@ -146,7 +146,7 @@ func (a *copilotAdapter) buildRulesFile(neir *model.NEIR) string {
 
 	if len(neir.Modules) > 0 {
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("- Files in `%s` belong to the `%s` module\n", m.Path, m.Name))
+			fmt.Fprintf(&sb, "- Files in `%s` belong to the `%s` module\n", m.Path, m.Name)
 		}
 		sb.WriteString("\n")
 	}

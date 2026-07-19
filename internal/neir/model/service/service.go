@@ -3,11 +3,11 @@ package service
 type ServiceKind string
 
 const (
-	KindHTTP  ServiceKind = "http"
-	KindGRPC  ServiceKind = "grpc"
+	KindHTTP   ServiceKind = "http"
+	KindGRPC   ServiceKind = "grpc"
 	KindWorker ServiceKind = "worker"
-	KindCLI   ServiceKind = "cli"
-	KindJob   ServiceKind = "job"
+	KindCLI    ServiceKind = "cli"
+	KindJob    ServiceKind = "job"
 )
 
 type Service struct {

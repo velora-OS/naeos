@@ -31,8 +31,8 @@ type ModuleDiff struct {
 }
 
 type ServiceDiff struct {
-	Name      string
-	Type      ChangeType
+	Name       string
+	Type       ChangeType
 	OldService *parser.Service
 	NewService *parser.Service
 }
@@ -237,22 +237,22 @@ func FormatSpecDiff(diff *SpecDiff) string {
 	var sb strings.Builder
 
 	if diff.Project != nil {
-		sb.WriteString(fmt.Sprintf("Project: %v → %v\n", diff.Project.OldValue, diff.Project.NewValue))
+		fmt.Fprintf(&sb, "Project: %v → %v\n", diff.Project.OldValue, diff.Project.NewValue)
 	}
 
 	for _, m := range diff.Modules {
 		switch m.Type {
 		case ChangeAdded:
-			sb.WriteString(fmt.Sprintf("\033[32m+ Module: %s (%s)\033[0m\n", m.Name, m.NewModule.Path))
+			fmt.Fprintf(&sb, "\033[32m+ Module: %s (%s)\033[0m\n", m.Name, m.NewModule.Path)
 		case ChangeRemoved:
-			sb.WriteString(fmt.Sprintf("\033[31m- Module: %s (%s)\033[0m\n", m.Name, m.OldModule.Path))
+			fmt.Fprintf(&sb, "\033[31m- Module: %s (%s)\033[0m\n", m.Name, m.OldModule.Path)
 		case ChangeModified:
-			sb.WriteString(fmt.Sprintf("\033[33m~ Module: %s\033[0m\n", m.Name))
+			fmt.Fprintf(&sb, "\033[33m~ Module: %s\033[0m\n", m.Name)
 			if m.OldModule.Path != m.NewModule.Path {
-				sb.WriteString(fmt.Sprintf("  Path: %s → %s\n", m.OldModule.Path, m.NewModule.Path))
+				fmt.Fprintf(&sb, "  Path: %s → %s\n", m.OldModule.Path, m.NewModule.Path)
 			}
 			if m.OldModule.Description != m.NewModule.Description {
-				sb.WriteString(fmt.Sprintf("  Description: %s → %s\n", m.OldModule.Description, m.NewModule.Description))
+				fmt.Fprintf(&sb, "  Description: %s → %s\n", m.OldModule.Description, m.NewModule.Description)
 			}
 		}
 	}
@@ -260,16 +260,16 @@ func FormatSpecDiff(diff *SpecDiff) string {
 	for _, s := range diff.Services {
 		switch s.Type {
 		case ChangeAdded:
-			sb.WriteString(fmt.Sprintf("\033[32m+ Service: %s (kind=%s, port=%d)\033[0m\n", s.Name, s.NewService.Kind, s.NewService.Port))
+			fmt.Fprintf(&sb, "\033[32m+ Service: %s (kind=%s, port=%d)\033[0m\n", s.Name, s.NewService.Kind, s.NewService.Port)
 		case ChangeRemoved:
-			sb.WriteString(fmt.Sprintf("\033[31m- Service: %s (kind=%s, port=%d)\033[0m\n", s.Name, s.OldService.Kind, s.OldService.Port))
+			fmt.Fprintf(&sb, "\033[31m- Service: %s (kind=%s, port=%d)\033[0m\n", s.Name, s.OldService.Kind, s.OldService.Port)
 		case ChangeModified:
-			sb.WriteString(fmt.Sprintf("\033[33m~ Service: %s\033[0m\n", s.Name))
+			fmt.Fprintf(&sb, "\033[33m~ Service: %s\033[0m\n", s.Name)
 			if s.OldService.Port != s.NewService.Port {
-				sb.WriteString(fmt.Sprintf("  Port: %d → %d\n", s.OldService.Port, s.NewService.Port))
+				fmt.Fprintf(&sb, "  Port: %d → %d\n", s.OldService.Port, s.NewService.Port)
 			}
 			if s.OldService.Kind != s.NewService.Kind {
-				sb.WriteString(fmt.Sprintf("  Kind: %s → %s\n", s.OldService.Kind, s.NewService.Kind))
+				fmt.Fprintf(&sb, "  Kind: %s → %s\n", s.OldService.Kind, s.NewService.Kind)
 			}
 		}
 	}

@@ -181,9 +181,9 @@ func TestGenerateFromNEIREmpty(t *testing.T) {
 
 func TestEstimateTokens(t *testing.T) {
 	bundle := &Bundle{
-		Project:  "test",
-		Modules:  []ModuleContext{{Name: "auth"}, {Name: "api"}},
-		Services: []ServiceContext{{Name: "srv"}},
+		Project:   "test",
+		Modules:   []ModuleContext{{Name: "auth"}, {Name: "api"}},
+		Services:  []ServiceContext{{Name: "srv"}},
 		Languages: []string{"go"},
 	}
 	tokens := bundle.EstimateTokens()
@@ -253,7 +253,7 @@ func TestFilterByModuleEmpty(t *testing.T) {
 
 func TestFilterByService(t *testing.T) {
 	bundle := &Bundle{
-		Modules:  []ModuleContext{{Name: "m1"}},
+		Modules: []ModuleContext{{Name: "m1"}},
 		Services: []ServiceContext{
 			{Name: "http-svc", Kind: "rest"},
 			{Name: "grpc-svc", Kind: "grpc"},
@@ -283,16 +283,16 @@ func TestFilterByServiceCaseInsensitive(t *testing.T) {
 
 func TestMergeWithOther(t *testing.T) {
 	b1 := &Bundle{
-		Project:  "p1",
-		Modules:  []ModuleContext{{Name: "m1"}},
-		Services: []ServiceContext{{Name: "s1"}},
+		Project:   "p1",
+		Modules:   []ModuleContext{{Name: "m1"}},
+		Services:  []ServiceContext{{Name: "s1"}},
 		Languages: []string{"go"},
 		Metadata:  map[string]string{"a": "1"},
 	}
 	b2 := &Bundle{
-		Project:  "p2",
-		Modules:  []ModuleContext{{Name: "m2"}},
-		Services: []ServiceContext{{Name: "s2"}},
+		Project:   "p2",
+		Modules:   []ModuleContext{{Name: "m2"}},
+		Services:  []ServiceContext{{Name: "s2"}},
 		Languages: []string{"typescript"},
 		Metadata:  map[string]string{"b": "2"},
 		Security:  &SecurityContext{AuthMethod: "jwt"},
@@ -326,10 +326,10 @@ func TestMergeWithOther(t *testing.T) {
 
 func TestMergeNilOther(t *testing.T) {
 	b := &Bundle{
-		Project:  "p1",
-		Modules:  []ModuleContext{{Name: "m1"}},
+		Project:   "p1",
+		Modules:   []ModuleContext{{Name: "m1"}},
 		Languages: []string{"go"},
-		Metadata: map[string]string{"k": "v"},
+		Metadata:  map[string]string{"k": "v"},
 	}
 	merged := b.Merge(nil)
 	if merged.Project != "p1" {
@@ -408,9 +408,9 @@ func TestBuildTargets(t *testing.T) {
 
 func TestBuildSummary(t *testing.T) {
 	bundle := &Bundle{
-		Project:  "proj",
-		Modules:  []ModuleContext{{Name: "a"}, {Name: "b"}},
-		Services: []ServiceContext{{Name: "s1"}},
+		Project:   "proj",
+		Modules:   []ModuleContext{{Name: "a"}, {Name: "b"}},
+		Services:  []ServiceContext{{Name: "s1"}},
 		Languages: []string{"go"},
 	}
 	summary := bundle.buildSummary()
@@ -438,8 +438,8 @@ func TestBuildSummaryEmpty(t *testing.T) {
 
 func TestFilterByModulePreservesCloudAndSecurity(t *testing.T) {
 	bundle := &Bundle{
-		Modules: []ModuleContext{{Name: "m1"}},
-		Cloud:   []CloudResource{{Provider: "aws", Type: "s3", Name: "bucket"}},
+		Modules:  []ModuleContext{{Name: "m1"}},
+		Cloud:    []CloudResource{{Provider: "aws", Type: "s3", Name: "bucket"}},
 		Security: &SecurityContext{AuthMethod: "oauth2"},
 	}
 	filtered := bundle.FilterByModule([]string{"m1"})

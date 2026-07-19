@@ -157,10 +157,10 @@ type ProxyConfig struct {
 }
 
 type ReverseProxy struct {
-	proxy     *httputil.ReverseProxy
-	config    *ProxyConfig
-	backend   *Backend
-	mu        sync.RWMutex
+	proxy   *httputil.ReverseProxy
+	config  *ProxyConfig
+	backend *Backend
+	mu      sync.RWMutex
 }
 
 func NewReverseProxy(backend *Backend, config *ProxyConfig) (*ReverseProxy, error) {
@@ -276,9 +276,9 @@ func (rl *RequestLogger) LogRequest(r *http.Request, statusCode int, duration ti
 }
 
 type ProxyChain struct {
-	proxies   []http.Handler
-	logger    *RequestLogger
-	mu        sync.RWMutex
+	proxies []http.Handler
+	logger  *RequestLogger
+	mu      sync.RWMutex
 }
 
 func NewProxyChain(logger *RequestLogger) *ProxyChain {

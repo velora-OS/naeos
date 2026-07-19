@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"github.com/NAEOS-foundation/naeos/internal/monitoring"
+	"time"
+
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/monitoring"
 )
 
 var (
@@ -29,7 +32,11 @@ func newMonitorCommand() *cobra.Command {
 			fmt.Println("  /metrics  - Prometheus metrics")
 			fmt.Println("  /health   - Health check")
 			fmt.Println("  /ready    - Readiness check")
-			return http.ListenAndServe(monitorPort, nil)
+			srv := &http.Server{
+				Addr:              monitorPort,
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			return srv.ListenAndServe()
 		},
 	}
 

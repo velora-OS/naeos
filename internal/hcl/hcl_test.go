@@ -29,13 +29,6 @@ func basicSpec() *Spec {
 	}
 }
 
-func minimalSpec() *Spec {
-	return &Spec{
-		Project:  Project{Name: "minimal"},
-		Services: map[string]Service{"api": {Type: "grpc"}},
-	}
-}
-
 // ===========================================================================
 // ParseError tests
 // ===========================================================================

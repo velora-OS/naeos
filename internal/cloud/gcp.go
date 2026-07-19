@@ -80,67 +80,67 @@ func (a *GCPAdapter) Plan(config *DeployConfig) (*PlanResult, error) {
 					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
 				},
 			})
-	case ResourceCDN:
-		bucketName := fmt.Sprintf("%s-%s-%s-cdn", config.Project, config.Environment, res.Name)
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "google_compute_backend_bucket",
-			Spec: map[string]any{
-				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-		resources = append(resources, Resource{
-			Name: res.Name + "-cdn-bucket",
-			Type: "google_storage_bucket",
-			Spec: map[string]any{
-				"name":     bucketName,
-				"location": config.Region,
-			},
-		})
-	case ResourceServerless:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "google_cloudfunctions2_function",
-			Spec: map[string]any{
-				"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-				"location": config.Region,
-			},
-		})
-	case ResourceMonitoring:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "google_monitoring_alert_policy",
-			Spec: map[string]any{
-				"display_name": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceSecrets:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "google_secret_manager_secret",
-			Spec: map[string]any{
-				"secret_id": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
-	case ResourceDNS:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "google_dns_managed_zone",
-			Spec: map[string]any{
-				"name":        res.Name,
-				"dns_name":    fmt.Sprintf("%s.", res.Name),
-			},
-		})
-	case ResourceNetworking:
-		resources = append(resources, Resource{
-			Name: res.Name,
-			Type: "google_compute_network",
-			Spec: map[string]any{
-				"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
-			},
-		})
+		case ResourceCDN:
+			bucketName := fmt.Sprintf("%s-%s-%s-cdn", config.Project, config.Environment, res.Name)
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "google_compute_backend_bucket",
+				Spec: map[string]any{
+					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+			resources = append(resources, Resource{
+				Name: res.Name + "-cdn-bucket",
+				Type: "google_storage_bucket",
+				Spec: map[string]any{
+					"name":     bucketName,
+					"location": config.Region,
+				},
+			})
+		case ResourceServerless:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "google_cloudfunctions2_function",
+				Spec: map[string]any{
+					"name":     fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+					"location": config.Region,
+				},
+			})
+		case ResourceMonitoring:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "google_monitoring_alert_policy",
+				Spec: map[string]any{
+					"display_name": fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceSecrets:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "google_secret_manager_secret",
+				Spec: map[string]any{
+					"secret_id": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		case ResourceDNS:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "google_dns_managed_zone",
+				Spec: map[string]any{
+					"name":     res.Name,
+					"dns_name": fmt.Sprintf("%s.", res.Name),
+				},
+			})
+		case ResourceNetworking:
+			resources = append(resources, Resource{
+				Name: res.Name,
+				Type: "google_compute_network",
+				Spec: map[string]any{
+					"name": fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name),
+				},
+			})
+		}
 	}
-}
 
 	estimator := NewCostEstimator()
 	cost := estimator.EstimateCost(string(config.Provider), resources)
@@ -208,7 +208,7 @@ func (a *GCPAdapter) Deploy(config *DeployConfig) (*DeployResult, error) {
 	}
 
 	sm := NewStateManager()
-	sm.Save(&DeploymentRecord{
+	_ = sm.Save(&DeploymentRecord{
 		Project:      config.Project,
 		Provider:     GCP,
 		Environment:  config.Environment,
@@ -228,7 +228,7 @@ func (a *GCPAdapter) Destroy(config *DeployConfig) error {
 		if err := tr.ApplyDestroy(); err == nil {
 			pool.Remove(config.Project, GCP)
 			sm := NewStateManager()
-			sm.Delete(config.Project, GCP)
+			_ = sm.Delete(config.Project, GCP)
 			return nil
 		}
 	}
@@ -241,7 +241,7 @@ func (a *GCPAdapter) Destroy(config *DeployConfig) error {
 			tr.Runner = a.Runner
 		}
 		if derr := tr.DestroyAll(); derr == nil {
-			sm.Delete(config.Project, GCP)
+			_ = sm.Delete(config.Project, GCP)
 			return nil
 		}
 	}
@@ -275,7 +275,7 @@ func (a *GCPAdapter) Destroy(config *DeployConfig) error {
 		return err
 	}
 
-	sm.Delete(config.Project, GCP)
+	_ = sm.Delete(config.Project, GCP)
 	return nil
 }
 
@@ -283,7 +283,7 @@ func (a *GCPAdapter) ExportTerraform(config *DeployConfig) (string, error) {
 	var sb strings.Builder
 
 	// Header
-	sb.WriteString(fmt.Sprintf(`terraform {
+	fmt.Fprintf(&sb, `terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -297,10 +297,10 @@ provider "google" {
   region  = "%s"
 }
 
-`, config.Project, config.Region))
+`, config.Project, config.Region)
 
 	// Local variables
-	sb.WriteString(fmt.Sprintf(`locals {
+	fmt.Fprintf(&sb, `locals {
   project     = "%s"
   environment = "%s"
   common_labels = {
@@ -310,13 +310,13 @@ provider "google" {
   }
 }
 
-`, config.Project, config.Environment, config.Environment, config.Project, version.ProductName))
+`, config.Project, config.Environment, config.Environment, config.Project, version.ProductName)
 
 	for _, res := range config.Resources {
 		switch res.Type {
 		case ResourceStorage:
 			bucketName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_storage_bucket" "%s" {
+			fmt.Fprintf(&sb, `resource "google_storage_bucket" "%s" {
   name     = "%s"
   location = "%s"
 
@@ -335,10 +335,10 @@ resource "google_storage_bucket_iam_member" "%s_public" {
 }
 
 `, res.Name, bucketName, config.Region,
-				res.Name, res.Name))
+				res.Name, res.Name)
 
 		case ResourceCompute:
-			sb.WriteString(fmt.Sprintf(`resource "google_cloud_run_service" "%s" {
+			fmt.Fprintf(&sb, `resource "google_cloud_run_service" "%s" {
   name     = "%s"
   location = "%s"
 
@@ -382,13 +382,13 @@ resource "google_cloud_run_service_iam_member" "%s_invoker" {
 }
 
 `, res.Name, res.Name, config.Region,
-			config.Project, res.Name,
-			res.Name, res.Name))
+				config.Project, res.Name,
+				res.Name, res.Name)
 
 		case ResourceDatabase:
 			instanceName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
 			dbName := strings.ReplaceAll(res.Name, "-", "_")
-			sb.WriteString(fmt.Sprintf(`resource "random_password" "%s_db" {
+			fmt.Fprintf(&sb, `resource "random_password" "%s_db" {
   length           = 32
   special          = true
   override_special = "!#$%%^&*()-_=+[]{}<>:?"
@@ -437,13 +437,13 @@ resource "google_sql_user" "%s" {
 }
 
 `, res.Name,
-			res.Name, instanceName, config.Region,
-			res.Name, dbName, res.Name,
-			res.Name, res.Name, res.Name))
+				res.Name, instanceName, config.Region,
+				res.Name, dbName, res.Name,
+				res.Name, res.Name, res.Name)
 
 		case ResourceCache:
 			instanceName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_redis_instance" "%s" {
+			fmt.Fprintf(&sb, `resource "google_redis_instance" "%s" {
   name           = "%s"
   tier           = "BASIC"
   memory_size_gb = 1
@@ -457,11 +457,11 @@ resource "google_sql_user" "%s" {
 }
 
 `, res.Name, instanceName, config.Region,
-			fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name)))
+				fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name))
 
 		case ResourceQueue:
 			topicName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_pubsub_topic" "%s" {
+			fmt.Fprintf(&sb, `resource "google_pubsub_topic" "%s" {
   name = "%s"
 
   labels = local.common_labels
@@ -488,11 +488,11 @@ resource "google_pubsub_subscription" "%s_sub" {
 }
 
 `, res.Name, topicName,
-			res.Name, res.Name, res.Name))
+				res.Name, res.Name, res.Name)
 
 		case ResourceCDN:
 			bucketName := fmt.Sprintf("%s-%s-%s-cdn", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_compute_backend_bucket" "%s" {
+			fmt.Fprintf(&sb, `resource "google_compute_backend_bucket" "%s" {
   name        = "%s"
   bucket_name = google_storage_bucket.%s_cdn.name
   enable_cdn  = true
@@ -533,14 +533,14 @@ resource "google_compute_global_forwarding_rule" "%s" {
 }
 
 `, res.Name, res.Name, res.Name,
-			res.Name, bucketName, config.Region,
-			res.Name, res.Name, res.Name,
-			res.Name, res.Name, res.Name,
-			res.Name, res.Name, res.Name))
+				res.Name, bucketName, config.Region,
+				res.Name, res.Name, res.Name,
+				res.Name, res.Name, res.Name,
+				res.Name, res.Name, res.Name)
 
 		case ResourceServerless:
 			funcName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_cloudfunctions2_function" "%s" {
+			fmt.Fprintf(&sb, `resource "google_cloudfunctions2_function" "%s" {
   name     = "%s"
   location = "%s"
 
@@ -569,12 +569,12 @@ resource "google_compute_global_forwarding_rule" "%s" {
 }
 
 `, res.Name, funcName, config.Region,
-			config.Project, res.Name,
-			config.Environment))
+				config.Project, res.Name,
+				config.Environment)
 
 		case ResourceMonitoring:
 			displayName := fmt.Sprintf("%s %s %s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_monitoring_alert_policy" "%s" {
+			fmt.Fprintf(&sb, `resource "google_monitoring_alert_policy" "%s" {
   display_name = "%s"
   combiner     = "OR"
 
@@ -598,11 +598,11 @@ resource "google_compute_global_forwarding_rule" "%s" {
   labels = local.common_labels
 }
 
-`, res.Name, displayName, displayName))
+`, res.Name, displayName, displayName)
 
 		case ResourceSecrets:
 			secretID := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_secret_manager_secret" "%s" {
+			fmt.Fprintf(&sb, `resource "google_secret_manager_secret" "%s" {
   secret_id = "%s"
 
   replication {
@@ -612,10 +612,10 @@ resource "google_compute_global_forwarding_rule" "%s" {
   labels = local.common_labels
 }
 
-`, res.Name, secretID))
+`, res.Name, secretID)
 
 		case ResourceDNS:
-			sb.WriteString(fmt.Sprintf(`resource "google_dns_managed_zone" "%s" {
+			fmt.Fprintf(&sb, `resource "google_dns_managed_zone" "%s" {
   name        = "%s"
   dns_name    = "%s."
   description = "%s DNS zone"
@@ -624,11 +624,11 @@ resource "google_compute_global_forwarding_rule" "%s" {
 }
 
 `, res.Name, res.Name, res.Name,
-			fmt.Sprintf("%s-%s", config.Project, res.Name)))
+				fmt.Sprintf("%s-%s", config.Project, res.Name))
 
 		case ResourceNetworking:
 			networkName := fmt.Sprintf("%s-%s-%s", config.Project, config.Environment, res.Name)
-			sb.WriteString(fmt.Sprintf(`resource "google_compute_network" "%s" {
+			fmt.Fprintf(&sb, `resource "google_compute_network" "%s" {
   name                    = "%s"
   auto_create_subnetworks = true
   routing_mode            = "REGIONAL"
@@ -636,7 +636,7 @@ resource "google_compute_global_forwarding_rule" "%s" {
   labels = local.common_labels
 }
 
-`, res.Name, networkName))
+`, res.Name, networkName)
 
 		}
 	}

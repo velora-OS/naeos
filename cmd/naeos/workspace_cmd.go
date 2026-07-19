@@ -107,14 +107,14 @@ func newWorkspaceInfoCommand(rootDir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cmd.OutOrStdout().Write([]byte("Workspace Information\n"))
-			cmd.OutOrStdout().Write([]byte("─────────────────────\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Root:     %s\n", *rootDir)))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Modules:  %d\n", len(modules))))
+			_, _ = cmd.OutOrStdout().Write([]byte("Workspace Information\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("─────────────────────\n"))
+			fmt.Fprintf(cmd.OutOrStdout(), "Root:     %s\n", *rootDir)
+			fmt.Fprintf(cmd.OutOrStdout(), "Modules:  %d\n", len(modules))
 			if len(modules) > 0 {
-				cmd.OutOrStdout().Write([]byte("\nModules:\n"))
+				_, _ = cmd.OutOrStdout().Write([]byte("\nModules:\n"))
 				for _, m := range modules {
-					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  • %-20s %s\n", m.Name, m.Path)))
+					fmt.Fprintf(cmd.OutOrStdout(), "  • %-20s %s\n", m.Name, m.Path)
 				}
 			}
 			return nil
@@ -142,10 +142,10 @@ func newWorkspaceLockCommand(rootDir *string) *cobra.Command {
 			}
 
 			lockPath := *rootDir + "/naeos.lock"
-			if err := os.WriteFile(lockPath, []byte(content), 0o644); err != nil {
+			if err := os.WriteFile(lockPath, []byte(content), 0o600); err != nil {
 				return fmt.Errorf("write lockfile: %w", err)
 			}
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Created %s (%d modules locked)\n", lockPath, len(modules))))
+			fmt.Fprintf(cmd.OutOrStdout(), "Created %s (%d modules locked)\n", lockPath, len(modules))
 			return nil
 		},
 	}

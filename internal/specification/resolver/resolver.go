@@ -99,7 +99,7 @@ func resolveServiceEndpoints(context map[string]any) {
 		}
 		for _, ep := range endpoints {
 			if method, ok := ep["method"].(string); ok {
-				ep["method"] = fmt.Sprintf("%s", method)
+				ep["method"] = method
 			}
 			if path, ok := ep["path"].(string); ok && path != "" {
 				if path[0] != '/' {
@@ -149,8 +149,8 @@ type ValidationError struct {
 }
 
 type ValidationResult struct {
-	Valid      bool
-	Errors     []ValidationError
+	Valid  bool
+	Errors []ValidationError
 }
 
 func ValidateSpec(spec *ResolvedSpec) ValidationResult {

@@ -5,19 +5,21 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 type Snapshot struct {
-	ID        string           `json:"id"`
-	Timestamp time.Time        `json:"timestamp"`
-	OutputDir string           `json:"output_dir"`
+	ID        string             `json:"id"`
+	Timestamp time.Time          `json:"timestamp"`
+	OutputDir string             `json:"output_dir"`
 	Artifacts []SnapshotArtifact `json:"artifacts"`
-	Manifest  *Manifest        `json:"manifest,omitempty"`
+	Manifest  *Manifest          `json:"manifest,omitempty"`
 }
 
 type SnapshotArtifact struct {
@@ -26,12 +28,12 @@ type SnapshotArtifact struct {
 }
 
 type Manifest struct {
-	Version   int               `json:"version"`
-	SnapID    string            `json:"snap_id"`
-	Created   time.Time         `json:"created"`
-	Files     []ManifestFile    `json:"files"`
-	TotalSize int64             `json:"total_size"`
-	Checksum  string            `json:"checksum"`
+	Version   int            `json:"version"`
+	SnapID    string         `json:"snap_id"`
+	Created   time.Time      `json:"created"`
+	Files     []ManifestFile `json:"files"`
+	TotalSize int64          `json:"total_size"`
+	Checksum  string         `json:"checksum"`
 }
 
 type ManifestFile struct {
@@ -184,7 +186,7 @@ func (s *SnapshotStore) Restore(snapshotID, targetDir string) error {
 		if relPath == "manifest.json" {
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G122: path is from filepath.Walk under known snapDir
 		if err != nil {
 			return err
 		}
@@ -192,7 +194,7 @@ func (s *SnapshotStore) Restore(snapshotID, targetDir string) error {
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o600)
+		return os.WriteFile(target, data, 0o600) //nolint:gosec // G703: target is rooted under snapDir
 	})
 	if err != nil {
 		os.RemoveAll(tmpDir)
@@ -302,7 +304,7 @@ func (s *SnapshotStore) Export(snapshotID, destPath string) error {
 		if info.IsDir() {
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G122: path is from filepath.Walk under known snapDir
 		if err != nil {
 			return err
 		}
@@ -334,14 +336,17 @@ func (s *SnapshotStore) Import(srcPath string) (*Snapshot, error) {
 
 	for {
 		header, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
 
-		target := filepath.Join(snapDir, header.Name)
+		target := filepath.Join(snapDir, header.Name) //nolint:gosec // G305: path traversal validated on next line
+		if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(snapDir)+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("invalid path in archive: %s", header.Name)
+		}
 		if header.FileInfo().IsDir() {
 			if err := os.MkdirAll(target, 0o755); err != nil {
 				return nil, err

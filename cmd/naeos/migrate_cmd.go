@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/NAEOS-foundation/naeos/internal/migration"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/migration"
 )
 
 func newMigrateCommand() *cobra.Command {
@@ -68,7 +69,7 @@ func newMigrateRunCommand() *cobra.Command {
 				outPath = specFile
 			}
 
-			if err := os.WriteFile(outPath, result, 0o644); err != nil {
+			if err := os.WriteFile(outPath, result, 0o600); err != nil { //nolint:gosec // G703: outPath is a CLI-provided output path
 				return fmt.Errorf("write migrated spec: %w", err)
 			}
 

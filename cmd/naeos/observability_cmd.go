@@ -90,7 +90,7 @@ func newObsLogCommand() *cobra.Command {
 	cmd.Flags().StringVar(&level, "level", "info", "log level (debug, info, warn, error)")
 	cmd.Flags().StringVar(&message, "message", "", "log message (required)")
 	cmd.Flags().StringVar(&source, "source", "naeos", "log source")
-	cmd.MarkFlagRequired("message")
+	_ = cmd.MarkFlagRequired("message")
 	return cmd
 }
 
@@ -178,12 +178,12 @@ Example:
   naeos observability dashboard --port 9090`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Starting observability dashboard on http://localhost:%d\n", port)))
-			cmd.OutOrStdout().Write([]byte("Endpoints:\n"))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  GET /traces     — View traces\n")))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  GET /logs       — View logs\n")))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  GET /metrics    — View metrics\n")))
-			cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  GET /status     — System status\n")))
+			fmt.Fprintf(cmd.OutOrStdout(), "Starting observability dashboard on http://localhost:%d\n", port)
+			_, _ = cmd.OutOrStdout().Write([]byte("Endpoints:\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("  GET /traces     — View traces\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("  GET /logs       — View logs\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("  GET /metrics    — View metrics\n"))
+			_, _ = cmd.OutOrStdout().Write([]byte("  GET /status     — System status\n"))
 			return nil
 		},
 	}

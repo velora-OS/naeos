@@ -80,7 +80,6 @@ func ParseFile(path string) (*Spec, error) {
 
 var blockRe = regexp.MustCompile(`^(\w+)\s+"([^"]*)"\s*\{`)
 var kvRe = regexp.MustCompile(`^\s*(\w+)\s*=\s*(.+)$`)
-var envBlockRe = regexp.MustCompile(`^(\w+)\s+"([^"]*)"\s*\{`)
 
 // Parse converts raw HCL bytes into a Spec. It supports project, service,
 // infra, and nested env{} / volumes / depends sub-blocks inside services.
@@ -122,9 +121,10 @@ func Parse(data []byte, filename string) (*Spec, error) {
 			}
 			currentBlock = blockType
 			currentLabel = blockLabel
-			if currentBlock == "project" {
+			switch currentBlock {
+			case "project":
 				spec.Project.Name = currentLabel
-			} else if currentBlock == "service" {
+			case "service":
 				inService = currentLabel
 			}
 			continue
@@ -238,7 +238,7 @@ func Parse(data []byte, filename string) (*Spec, error) {
 // ToYAML (original logic)
 // ---------------------------------------------------------------------------
 
-// ToYAML serialises a Spec to a simple YAML-like representation.
+// ToYAML serializes a Spec to a simple YAML-like representation.
 func ToYAML(spec *Spec) ([]byte, error) {
 	var out []byte
 	out = append(out, []byte("project:\n")...)
@@ -337,7 +337,7 @@ func Validate(spec *Spec) []ParseError {
 // ToJSON
 // ---------------------------------------------------------------------------
 
-// ToJSON serialises a Spec to indented JSON.
+// ToJSON serializes a Spec to indented JSON.
 func ToJSON(spec *Spec) ([]byte, error) {
 	return json.MarshalIndent(spec, "", "  ")
 }

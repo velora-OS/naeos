@@ -13,7 +13,7 @@ type SARIFResult struct {
 }
 
 type SARIFRun struct {
-	Tool    SARIFTool          `json:"tool"`
+	Tool    SARIFTool         `json:"tool"`
 	Results []SARIFResultItem `json:"results"`
 }
 
@@ -22,19 +22,19 @@ type SARIFTool struct {
 }
 
 type SARIFDriver struct {
-	Name                string          `json:"name"`
-	Version             string          `json:"version"`
-	InformationURI      string          `json:"informationUri"`
-	Rules               []SARIFRule     `json:"rules"`
+	Name           string      `json:"name"`
+	Version        string      `json:"version"`
+	InformationURI string      `json:"informationUri"`
+	Rules          []SARIFRule `json:"rules"`
 }
 
 type SARIFRule struct {
-	ID               string           `json:"id"`
-	Name             string           `json:"name"`
-	ShortDescription SARIFDescription `json:"shortDescription"`
-	FullDescription  SARIFDescription `json:"fullDescription"`
-	HelpURI          string           `json:"helpUri"`
-	DefaultConfiguration SARIFConfig  `json:"defaultConfiguration"`
+	ID                   string           `json:"id"`
+	Name                 string           `json:"name"`
+	ShortDescription     SARIFDescription `json:"shortDescription"`
+	FullDescription      SARIFDescription `json:"fullDescription"`
+	HelpURI              string           `json:"helpUri"`
+	DefaultConfiguration SARIFConfig      `json:"defaultConfiguration"`
 }
 
 type SARIFDescription struct {
@@ -46,9 +46,9 @@ type SARIFConfig struct {
 }
 
 type SARIFResultItem struct {
-	RuleID  string            `json:"ruleId"`
-	Level   string            `json:"level"`
-	Message SARIFMessage      `json:"message"`
+	RuleID    string          `json:"ruleId"`
+	Level     string          `json:"level"`
+	Message   SARIFMessage    `json:"message"`
 	Locations []SARIFLocation `json:"locations"`
 }
 

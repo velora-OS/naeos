@@ -58,22 +58,22 @@ func (a *geminiAdapter) buildGeminiConfig(neir *model.NEIR) string {
 	sb.WriteString("# Gemini CLI Configuration\n\n")
 
 	if neir.Project != nil {
-		sb.WriteString(fmt.Sprintf("Project: %s\n", neir.Project.Name))
+		fmt.Fprintf(&sb, "Project: %s\n", neir.Project.Name)
 		if neir.Project.Description != "" {
-			sb.WriteString(fmt.Sprintf("Description: %s\n", neir.Project.Description))
+			fmt.Fprintf(&sb, "Description: %s\n", neir.Project.Description)
 		}
 	}
 
 	if neir.Architecture != nil {
-		sb.WriteString(fmt.Sprintf("\nArchitecture: %s\n", neir.Architecture.Pattern))
+		fmt.Fprintf(&sb, "\nArchitecture: %s\n", neir.Architecture.Pattern)
 	}
 
 	sb.WriteString("\n## Project Structure\n\n")
 	if len(neir.Modules) > 0 {
 		for _, m := range neir.Modules {
-			sb.WriteString(fmt.Sprintf("- `%s` → `%s`\n", m.Name, m.Path))
+			fmt.Fprintf(&sb, "- `%s` → `%s`\n", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("  %s\n", m.Description))
+				fmt.Fprintf(&sb, "  %s\n", m.Description)
 			}
 		}
 	}
@@ -81,7 +81,7 @@ func (a *geminiAdapter) buildGeminiConfig(neir *model.NEIR) string {
 	if len(neir.Services) > 0 {
 		sb.WriteString("\n## Services\n\n")
 		for _, s := range neir.Services {
-			sb.WriteString(fmt.Sprintf("- %s (%s, port %d)\n", s.Name, s.Kind, s.Port))
+			fmt.Fprintf(&sb, "- %s (%s, port %d)\n", s.Name, s.Kind, s.Port)
 		}
 	}
 
@@ -101,24 +101,24 @@ func (a *geminiAdapter) buildContextFile(neir *model.NEIR) string {
 	if len(neir.Components) > 0 {
 		sb.WriteString("## Components\n\n")
 		for _, c := range neir.Components {
-			sb.WriteString(fmt.Sprintf("- %s (%s) in module %s\n", c.Name, c.Kind, c.Module))
+			fmt.Fprintf(&sb, "- %s (%s) in module %s\n", c.Name, c.Kind, c.Module)
 		}
 	}
 
 	if len(neir.APIs) > 0 {
 		sb.WriteString("\n## APIs\n\n")
 		for _, api := range neir.APIs {
-			sb.WriteString(fmt.Sprintf("### %s (%s)\n", api.Name, api.Protocol))
+			fmt.Fprintf(&sb, "### %s (%s)\n", api.Name, api.Protocol)
 			for _, ep := range api.Endpoints {
-				sb.WriteString(fmt.Sprintf("- %s %s: %s\n", ep.Method, ep.Path, ep.Summary))
+				fmt.Fprintf(&sb, "- %s %s: %s\n", ep.Method, ep.Path, ep.Summary)
 			}
 		}
 	}
 
 	if neir.Testing != nil {
-		sb.WriteString(fmt.Sprintf("\n## Testing: %s strategy\n", neir.Testing.Strategy))
+		fmt.Fprintf(&sb, "\n## Testing: %s strategy\n", neir.Testing.Strategy)
 		if len(neir.Testing.Frameworks) > 0 {
-			sb.WriteString(fmt.Sprintf("Frameworks: %s\n", strings.Join(neir.Testing.Frameworks, ", ")))
+			fmt.Fprintf(&sb, "Frameworks: %s\n", strings.Join(neir.Testing.Frameworks, ", "))
 		}
 	}
 

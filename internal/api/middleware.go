@@ -121,7 +121,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", rl.window.String())
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"success":false,"error":"rate limit exceeded"}`))
+			_, _ = w.Write([]byte(`{"success":false,"error":"rate limit exceeded"}`))
 			return
 		}
 

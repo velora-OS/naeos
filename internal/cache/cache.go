@@ -32,10 +32,10 @@ type Cache struct {
 }
 
 type Stats struct {
-	Hits     int64
-	Misses   int64
-	Size     int
-	Evicted  int64
+	Hits    int64
+	Misses  int64
+	Size    int
+	Evicted int64
 }
 
 func New(capacity int, ttl time.Duration) *Cache {

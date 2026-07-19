@@ -202,9 +202,9 @@ func (m *MemoryAuditor) Aggregate() Aggregation {
 }
 
 type RetentionPolicy struct {
-	MaxAge    time.Duration
-	MaxCount  int
-	KeepDays  int
+	MaxAge   time.Duration
+	MaxCount int
+	KeepDays int
 }
 
 func (m *MemoryAuditor) ApplyRetention(policy RetentionPolicy) int {

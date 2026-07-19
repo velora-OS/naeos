@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/NAEOS-foundation/naeos/internal/dashboard"
-	"github.com/NAEOS-foundation/naeos/internal/api"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/api"
+	"github.com/NAEOS-foundation/naeos/internal/dashboard"
 )
 
 var (

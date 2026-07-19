@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,7 +33,7 @@ func TestNewServer(t *testing.T) {
 
 func TestHealthEndpoint(t *testing.T) {
 	s := newTestServer()
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 
 	s.handleHealth(w, req)
@@ -52,7 +53,7 @@ func TestHealthEndpoint(t *testing.T) {
 
 func TestHandleMCPMethodNotAllowed(t *testing.T) {
 	s := newTestServer()
-	req := httptest.NewRequest("GET", "/mcp", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/mcp", nil)
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -74,7 +75,7 @@ func TestHandleMCPMethodNotAllowed(t *testing.T) {
 
 func TestHandleMCPInvalidJSON(t *testing.T) {
 	s := newTestServer()
-	req := httptest.NewRequest("POST", "/mcp", strings.NewReader("not json"))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", strings.NewReader("not json"))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -101,7 +102,7 @@ func TestInitialize(t *testing.T) {
 		Method:  "initialize",
 		ID:      1,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -137,7 +138,7 @@ func TestToolsList(t *testing.T) {
 		Method:  "tools/list",
 		ID:      2,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -170,7 +171,7 @@ func TestUnknownMethod(t *testing.T) {
 		Method:  "unknown/method",
 		ID:      3,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -198,7 +199,7 @@ func TestCallToolParseSpec(t *testing.T) {
 		}),
 		ID: 4,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -223,7 +224,7 @@ func TestCallToolValidateSpec(t *testing.T) {
 		}),
 		ID: 5,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -248,7 +249,7 @@ func TestCallToolGenerateContext(t *testing.T) {
 		}),
 		ID: 6,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -273,7 +274,7 @@ func TestCallToolCompileSpec(t *testing.T) {
 		}),
 		ID: 7,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -298,7 +299,7 @@ func TestCallToolExplainConcept(t *testing.T) {
 		}),
 		ID: 8,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -323,7 +324,7 @@ func TestCallToolListArtifactsNoStore(t *testing.T) {
 		}),
 		ID: 12,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -348,7 +349,7 @@ func TestCallToolGetPipelineStatusMissingJob(t *testing.T) {
 		}),
 		ID: 13,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -387,7 +388,7 @@ func TestCallToolGetPipelineStatusFound(t *testing.T) {
 		}),
 		ID: 14,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -412,7 +413,7 @@ func TestCallToolGetPipelineStatusNoJobID(t *testing.T) {
 		}),
 		ID: 15,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -437,7 +438,7 @@ func TestCallToolExportTerraform(t *testing.T) {
 		}),
 		ID: 16,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -462,7 +463,7 @@ func TestCallToolExportTerraformNoSpec(t *testing.T) {
 		}),
 		ID: 17,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -487,7 +488,7 @@ func TestCallToolListPluginsNoManager(t *testing.T) {
 		}),
 		ID: 18,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -512,7 +513,7 @@ func TestCallToolUnknownTool(t *testing.T) {
 		}),
 		ID: 9,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -534,7 +535,7 @@ func TestCallToolInvalidParams(t *testing.T) {
 		Params:  json.RawMessage(`{"name": 123}`),
 		ID:      10,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -559,7 +560,7 @@ func TestExplainConceptUnknown(t *testing.T) {
 		}),
 		ID: 11,
 	})
-	req := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -612,7 +613,7 @@ func FuzzHandleMCP(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, input string) {
 		s := newTestServer()
-		req := httptest.NewRequest("POST", "/mcp", strings.NewReader(input))
+		req := httptest.NewRequestWithContext(context.Background(), "POST", "/mcp", strings.NewReader(input))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)

@@ -487,7 +487,7 @@ func (kg *KnowledgeGraph) ExportDOT() string {
 		if n.Type != "" {
 			attrs += fmt.Sprintf(` style=filled fillcolor="%s"`, nodeColor(n.Type))
 		}
-		sb.WriteString(fmt.Sprintf("  %s [%s];\n", n.ID, attrs))
+		fmt.Fprintf(&sb, "  %s [%s];\n", n.ID, attrs)
 	}
 
 	sb.WriteString("\n")
@@ -496,7 +496,7 @@ func (kg *KnowledgeGraph) ExportDOT() string {
 		if e.Weight > 1 {
 			attrs += fmt.Sprintf(` penwidth=%d`, e.Weight)
 		}
-		sb.WriteString(fmt.Sprintf("  %s -> %s [%s];\n", e.From, e.To, attrs))
+		fmt.Fprintf(&sb, "  %s -> %s [%s];\n", e.From, e.To, attrs)
 	}
 
 	sb.WriteString("}\n")

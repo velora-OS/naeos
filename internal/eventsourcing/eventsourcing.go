@@ -111,11 +111,11 @@ func (a *Aggregate) ToJSON() ([]byte, error) {
 
 type PipelineRunSnapshot struct {
 	Aggregate
-	Name       string         `json:"name"`
-	Status     string         `json:"status"`
-	Artifacts  int            `json:"artifacts"`
-	Error      string         `json:"error,omitempty"`
-	Metadata   map[string]any `json:"metadata,omitempty"`
+	Name      string         `json:"name"`
+	Status    string         `json:"status"`
+	Artifacts int            `json:"artifacts"`
+	Error     string         `json:"error,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
 func NewPipelineRun(id, name string) *PipelineRunSnapshot {
@@ -253,7 +253,7 @@ func (s *FileStore) Append(streamID string, events []Event) error {
 		return fmt.Errorf("create dir: %w", err)
 	}
 	path := s.dir + "/" + streamID + ".json"
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func (s *FileStore) Load(streamID string) ([]Event, error) {

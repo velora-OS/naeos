@@ -86,7 +86,7 @@ func (s *Sandbox) ExecuteWithTimeout(ctx context.Context, fn func() (any, error)
 
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("plugin execution cancelled: %w", ctx.Err())
+		return nil, fmt.Errorf("plugin execution canceled: %w", ctx.Err())
 	case <-timer.C:
 		return nil, fmt.Errorf("plugin execution timed out after %s", s.config.ExecTimeout)
 	case r := <-ch:

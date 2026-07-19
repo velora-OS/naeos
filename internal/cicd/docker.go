@@ -22,7 +22,7 @@ func (g *DockerComposeGenerator) Generate(config *PipelineConfig) (string, error
 		serviceName = "app"
 	}
 
-	sb.WriteString(fmt.Sprintf("  %s:\n", serviceName))
+	fmt.Fprintf(&sb, "  %s:\n", serviceName)
 	sb.WriteString("    build:\n")
 	sb.WriteString("      context: .\n")
 	sb.WriteString("      dockerfile: Dockerfile\n")
@@ -103,7 +103,7 @@ func (g *DockerComposeGenerator) Generate(config *PipelineConfig) (string, error
 	if len(config.Steps) > 0 {
 		sb.WriteString("\n# Custom steps:\n")
 		for _, step := range config.Steps {
-			sb.WriteString(fmt.Sprintf("#   %s: %s\n", step.Name, step.Command))
+			fmt.Fprintf(&sb, "#   %s: %s\n", step.Name, step.Command)
 		}
 	}
 

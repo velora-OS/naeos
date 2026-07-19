@@ -35,7 +35,7 @@ func (g *AzurePipelinesGenerator) Generate(config *PipelineConfig) (string, erro
 	}
 	if config.Trigger.Schedule != "" {
 		sb.WriteString("schedules:\n")
-		sb.WriteString(fmt.Sprintf("  - cron: '%s'\n", config.Trigger.Schedule))
+		fmt.Fprintf(&sb, "  - cron: '%s'\n", config.Trigger.Schedule)
 		sb.WriteString("    displayName: 'Scheduled Build'\n")
 		sb.WriteString("    branches:\n")
 		sb.WriteString("      include:\n")
@@ -49,7 +49,7 @@ func (g *AzurePipelinesGenerator) Generate(config *PipelineConfig) (string, erro
 	if len(config.Secrets) > 0 {
 		sb.WriteString("variables:\n")
 		for _, secret := range config.Secrets {
-			sb.WriteString(fmt.Sprintf("  %s: $(%s)\n", strings.ToUpper(secret), secret))
+			fmt.Fprintf(&sb, "  %s: $(%s)\n", strings.ToUpper(secret), secret)
 		}
 		sb.WriteString("\n")
 	}
@@ -154,8 +154,8 @@ func (g *AzurePipelinesGenerator) Generate(config *PipelineConfig) (string, erro
 	sb.WriteString("                - script: echo 'Deploying...'\n")
 	sb.WriteString("                  displayName: 'Deploy'\n")
 	for _, step := range config.Steps {
-		sb.WriteString(fmt.Sprintf("                - script: %s\n", step.Command))
-		sb.WriteString(fmt.Sprintf("                  displayName: '%s'\n", step.Name))
+		fmt.Fprintf(&sb, "                - script: %s\n", step.Command)
+		fmt.Fprintf(&sb, "                  displayName: '%s'\n", step.Name)
 	}
 
 	return sb.String(), nil

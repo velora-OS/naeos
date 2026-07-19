@@ -28,7 +28,7 @@ func (g *GitHubActionsGenerator) Generate(config *PipelineConfig) (string, error
 		sb.WriteString("  release:\n    types: [created]\n")
 	}
 	if config.Trigger.Schedule != "" {
-		sb.WriteString(fmt.Sprintf("  schedule:\n    - cron: '%s'\n", config.Trigger.Schedule))
+		fmt.Fprintf(&sb, "  schedule:\n    - cron: '%s'\n", config.Trigger.Schedule)
 	}
 	sb.WriteString("\n")
 
@@ -92,8 +92,8 @@ func (g *GitHubActionsGenerator) Generate(config *PipelineConfig) (string, error
 
 	// Custom steps
 	for _, step := range config.Steps {
-		sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
-		sb.WriteString(fmt.Sprintf("        run: %s\n\n", step.Command))
+		fmt.Fprintf(&sb, "      - name: %s\n", step.Name)
+		fmt.Fprintf(&sb, "        run: %s\n\n", step.Command)
 	}
 
 	return sb.String(), nil

@@ -227,11 +227,12 @@ func extractTesting(m map[string]any) *testingmodel.Testing {
 	}
 	if coverage, ok := m["coverage"].(string); ok {
 		minPercent := 0.0
-		if coverage == "high" {
+		switch coverage {
+		case "high":
 			minPercent = 80.0
-		} else if coverage == "medium" {
+		case "medium":
 			minPercent = 60.0
-		} else if coverage == "low" {
+		case "low":
 			minPercent = 40.0
 		}
 		test.Coverage = &testingmodel.Coverage{MinPercent: minPercent}

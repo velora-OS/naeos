@@ -10,26 +10,26 @@ type CloudProvider string
 
 const (
 	// AWS is the Amazon Web Services provider.
-	AWS   CloudProvider = "aws"
+	AWS CloudProvider = "aws"
 	// GCP is the Google Cloud Platform provider.
-	GCP   CloudProvider = "gcp"
+	GCP CloudProvider = "gcp"
 	// Azure is the Microsoft Azure provider.
 	Azure CloudProvider = "azure"
 )
 
 // ResourceTypes maps abstract resource types to supported kinds.
 const (
-	ResourceStorage     = "storage"
-	ResourceCompute     = "compute"
-	ResourceDatabase    = "database"
-	ResourceCache       = "cache"
-	ResourceQueue       = "queue"
-	ResourceCDN         = "cdn"
-	ResourceServerless  = "serverless"
-	ResourceMonitoring  = "monitoring"
-	ResourceSecrets     = "secrets"
-	ResourceDNS         = "dns"
-	ResourceNetworking  = "networking"
+	ResourceStorage    = "storage"
+	ResourceCompute    = "compute"
+	ResourceDatabase   = "database"
+	ResourceCache      = "cache"
+	ResourceQueue      = "queue"
+	ResourceCDN        = "cdn"
+	ResourceServerless = "serverless"
+	ResourceMonitoring = "monitoring"
+	ResourceSecrets    = "secrets"
+	ResourceDNS        = "dns"
+	ResourceNetworking = "networking"
 )
 
 // SupportedResourceTypes lists all abstract resource types across providers.
@@ -65,11 +65,11 @@ type Resource struct {
 
 // DeployResult contains the outcome of a cloud deployment.
 type DeployResult struct {
-	Provider   CloudProvider
-	Resources  []DeployedResource
-	Terraform  string
-	Status     string
-	Timestamp  time.Time
+	Provider  CloudProvider
+	Resources []DeployedResource
+	Terraform string
+	Status    string
+	Timestamp time.Time
 }
 
 // DeployedResource represents a cloud resource that has been provisioned.
@@ -82,8 +82,8 @@ type DeployedResource struct {
 
 // PlanResult contains resources and cost estimates for a planned deployment.
 type PlanResult struct {
-	Resources     []Resource   `json:"resources"`
-	CostEstimate  CostEstimate `json:"cost_estimate"`
+	Resources    []Resource   `json:"resources"`
+	CostEstimate CostEstimate `json:"cost_estimate"`
 }
 
 // CloudAdapter is the interface implemented by cloud provider adapters.

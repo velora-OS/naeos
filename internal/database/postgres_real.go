@@ -80,7 +80,7 @@ func (p *RealPostgreSQL) Ping() error {
 	if p.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return p.db.Ping()
+	return p.db.PingContext(context.Background())
 }
 
 func (p *RealPostgreSQL) Exec(query string, args ...any) (Result, error) {
@@ -232,12 +232,12 @@ func (p *RealPostgreSQL) MigrateContext(ctx context.Context, migrations []Migrat
 		}
 
 		if _, err := tx.ExecContext(ctx, m.Up); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %d: %w", m.Version, err)
 		}
 
 		if _, err := tx.ExecContext(ctx, "INSERT INTO _migrations (version, name, down_sql) VALUES ($1, $2, $3)", m.Version, m.Name, m.Down); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("record migration %d: %w", m.Version, err)
 		}
 
@@ -281,13 +281,13 @@ func (p *RealPostgreSQL) RollbackContext(ctx context.Context, version int) error
 
 		if m.Down != "" {
 			if _, err := tx.ExecContext(ctx, m.Down); err != nil {
-				tx.Rollback()
+				_ = tx.Rollback()
 				return fmt.Errorf("execute down migration %d (%s): %w", m.Version, m.Name, err)
 			}
 		}
 
 		if _, err := tx.ExecContext(ctx, "DELETE FROM _migrations WHERE version = $1", m.Version); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("remove migration record %d: %w", m.Version, err)
 		}
 
@@ -303,7 +303,7 @@ func (p *RealPostgreSQL) HealthCheck() error {
 	if p.db == nil {
 		return fmt.Errorf("not connected")
 	}
-	return p.db.Ping()
+	return p.db.PingContext(context.Background())
 }
 
 type RealPostgreSQLTx struct {

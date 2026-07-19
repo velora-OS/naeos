@@ -65,8 +65,8 @@ func newSecuritySetSecretCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "secret name (required)")
 	cmd.Flags().StringVar(&value, "value", "", "secret value (required)")
 	cmd.Flags().StringVar(&key, "key", "", "encryption key (optional; defaults to built-in key)")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("value")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("value")
 	return cmd
 }
 
@@ -95,7 +95,7 @@ func newSecurityGetSecretCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "secret name (required)")
 	cmd.Flags().StringVar(&key, "key", "", "encryption key (optional; defaults to built-in key)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -163,7 +163,7 @@ func newSecuritySanitizeCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&input, "input", "", "input to sanitize (required)")
 	cmd.Flags().StringVar(&mode, "mode", "all", "sanitize mode (html, sql, xss, path, all)")
-	cmd.MarkFlagRequired("input")
+	_ = cmd.MarkFlagRequired("input")
 	return cmd
 }
 
@@ -185,7 +185,7 @@ func newSecurityHashPasswordCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&password, "password", "", "password to hash (required)")
-	cmd.MarkFlagRequired("password")
+	_ = cmd.MarkFlagRequired("password")
 	return cmd
 }
 
@@ -214,15 +214,8 @@ func newSecurityValidateCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "rule name (email, name)")
 	cmd.Flags().StringVar(&value, "value", "", "value to validate (required)")
-	cmd.MarkFlagRequired("value")
+	_ = cmd.MarkFlagRequired("value")
 	return cmd
-}
-
-func joinSecStrings(ss []string) string {
-	if len(ss) == 0 {
-		return "(none)"
-	}
-	return strings.Join(ss, ", ")
 }
 
 func newSecurityAuditCommand() *cobra.Command {

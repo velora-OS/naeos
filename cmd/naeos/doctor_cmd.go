@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -117,7 +118,7 @@ func checkGo() checkResult {
 	if err != nil {
 		return checkResult{Name: "Go toolchain", Status: "fail", Detail: "go not found in PATH"}
 	}
-	out, err := exec.Command(path, "version").Output()
+	out, err := exec.CommandContext(context.Background(), path, "version").Output()
 	if err != nil {
 		return checkResult{Name: "Go toolchain", Status: "fail", Detail: "go version failed"}
 	}
@@ -129,7 +130,7 @@ func checkNode() checkResult {
 	if err != nil {
 		return checkResult{Name: "Node.js", Status: "warn", Detail: "not installed (optional for TypeScript/JS projects)"}
 	}
-	out, err := exec.Command(path, "--version").Output()
+	out, err := exec.CommandContext(context.Background(), path, "--version").Output()
 	if err != nil {
 		return checkResult{Name: "Node.js", Status: "warn", Detail: "installed but version check failed"}
 	}
@@ -149,7 +150,7 @@ func checkPython() checkResult {
 		if err != nil {
 			continue
 		}
-		out, err := exec.Command(path, "--version").Output()
+		out, err := exec.CommandContext(context.Background(), path, "--version").Output()
 		if err != nil {
 			continue
 		}
@@ -173,7 +174,7 @@ func checkJava() checkResult {
 	if err != nil {
 		return checkResult{Name: "Java", Status: "warn", Detail: "not installed (optional for Java projects)"}
 	}
-	out, err := exec.Command(path, "-version").Output()
+	out, err := exec.CommandContext(context.Background(), path, "-version").Output()
 	if err != nil {
 		return checkResult{Name: "Java", Status: "warn", Detail: "installed but version check failed"}
 	}
@@ -205,7 +206,7 @@ func checkRust() checkResult {
 	if err != nil {
 		return checkResult{Name: "Rust", Status: "warn", Detail: "not installed (optional for Rust projects)"}
 	}
-	out, err := exec.Command(path, "--version").Output()
+	out, err := exec.CommandContext(context.Background(), path, "--version").Output()
 	if err != nil {
 		return checkResult{Name: "Rust", Status: "warn", Detail: "installed but version check failed"}
 	}
@@ -224,7 +225,7 @@ func checkDocker() checkResult {
 	if err != nil {
 		return checkResult{Name: "Docker", Status: "warn", Detail: "not installed (optional for containerized deployment)"}
 	}
-	out, err := exec.Command(path, "version", "--format", "{{.Server.Version}}").Output()
+	out, err := exec.CommandContext(context.Background(), path, "version", "--format", "{{.Server.Version}}").Output()
 	if err != nil {
 		return checkResult{Name: "Docker", Status: "warn", Detail: "installed but daemon not running"}
 	}
@@ -236,7 +237,7 @@ func checkGit() checkResult {
 	if err != nil {
 		return checkResult{Name: "Git", Status: "fail", Detail: "git not found in PATH"}
 	}
-	out, err := exec.Command(path, "version").Output()
+	out, err := exec.CommandContext(context.Background(), path, "version").Output()
 	if err != nil {
 		return checkResult{Name: "Git", Status: "fail", Detail: "git version failed"}
 	}
@@ -302,7 +303,11 @@ func checkSpec(specFile string) checkResult {
 
 func checkNetwork() checkResult {
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("https://github.com")
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "https://github.com", nil)
+	if err != nil {
+		return checkResult{Name: "Network", Status: "warn", Detail: "cannot create request"}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return checkResult{Name: "Network", Status: "warn", Detail: "cannot reach github.com"}
 	}
@@ -314,7 +319,7 @@ func checkGoModule() checkResult {
 	if _, err := os.Stat("go.mod"); err != nil {
 		return checkResult{Name: "Go Module", Status: "warn", Detail: "go.mod not found in current directory"}
 	}
-	cmd := exec.Command("go", "mod", "verify")
+	cmd := exec.CommandContext(context.Background(), "go", "mod", "verify")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return checkResult{Name: "Go Module", Status: "warn", Detail: "modules may need verification"}
@@ -367,20 +372,20 @@ func renderDoctorJSON(cmd *cobra.Command, results []checkResult) error {
 	}
 
 	report := map[string]any{
-		"status":  status,
-		"version": version.String(),
-		"go":      runtime.Version(),
+		"status":   status,
+		"version":  version.String(),
+		"go":       runtime.Version(),
 		"platform": runtime.GOOS + "/" + runtime.GOARCH,
-		"passed":  passed,
-		"warned":  warned,
-		"failed":  failed,
-		"checks":  results,
+		"passed":   passed,
+		"warned":   warned,
+		"failed":   failed,
+		"checks":   results,
 	}
 	data, err := json.Marshal(report)
 	if err != nil {
 		return err
 	}
-	cmd.OutOrStdout().Write(data)
-	cmd.OutOrStdout().Write([]byte("\n"))
+	_, _ = cmd.OutOrStdout().Write(data)
+	_, _ = cmd.OutOrStdout().Write([]byte("\n"))
 	return nil
 }

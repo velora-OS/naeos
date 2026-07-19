@@ -1,11 +1,11 @@
 package ai
 
 type AI struct {
-	Models        []Model           `json:"models,omitempty"`
-	Prompts       []Prompt          `json:"prompts,omitempty"`
+	Models         []Model           `json:"models,omitempty"`
+	Prompts        []Prompt          `json:"prompts,omitempty"`
 	ContextBundles []ContextBundle   `json:"context_bundles,omitempty"`
-	Embeddings    []Embedding       `json:"embeddings,omitempty"`
-	Attributes    map[string]string `json:"attributes,omitempty"`
+	Embeddings     []Embedding       `json:"embeddings,omitempty"`
+	Attributes     map[string]string `json:"attributes,omitempty"`
 }
 
 type Model struct {
@@ -26,6 +26,6 @@ type ContextBundle struct {
 }
 
 type Embedding struct {
-	Name   string `json:"name"`
-	Dimension int  `json:"dimension,omitempty"`
+	Name      string `json:"name"`
+	Dimension int    `json:"dimension,omitempty"`
 }

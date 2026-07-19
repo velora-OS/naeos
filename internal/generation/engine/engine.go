@@ -276,7 +276,7 @@ func generateDockerfile(lang language.Language) string {
 	}
 }
 
-func generateModuleFile(lang language.Language, moduleName, projectName string) string {
+func generateModuleFile(lang language.Language, moduleName, _ string) string {
 	pkg := strutil.Slugify(moduleName)
 	switch lang {
 	case language.LanguageGo:

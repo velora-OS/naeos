@@ -160,16 +160,17 @@ func GenerateNotificationBlock(config *PipelineConfig, notifications []*Notifica
 		allSteps = append(allSteps, steps...)
 	}
 
-	if config.Platform == GitHubActions {
+	switch config.Platform {
+	case GitHubActions:
 		return generateGitHubNotificationBlock(allSteps), nil
-	} else if config.Platform == GitLabCI {
+	case GitLabCI:
 		return generateGitLabNotificationBlock(allSteps), nil
 	}
 
 	var sb strings.Builder
 	for _, step := range allSteps {
-		sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
-		sb.WriteString(fmt.Sprintf("        run: %s\n\n", step.Command))
+		fmt.Fprintf(&sb, "      - name: %s\n", step.Name)
+		fmt.Fprintf(&sb, "        run: %s\n\n", step.Command)
 	}
 	return sb.String(), nil
 }
@@ -177,8 +178,8 @@ func GenerateNotificationBlock(config *PipelineConfig, notifications []*Notifica
 func generateGitHubNotificationBlock(steps []PipelineStep) string {
 	var sb strings.Builder
 	for _, step := range steps {
-		sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
-		sb.WriteString(fmt.Sprintf("        run: |\n          %s\n\n", strings.ReplaceAll(step.Command, "\n", "\n          ")))
+		fmt.Fprintf(&sb, "      - name: %s\n", step.Name)
+		fmt.Fprintf(&sb, "        run: |\n          %s\n\n", strings.ReplaceAll(step.Command, "\n", "\n          "))
 	}
 	return sb.String()
 }
@@ -189,7 +190,7 @@ func generateGitLabNotificationBlock(steps []PipelineStep) string {
 	sb.WriteString("  stage: deploy\n")
 	sb.WriteString("  script:\n")
 	for _, step := range steps {
-		sb.WriteString(fmt.Sprintf("    - %s\n", step.Command))
+		fmt.Fprintf(&sb, "    - %s\n", step.Command)
 	}
 	sb.WriteString("\n")
 	return sb.String()
@@ -198,20 +199,21 @@ func generateGitLabNotificationBlock(steps []PipelineStep) string {
 func FormatNotificationStepsYAML(steps []PipelineStep, platform CICDPlatform) string {
 	var sb strings.Builder
 
-	if platform == GitHubActions {
+	switch platform {
+	case GitHubActions:
 		for _, step := range steps {
-			sb.WriteString(fmt.Sprintf("      - name: %s\n", step.Name))
+			fmt.Fprintf(&sb, "      - name: %s\n", step.Name)
 			if len(step.Env) > 0 {
 				sb.WriteString("        env:\n")
 				for k, v := range step.Env {
-					sb.WriteString(fmt.Sprintf("          %s: %s\n", k, v))
+					fmt.Fprintf(&sb, "          %s: %s\n", k, v)
 				}
 			}
-			sb.WriteString(fmt.Sprintf("        run: %s\n\n", step.Command))
+			fmt.Fprintf(&sb, "        run: %s\n\n", step.Command)
 		}
-	} else if platform == GitLabCI {
+	case GitLabCI:
 		for _, step := range steps {
-			sb.WriteString(fmt.Sprintf("    - %s\n", step.Command))
+			fmt.Fprintf(&sb, "    - %s\n", step.Command)
 		}
 	}
 

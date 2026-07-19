@@ -29,11 +29,10 @@ Example:
 				return err
 			}
 
-			cfg, configPathUsed, err := loadPipelineConfig(configPath, cliVerbose, languages, cliDryRun || dryRun)
+			cfg, err := loadPipelineConfig(configPath, cliVerbose, languages, cliDryRun || dryRun)
 			if err != nil {
 				return err
 			}
-			_ = configPathUsed
 
 			p, err := pipeline.New(*cfg)
 			if err != nil {

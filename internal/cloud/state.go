@@ -14,14 +14,14 @@ import (
 
 // DeploymentRecord stores the state of a completed cloud deployment.
 type DeploymentRecord struct {
-	Project          string           `json:"project"`
-	Provider         CloudProvider    `json:"provider"`
-	Environment      string           `json:"environment"`
-	Region           string           `json:"region"`
-	Resources        []DeployedResource `json:"resources"`
-	TerraformDir     string           `json:"terraform_dir"`
-	Timestamp        time.Time        `json:"timestamp"`
-	Status           string           `json:"status"`
+	Project      string             `json:"project"`
+	Provider     CloudProvider      `json:"provider"`
+	Environment  string             `json:"environment"`
+	Region       string             `json:"region"`
+	Resources    []DeployedResource `json:"resources"`
+	TerraformDir string             `json:"terraform_dir"`
+	Timestamp    time.Time          `json:"timestamp"`
+	Status       string             `json:"status"`
 }
 
 // StateManager persists deployment records to disk.
@@ -43,7 +43,7 @@ func NewStateManagerWithDir(baseDir string) *StateManager {
 }
 
 func (s *StateManager) deploymentPath(project, provider string) string {
-	return filepath.Join(s.baseDir, project, string(provider), "deployment.json")
+	return filepath.Join(s.baseDir, project, provider, "deployment.json")
 }
 
 // Save persists a deployment record to disk.
@@ -73,7 +73,7 @@ func (s *StateManager) Save(record *DeploymentRecord) error {
 	}
 
 	path := s.deploymentPath(record.Project, string(record.Provider))
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to write deployment record", err)
 	}
 	return nil

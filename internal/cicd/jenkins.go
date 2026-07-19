@@ -21,7 +21,7 @@ func (g *JenkinsGenerator) Generate(config *PipelineConfig) (string, error) {
 	if len(config.Secrets) > 0 {
 		sb.WriteString("    environment {\n")
 		for _, secret := range config.Secrets {
-			sb.WriteString(fmt.Sprintf("        %s = credentials('%s')\n", strings.ToUpper(secret), secret))
+			fmt.Fprintf(&sb, "        %s = credentials('%s')\n", strings.ToUpper(secret), secret)
 		}
 		sb.WriteString("    }\n\n")
 	}
@@ -78,7 +78,7 @@ func (g *JenkinsGenerator) Generate(config *PipelineConfig) (string, error) {
 	sb.WriteString("            steps {\n")
 	sb.WriteString("                echo 'Deploying...'\n")
 	for _, step := range config.Steps {
-		sb.WriteString(fmt.Sprintf("                sh '%s'\n", step.Command))
+		fmt.Fprintf(&sb, "                sh '%s'\n", step.Command)
 	}
 	sb.WriteString("            }\n")
 	sb.WriteString("        }\n")

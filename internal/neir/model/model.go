@@ -6,8 +6,8 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/architecture"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/component"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/deployment"
-	"github.com/NAEOS-foundation/naeos/internal/neir/model/domain"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/docs"
+	"github.com/NAEOS-foundation/naeos/internal/neir/model/domain"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/generation"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/infrastructure"
 	"github.com/NAEOS-foundation/naeos/internal/neir/model/metadata"
@@ -20,20 +20,20 @@ import (
 )
 
 type NEIR struct {
-	Project        *project.Project              `json:"project,omitempty"`
-	Architecture   *architecture.Architecture    `json:"architecture,omitempty"`
-	Domain         *domain.Domain                `json:"domain,omitempty"`
-	Modules        []module.Module               `json:"modules,omitempty"`
-	Components     []component.Component         `json:"components,omitempty"`
-	Services       []service.Service             `json:"services,omitempty"`
-	APIs           []api.API                     `json:"apis,omitempty"`
-	Storage        []storage.Storage             `json:"storage,omitempty"`
+	Project        *project.Project               `json:"project,omitempty"`
+	Architecture   *architecture.Architecture     `json:"architecture,omitempty"`
+	Domain         *domain.Domain                 `json:"domain,omitempty"`
+	Modules        []module.Module                `json:"modules,omitempty"`
+	Components     []component.Component          `json:"components,omitempty"`
+	Services       []service.Service              `json:"services,omitempty"`
+	APIs           []api.API                      `json:"apis,omitempty"`
+	Storage        []storage.Storage              `json:"storage,omitempty"`
 	Infrastructure *infrastructure.Infrastructure `json:"infrastructure,omitempty"`
-	Security       *security.Security            `json:"security,omitempty"`
-	AI             *ai.AI                        `json:"ai,omitempty"`
-	Documentation  *docs.Documentation           `json:"documentation,omitempty"`
-	Deployment     *deployment.Deployment        `json:"deployment,omitempty"`
-	Testing        *testingmodel.Testing         `json:"testing,omitempty"`
-	Metadata       *metadata.Metadata            `json:"metadata,omitempty"`
-	Generation     *generation.GenerationConfig  `json:"generation,omitempty"`
+	Security       *security.Security             `json:"security,omitempty"`
+	AI             *ai.AI                         `json:"ai,omitempty"`
+	Documentation  *docs.Documentation            `json:"documentation,omitempty"`
+	Deployment     *deployment.Deployment         `json:"deployment,omitempty"`
+	Testing        *testingmodel.Testing          `json:"testing,omitempty"`
+	Metadata       *metadata.Metadata             `json:"metadata,omitempty"`
+	Generation     *generation.GenerationConfig   `json:"generation,omitempty"`
 }

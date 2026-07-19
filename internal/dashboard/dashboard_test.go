@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,7 @@ func TestServeHTTP(t *testing.T) {
 		t.Fatalf("failed to create dashboard: %v", err)
 	}
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	w := httptest.NewRecorder()
 
 	d.ServeHTTP(w, req)
@@ -535,7 +536,7 @@ func TestAPIHandlerStats(t *testing.T) {
 	d, _ := New()
 	ah := NewAPIHandler(d, NewActivityLog(10), NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/stats", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/stats", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -562,7 +563,7 @@ func TestAPIHandlerActivity(t *testing.T) {
 
 	ah := NewAPIHandler(d, al, NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/activity", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/activity", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -593,7 +594,7 @@ func TestAPIHandlerActivityFilter(t *testing.T) {
 
 	ah := NewAPIHandler(d, al, NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/activity?level=error", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/activity?level=error", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -616,7 +617,7 @@ func TestAPIHandlerHealth(t *testing.T) {
 
 	ah := NewAPIHandler(d, NewActivityLog(10), ch, DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/health", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -635,7 +636,7 @@ func TestAPIHandlerNotFound(t *testing.T) {
 	d, _ := New()
 	ah := NewAPIHandler(d, NewActivityLog(10), NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/unknown", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/unknown", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -657,7 +658,7 @@ func TestAPIHandlerContentType(t *testing.T) {
 	d, _ := New()
 	ah := NewAPIHandler(d, NewActivityLog(10), NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/stats", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/stats", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -670,7 +671,7 @@ func TestAPIResponseTimestamp(t *testing.T) {
 	d, _ := New()
 	ah := NewAPIHandler(d, NewActivityLog(10), NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/stats", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/stats", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -757,7 +758,7 @@ func TestAPIActivityContainsFilter(t *testing.T) {
 
 	ah := NewAPIHandler(d, al, NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/activity?contains=deploy", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/activity?contains=deploy", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -781,7 +782,7 @@ func TestAPIActivityLimitParam(t *testing.T) {
 
 	ah := NewAPIHandler(d, al, NewComponentHealth(), DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/activity?limit=5", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/activity?limit=5", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 
@@ -804,7 +805,7 @@ func TestAPIHealthSummaryJSON(t *testing.T) {
 
 	ah := NewAPIHandler(d, NewActivityLog(10), ch, DefaultConfig())
 
-	req := httptest.NewRequest("GET", "/api/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/health", nil)
 	w := httptest.NewRecorder()
 	ah.ServeHTTP(w, req)
 

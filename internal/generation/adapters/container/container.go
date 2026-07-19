@@ -190,12 +190,12 @@ func (g *Generator) generateDockerCompose(neir *model.NEIR) []engine.Artifact {
 			port = svc.Port
 		}
 
-		sb.WriteString(fmt.Sprintf("  %s:\n", svc.Name))
+		fmt.Fprintf(&sb, "  %s:\n", svc.Name)
 		sb.WriteString("    build: .\n")
 		sb.WriteString("    ports:\n")
-		sb.WriteString(fmt.Sprintf("      - \"%d:%d\"\n", port, port))
+		fmt.Fprintf(&sb, "      - \"%d:%d\"\n", port, port)
 		sb.WriteString("    environment:\n")
-		sb.WriteString(fmt.Sprintf("      - SERVICE_NAME=%s\n", svc.Name))
+		fmt.Fprintf(&sb, "      - SERVICE_NAME=%s\n", svc.Name)
 		sb.WriteString("\n")
 	}
 

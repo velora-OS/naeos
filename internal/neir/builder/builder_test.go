@@ -8,8 +8,8 @@ import (
 
 func TestBuilderCreatesNEIRFromResolvedSpec(t *testing.T) {
 	resolved := &resolver.ResolvedSpec{Context: map[string]any{
-		"project": "acme-api",
-		"modules": []map[string]any{{"name": "auth", "path": "./internal/auth"}},
+		"project":  "acme-api",
+		"modules":  []map[string]any{{"name": "auth", "path": "./internal/auth"}},
 		"services": []map[string]any{{"name": "gateway", "kind": "http", "port": 8080}},
 	}}
 
@@ -40,8 +40,8 @@ func TestBuilderCreatesNEIRFromResolvedSpec(t *testing.T) {
 
 func TestBuilderExtractsArchitecture(t *testing.T) {
 	resolved := &resolver.ResolvedSpec{Context: map[string]any{
-		"project": "acme-api",
-		"modules": []map[string]any{{"name": "core", "path": "./internal/core"}},
+		"project":      "acme-api",
+		"modules":      []map[string]any{{"name": "core", "path": "./internal/core"}},
 		"architecture": map[string]any{"pattern": "clean", "description": "Clean architecture"},
 	}}
 

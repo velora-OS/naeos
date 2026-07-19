@@ -145,9 +145,9 @@ func NewDAGScheduler() *DAGScheduler {
 }
 
 type dagNode struct {
-	task       Task
-	inDegree   int
-	children   []string
+	task     Task
+	inDegree int
+	children []string
 }
 
 func (d *DAGScheduler) Schedule(neir any) ([]Task, error) {
@@ -631,8 +631,8 @@ func VisualizeSchedule(tasks []Task) string {
 		padding := strings.Repeat(" ", start)
 		bar := strings.Repeat("#", barLen)
 
-		sb.WriteString(fmt.Sprintf("%-*s  %-6d  %-8s  %s%s [%s]\n",
-			maxNameLen, name, t.Priority, dur.Round(time.Millisecond), padding, bar, dur.Round(time.Millisecond)))
+		fmt.Fprintf(&sb, "%-*s  %-6d  %-8s  %s%s [%s]\n",
+			maxNameLen, name, t.Priority, dur.Round(time.Millisecond), padding, bar, dur.Round(time.Millisecond))
 
 		accumulated += dur
 	}

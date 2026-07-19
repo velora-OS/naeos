@@ -155,9 +155,7 @@ func normalizeRawModules(v any) (any, error) {
 		return result, nil
 	case []map[string]any:
 		result := make([]map[string]any, 0, len(m))
-		for _, entry := range m {
-			result = append(result, entry)
-		}
+		result = append(result, m...)
 		return result, nil
 	default:
 		return nil, fmt.Errorf("expected array of modules, got %T", v)
@@ -178,9 +176,7 @@ func normalizeRawServices(v any) (any, error) {
 		return result, nil
 	case []map[string]any:
 		result := make([]map[string]any, 0, len(s))
-		for _, entry := range s {
-			result = append(result, entry)
-		}
+		result = append(result, s...)
 		return result, nil
 	default:
 		return nil, fmt.Errorf("expected array of services, got %T", v)

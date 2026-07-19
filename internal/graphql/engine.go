@@ -96,10 +96,10 @@ type Location struct {
 }
 
 type Executor struct {
-	schema       *Schema
-	maxDepth     int
-	middleware   []MiddlewareFunc
-	mu           sync.RWMutex
+	schema     *Schema
+	maxDepth   int
+	middleware []MiddlewareFunc
+	mu         sync.RWMutex
 }
 
 type MiddlewareFunc func(ctx *Context, next func(ctx *Context) (*Response, error)) (*Response, error)
@@ -353,8 +353,8 @@ type Selection struct {
 }
 
 type FragmentDef struct {
-	Name      string
-	OnType    string
+	Name       string
+	OnType     string
 	Selections []*Selection
 }
 
@@ -400,12 +400,6 @@ func ParseQuery(query string) (*QueryAST, []*GraphQLError) {
 	}
 
 	return ast, errs
-}
-
-type fragmentDef struct {
-	Name    string
-	OnType  string
-	Content string
 }
 
 func parseFragment(token string) (*FragmentDef, error) {
@@ -678,14 +672,14 @@ func Handler(schema *Schema) http.HandlerFunc {
 			introspect := r.URL.Query().Get("introspect")
 			if introspect == "true" {
 				resp := executor.Introspect()
-				json.NewEncoder(w).Encode(resp)
+				_ = json.NewEncoder(w).Encode(resp)
 				return
 			}
 		}
 
 		if r.Method != "POST" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			json.NewEncoder(w).Encode(&Response{
+			_ = json.NewEncoder(w).Encode(&Response{
 				Errors: []*GraphQLError{{Message: "method not allowed"}},
 			})
 			return
@@ -694,7 +688,7 @@ func Handler(schema *Schema) http.HandlerFunc {
 		var req Request
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(&Response{
+			_ = json.NewEncoder(w).Encode(&Response{
 				Errors: []*GraphQLError{{Message: "invalid request body"}},
 			})
 			return
@@ -707,7 +701,7 @@ func Handler(schema *Schema) http.HandlerFunc {
 		}
 
 		resp := executor.Execute(ctx, req.Query)
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}
 }
 

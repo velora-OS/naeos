@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func TestNewServer(t *testing.T) {
 func TestHealthEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/health", nil)
 	w := httptest.NewRecorder()
 
 	s.handleHealth(w, req)
@@ -43,7 +44,7 @@ func TestHealthEndpoint(t *testing.T) {
 func TestSpecsEndpointGET(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/specs", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/specs", nil)
 	w := httptest.NewRecorder()
 
 	s.handleSpecs(w, req)
@@ -59,7 +60,7 @@ func TestSpecsEndpointPOST(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{
 		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/specs", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/specs", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -76,7 +77,7 @@ func TestSpecValidateEndpoint(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{
 		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/specs/validate", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/specs/validate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -93,7 +94,7 @@ func TestSpecValidateEndpointInvalid(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{
 		"spec": "",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/specs/validate", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/specs/validate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -119,7 +120,7 @@ func TestPipelineRunEndpoint(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{
 		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/pipeline/run", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/pipeline/run", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -136,7 +137,7 @@ func TestPipelineRunEndpoint(t *testing.T) {
 func TestMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("DELETE", "/api/v1/specs", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/specs", nil)
 	w := httptest.NewRecorder()
 
 	s.handleSpecs(w, req)
@@ -149,7 +150,7 @@ func TestMethodNotAllowed(t *testing.T) {
 func TestOIDCDiscovery(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: true, JWTSecret: "test-secret"})
 
-	req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/.well-known/openid-configuration", nil)
 	req.Host = "localhost:8080"
 	w := httptest.NewRecorder()
 
@@ -176,7 +177,7 @@ func TestOIDCDiscovery(t *testing.T) {
 func TestOIDCDiscoveryNotConfigured(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/.well-known/openid-configuration", nil)
 	w := httptest.NewRecorder()
 
 	s.handleOIDCDiscovery(w, req)
@@ -189,7 +190,7 @@ func TestOIDCDiscoveryNotConfigured(t *testing.T) {
 func TestPipelineStatusEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/pipeline/status", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/pipeline/status", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePipelineStatus(w, req)
@@ -221,7 +222,7 @@ func TestPipelineStatusEndpoint(t *testing.T) {
 func TestPipelineStatusMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("POST", "/api/v1/pipeline/status", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/pipeline/status", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePipelineStatus(w, req)
@@ -234,7 +235,7 @@ func TestPipelineStatusMethodNotAllowed(t *testing.T) {
 func TestArtifactsEndpointDELETE(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("DELETE", "/api/v1/artifacts", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/artifacts", nil)
 	w := httptest.NewRecorder()
 
 	s.handleArtifacts(w, req)
@@ -252,7 +253,7 @@ func TestContextGenerateEndpoint(t *testing.T) {
 		"spec":   "project: test\nmodules:\n  - name: core\n    path: ./core\n",
 		"format": "markdown",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/context/generate", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/context/generate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -274,7 +275,7 @@ func TestContextGenerateEndpoint(t *testing.T) {
 func TestContextGenerateMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/context/generate", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/context/generate", nil)
 	w := httptest.NewRecorder()
 
 	s.handleContextGenerate(w, req)
@@ -290,7 +291,7 @@ func TestContextGenerateMissingSpec(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{
 		"spec": "",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/context/generate", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/context/generate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -309,7 +310,7 @@ func TestMCPMessageEndpoint(t *testing.T) {
 		"method":  "initialize",
 		"id":      1,
 	})
-	req := httptest.NewRequest("POST", "/api/v1/mcp/message", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/mcp/message", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -339,7 +340,7 @@ func TestMCPToolsList(t *testing.T) {
 		"method":  "tools/list",
 		"id":      2,
 	})
-	req := httptest.NewRequest("POST", "/api/v1/mcp/message", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/mcp/message", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -366,7 +367,7 @@ func TestMCPMethodNotFound(t *testing.T) {
 		"method":  "nonexistent/method",
 		"id":      3,
 	})
-	req := httptest.NewRequest("POST", "/api/v1/mcp/message", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/mcp/message", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -388,7 +389,7 @@ func TestMCPMethodNotFound(t *testing.T) {
 func TestMCPMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/mcp/message", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/mcp/message", nil)
 	w := httptest.NewRecorder()
 
 	s.handleMCPMessage(w, req)
@@ -416,7 +417,7 @@ func TestCloudPlanEndpoint(t *testing.T) {
 			{"name": "bucket1", "type": "storage"},
 		},
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/plan", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/plan", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -441,7 +442,7 @@ func TestCloudPlanMissingProvider(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"project": "test-project",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/plan", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/plan", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -459,7 +460,7 @@ func TestCloudPlanInvalidProvider(t *testing.T) {
 		"provider": "invalid",
 		"project":  "test-project",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/plan", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/plan", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -473,7 +474,7 @@ func TestCloudPlanInvalidProvider(t *testing.T) {
 func TestCloudPlanMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/cloud/plan", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/cloud/plan", nil)
 	w := httptest.NewRecorder()
 
 	s.handleCloudPlan(w, req)
@@ -494,7 +495,7 @@ func TestCloudDeployEndpoint(t *testing.T) {
 			{"name": "bucket1", "type": "storage"},
 		},
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/deploy", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/deploy", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -512,7 +513,7 @@ func TestCloudDeployMissingProvider(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"project": "test-project",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/deploy", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/deploy", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -526,7 +527,7 @@ func TestCloudDeployMissingProvider(t *testing.T) {
 func TestCloudDeployMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/cloud/deploy", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/cloud/deploy", nil)
 	w := httptest.NewRecorder()
 
 	s.handleCloudDeploy(w, req)
@@ -547,7 +548,7 @@ func TestCloudDestroyEndpoint(t *testing.T) {
 			{"name": "bucket1", "type": "storage"},
 		},
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/destroy", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/destroy", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -565,7 +566,7 @@ func TestCloudDestroyMissingProvider(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"project": "test-project",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/destroy", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/destroy", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -583,7 +584,7 @@ func TestCloudDestroyInvalidProvider(t *testing.T) {
 		"provider": "bogus",
 		"project":  "test-project",
 	})
-	req := httptest.NewRequest("POST", "/api/v1/cloud/destroy", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/destroy", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
@@ -597,7 +598,7 @@ func TestCloudDestroyInvalidProvider(t *testing.T) {
 func TestCloudDestroyMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("DELETE", "/api/v1/cloud/destroy", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/cloud/destroy", nil)
 	w := httptest.NewRecorder()
 
 	s.handleCloudDestroy(w, req)
@@ -610,7 +611,7 @@ func TestCloudDestroyMethodNotAllowed(t *testing.T) {
 func TestCloudStatusEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/cloud/status", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/cloud/status", nil)
 	w := httptest.NewRecorder()
 
 	s.handleCloudStatus(w, req)
@@ -631,7 +632,7 @@ func TestCloudStatusEndpoint(t *testing.T) {
 func TestCloudStatusMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("POST", "/api/v1/cloud/status", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/cloud/status", nil)
 	w := httptest.NewRecorder()
 
 	s.handleCloudStatus(w, req)
@@ -644,7 +645,7 @@ func TestCloudStatusMethodNotAllowed(t *testing.T) {
 func TestPluginsEndpointGET(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/plugins", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/plugins", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePlugins(w, req)
@@ -665,7 +666,7 @@ func TestPluginsEndpointGET(t *testing.T) {
 func TestPluginsEndpointMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("DELETE", "/api/v1/plugins", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/plugins", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePlugins(w, req)
@@ -678,7 +679,7 @@ func TestPluginsEndpointMethodNotAllowed(t *testing.T) {
 func TestPluginByNameDELETE(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("DELETE", "/api/v1/plugins/test-plugin", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "DELETE", "/api/v1/plugins/test-plugin", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePluginByName(w, req)
@@ -692,7 +693,7 @@ func TestPluginByNameDELETE(t *testing.T) {
 func TestPluginByNameMethodNotAllowed(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("PUT", "/api/v1/plugins/test-plugin", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "PUT", "/api/v1/plugins/test-plugin", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePluginByName(w, req)
@@ -705,7 +706,7 @@ func TestPluginByNameMethodNotAllowed(t *testing.T) {
 func TestVersionEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/version", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/version", nil)
 	w := httptest.NewRecorder()
 
 	s.handleVersion(w, req)
@@ -734,7 +735,7 @@ func TestVersionEndpoint(t *testing.T) {
 func TestConfigSchemaEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/config/schema", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/config/schema", nil)
 	w := httptest.NewRecorder()
 
 	s.handleConfigSchema(w, req)
@@ -766,7 +767,7 @@ func TestConfigSchemaEndpoint(t *testing.T) {
 func TestPipelinesEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/api/v1/pipelines", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/pipelines", nil)
 	w := httptest.NewRecorder()
 
 	s.handlePipelines(w, req)
@@ -795,7 +796,7 @@ func TestPipelinesEndpoint(t *testing.T) {
 func TestMetricsEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/metrics", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/metrics", nil)
 	w := httptest.NewRecorder()
 
 	s.handleMetrics(w, req)
@@ -818,7 +819,7 @@ func TestMetricsEndpoint(t *testing.T) {
 func TestHealthzEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/healthz", nil)
 	w := httptest.NewRecorder()
 
 	s.handleHealthz(w, req)
@@ -841,7 +842,7 @@ func TestHealthzEndpoint(t *testing.T) {
 func TestReadyzEndpoint(t *testing.T) {
 	s := NewServer(":8080", &AuthConfig{Enabled: false})
 
-	req := httptest.NewRequest("GET", "/readyz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/readyz", nil)
 	w := httptest.NewRecorder()
 
 	s.handleReadyz(w, req)

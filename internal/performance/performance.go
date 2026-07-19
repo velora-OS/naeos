@@ -1,10 +1,11 @@
 package performance
 
 import (
-	"github.com/NAEOS-foundation/naeos/internal/cache"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/NAEOS-foundation/naeos/internal/cache"
 )
 
 type Connection struct {
@@ -104,10 +105,10 @@ func (p *ConnectionPool) Close() {
 }
 
 type BatchItem struct {
-	ID      string
-	Data    any
-	Status  BatchStatus
-	Error   error
+	ID     string
+	Data   any
+	Status BatchStatus
+	Error  error
 }
 
 type BatchStatus int
@@ -200,7 +201,7 @@ func (bp *BatchProcessor) ProcessAll() {
 	bp.mu.Unlock()
 
 	for _, batch := range batches {
-		bp.ProcessBatch(batch.ID)
+		_ = bp.ProcessBatch(batch.ID)
 	}
 }
 

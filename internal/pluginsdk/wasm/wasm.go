@@ -14,15 +14,15 @@ import (
 )
 
 type Request struct {
-	Method string                 `json:"method"`
+	Method string         `json:"method"`
 	Params map[string]any `json:"params"`
 }
 
 type Response struct {
-	OK      bool        `json:"ok"`
-	Result  any `json:"result,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Elapsed int64       `json:"elapsed_ms"`
+	OK      bool   `json:"ok"`
+	Result  any    `json:"result,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Elapsed int64  `json:"elapsed_ms"`
 }
 
 type WASMRuntime struct {
@@ -40,7 +40,7 @@ func NewWASMRuntime(timeout time.Duration, maxMemory int64) *WASMRuntime {
 	}
 	ctx := context.Background()
 	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
-	wasi_snapshot_preview1.Instantiate(ctx, rt)
+	_, _ = wasi_snapshot_preview1.Instantiate(ctx, rt)
 
 	return &WASMRuntime{
 		timeout:   timeout,

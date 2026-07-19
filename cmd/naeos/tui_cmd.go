@@ -53,7 +53,7 @@ func runTUI() error {
 		langChoice = "1"
 	}
 	langIdx := 0
-	fmt.Sscanf(langChoice, "%d", &langIdx)
+	_, _ = fmt.Sscanf(langChoice, "%d", &langIdx)
 	if langIdx < 1 || langIdx > len(tuiLanguages) {
 		return fmt.Errorf("invalid language choice: %s", langChoice)
 	}
@@ -105,7 +105,7 @@ func runTUI() error {
 		cloudChoice = "4"
 	}
 	cloudIdx := 0
-	fmt.Sscanf(cloudChoice, "%d", &cloudIdx)
+	_, _ = fmt.Sscanf(cloudChoice, "%d", &cloudIdx)
 	if cloudIdx < 1 || cloudIdx > len(tuiCloudProviders) {
 		return fmt.Errorf("invalid cloud choice: %s", cloudChoice)
 	}
@@ -114,16 +114,16 @@ func runTUI() error {
 	// Build spec YAML
 	var sb strings.Builder
 	sb.WriteString("pipeline:\n")
-	sb.WriteString(fmt.Sprintf("  name: %s\n", projectName))
+	fmt.Fprintf(&sb, "  name: %s\n", projectName)
 	sb.WriteString("  mode: development\n")
 	sb.WriteString("  verbose: true\n")
 	sb.WriteString("  output_dir: ./out\n")
-	sb.WriteString(fmt.Sprintf("  language:\n    - %s\n", strings.ToLower(language)))
+	fmt.Fprintf(&sb, "  language:\n    - %s\n", strings.ToLower(language))
 
 	if len(modules) > 0 {
 		sb.WriteString("modules:\n")
 		for _, m := range modules {
-			sb.WriteString(fmt.Sprintf("  - %s\n", m))
+			fmt.Fprintf(&sb, "  - %s\n", m)
 		}
 	}
 
@@ -135,7 +135,7 @@ func runTUI() error {
 	}
 
 	if cloudProvider != "None" {
-		sb.WriteString(fmt.Sprintf("cloud:\n  provider: %s\n", strings.ToLower(cloudProvider)))
+		fmt.Fprintf(&sb, "cloud:\n  provider: %s\n", strings.ToLower(cloudProvider))
 	}
 
 	specYAML := sb.String()

@@ -35,11 +35,11 @@ type StackFrame struct {
 }
 
 type NaeosError struct {
-	Code    ErrorCode
-	Message string
-	Inner   error
-	stack   []StackFrame
-	context map[string]any
+	Code      ErrorCode
+	Message   string
+	Inner     error
+	stack     []StackFrame
+	context   map[string]any
 	retryable bool
 }
 
@@ -264,7 +264,8 @@ func (g *ErrorGroup) Codes() []ErrorCode {
 func (g *ErrorGroup) Len() int {
 	count := 0
 	for _, e := range g.errors {
-		if sub, ok := e.(*ErrorGroup); ok {
+		var sub *ErrorGroup
+		if errors.As(e, &sub) {
 			count += sub.Len()
 		} else {
 			count++

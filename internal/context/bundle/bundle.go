@@ -31,18 +31,18 @@ type CloudResource struct {
 }
 
 type Bundle struct {
-	Project          string            `json:"project"`
-	Summary          string            `json:"summary"`
-	Modules          []ModuleContext   `json:"modules"`
-	Services         []ServiceContext  `json:"services"`
-	Languages        []string          `json:"languages"`
-	Targets          []string          `json:"targets"`
-	NEIR             string            `json:"neir,omitempty"`
-	Raw              string            `json:"raw,omitempty"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
-	DependencyGraph  []DependencyEdge  `json:"dependency_graph,omitempty"`
-	Security         *SecurityContext  `json:"security,omitempty"`
-	Cloud            []CloudResource   `json:"cloud,omitempty"`
+	Project         string            `json:"project"`
+	Summary         string            `json:"summary"`
+	Modules         []ModuleContext   `json:"modules"`
+	Services        []ServiceContext  `json:"services"`
+	Languages       []string          `json:"languages"`
+	Targets         []string          `json:"targets"`
+	NEIR            string            `json:"neir,omitempty"`
+	Raw             string            `json:"raw,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	DependencyGraph []DependencyEdge  `json:"dependency_graph,omitempty"`
+	Security        *SecurityContext  `json:"security,omitempty"`
+	Cloud           []CloudResource   `json:"cloud,omitempty"`
 }
 
 type ModuleContext struct {
@@ -53,9 +53,9 @@ type ModuleContext struct {
 }
 
 type ServiceContext struct {
-	Name     string `json:"name"`
-	Kind     string `json:"kind"`
-	Port     int    `json:"port,omitempty"`
+	Name      string            `json:"name"`
+	Kind      string            `json:"kind"`
+	Port      int               `json:"port,omitempty"`
 	Endpoints []EndpointContext `json:"endpoints,omitempty"`
 }
 
@@ -286,22 +286,22 @@ func (g *Generator) buildSummary(b *Bundle) string {
 func (b *Bundle) ToMarkdown() string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# %s — AI Context Bundle\n\n", b.Project))
+	fmt.Fprintf(&sb, "# %s — AI Context Bundle\n\n", b.Project)
 
 	if b.Summary != "" {
-		sb.WriteString(fmt.Sprintf("## Summary\n%s\n\n", b.Summary))
+		fmt.Fprintf(&sb, "## Summary\n%s\n\n", b.Summary)
 	}
 
 	if len(b.Modules) > 0 {
 		sb.WriteString("## Modules\n\n")
 		for _, m := range b.Modules {
-			sb.WriteString(fmt.Sprintf("- **%s** (`%s`)", m.Name, m.Path))
+			fmt.Fprintf(&sb, "- **%s** (`%s`)", m.Name, m.Path)
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf(" — %s", m.Description))
+				fmt.Fprintf(&sb, " — %s", m.Description)
 			}
 			sb.WriteString("\n")
 			if len(m.Dependencies) > 0 {
-				sb.WriteString(fmt.Sprintf("  Dependencies: %s\n", strings.Join(m.Dependencies, ", ")))
+				fmt.Fprintf(&sb, "  Dependencies: %s\n", strings.Join(m.Dependencies, ", "))
 			}
 		}
 		sb.WriteString("\n")
@@ -310,15 +310,15 @@ func (b *Bundle) ToMarkdown() string {
 	if len(b.Services) > 0 {
 		sb.WriteString("## Services\n\n")
 		for _, s := range b.Services {
-			sb.WriteString(fmt.Sprintf("- **%s** (kind=%s", s.Name, s.Kind))
+			fmt.Fprintf(&sb, "- **%s** (kind=%s", s.Name, s.Kind)
 			if s.Port > 0 {
-				sb.WriteString(fmt.Sprintf(", port=%d", s.Port))
+				fmt.Fprintf(&sb, ", port=%d", s.Port)
 			}
 			sb.WriteString(")\n")
 			for _, ep := range s.Endpoints {
-				sb.WriteString(fmt.Sprintf("  - %s %s", ep.Method, ep.Path))
+				fmt.Fprintf(&sb, "  - %s %s", ep.Method, ep.Path)
 				if ep.Action != "" {
-					sb.WriteString(fmt.Sprintf(" → %s", ep.Action))
+					fmt.Fprintf(&sb, " → %s", ep.Action)
 				}
 				sb.WriteString("\n")
 			}
@@ -327,7 +327,7 @@ func (b *Bundle) ToMarkdown() string {
 	}
 
 	if len(b.Targets) > 0 {
-		sb.WriteString(fmt.Sprintf("## Targets\n%s\n\n", strings.Join(b.Targets, ", ")))
+		fmt.Fprintf(&sb, "## Targets\n%s\n\n", strings.Join(b.Targets, ", "))
 	}
 
 	if b.NEIR != "" {
@@ -339,7 +339,7 @@ func (b *Bundle) ToMarkdown() string {
 	if len(b.DependencyGraph) > 0 {
 		sb.WriteString("## Dependency Graph\n\n")
 		for _, e := range b.DependencyGraph {
-			sb.WriteString(fmt.Sprintf("- `%s` → `%s` (kind=%s)\n", e.From, e.To, e.Kind))
+			fmt.Fprintf(&sb, "- `%s` → `%s` (kind=%s)\n", e.From, e.To, e.Kind)
 		}
 		sb.WriteString("\n")
 	}
@@ -347,16 +347,16 @@ func (b *Bundle) ToMarkdown() string {
 	if b.Security != nil {
 		sb.WriteString("## Security\n\n")
 		if b.Security.AuthMethod != "" {
-			sb.WriteString(fmt.Sprintf("- Auth Method: %s\n", b.Security.AuthMethod))
+			fmt.Fprintf(&sb, "- Auth Method: %s\n", b.Security.AuthMethod)
 		}
 		if b.Security.AuthProvider != "" {
-			sb.WriteString(fmt.Sprintf("- Auth Provider: %s\n", b.Security.AuthProvider))
+			fmt.Fprintf(&sb, "- Auth Provider: %s\n", b.Security.AuthProvider)
 		}
 		if b.Security.AuthModel != "" {
-			sb.WriteString(fmt.Sprintf("- Auth Model: %s\n", b.Security.AuthModel))
+			fmt.Fprintf(&sb, "- Auth Model: %s\n", b.Security.AuthModel)
 		}
 		if len(b.Security.Roles) > 0 {
-			sb.WriteString(fmt.Sprintf("- Roles: %s\n", strings.Join(b.Security.Roles, ", ")))
+			fmt.Fprintf(&sb, "- Roles: %s\n", strings.Join(b.Security.Roles, ", "))
 		}
 		sb.WriteString("\n")
 	}
@@ -364,7 +364,7 @@ func (b *Bundle) ToMarkdown() string {
 	if len(b.Cloud) > 0 {
 		sb.WriteString("## Cloud Resources\n\n")
 		for _, cr := range b.Cloud {
-			sb.WriteString(fmt.Sprintf("- **%s** (provider=%s, type=%s)\n", cr.Name, cr.Provider, cr.Type))
+			fmt.Fprintf(&sb, "- **%s** (provider=%s, type=%s)\n", cr.Name, cr.Provider, cr.Type)
 		}
 		sb.WriteString("\n")
 	}
@@ -376,52 +376,52 @@ func (b *Bundle) ToPlainText() string {
 	var sb strings.Builder
 
 	if b.Project != "" {
-		sb.WriteString(fmt.Sprintf("Project: %s\n", b.Project))
+		fmt.Fprintf(&sb, "Project: %s\n", b.Project)
 	}
-	sb.WriteString(fmt.Sprintf("Modules: %d, Services: %d\n", len(b.Modules), len(b.Services)))
+	fmt.Fprintf(&sb, "Modules: %d, Services: %d\n", len(b.Modules), len(b.Services))
 
 	if len(b.Languages) > 0 {
-		sb.WriteString(fmt.Sprintf("Languages: %s\n", strings.Join(b.Languages, ", ")))
+		fmt.Fprintf(&sb, "Languages: %s\n", strings.Join(b.Languages, ", "))
 	}
 
 	for _, m := range b.Modules {
-		sb.WriteString(fmt.Sprintf("  Module: %s (%s)\n", m.Name, m.Path))
+		fmt.Fprintf(&sb, "  Module: %s (%s)\n", m.Name, m.Path)
 		if len(m.Dependencies) > 0 {
-			sb.WriteString(fmt.Sprintf("    deps: %s\n", strings.Join(m.Dependencies, ", ")))
+			fmt.Fprintf(&sb, "    deps: %s\n", strings.Join(m.Dependencies, ", "))
 		}
 	}
 
 	for _, s := range b.Services {
-		sb.WriteString(fmt.Sprintf("  Service: %s kind=%s port=%d\n", s.Name, s.Kind, s.Port))
+		fmt.Fprintf(&sb, "  Service: %s kind=%s port=%d\n", s.Name, s.Kind, s.Port)
 	}
 
 	if len(b.DependencyGraph) > 0 {
 		sb.WriteString("Dependency Graph:\n")
 		for _, e := range b.DependencyGraph {
-			sb.WriteString(fmt.Sprintf("  %s -> %s (kind=%s)\n", e.From, e.To, e.Kind))
+			fmt.Fprintf(&sb, "  %s -> %s (kind=%s)\n", e.From, e.To, e.Kind)
 		}
 	}
 
 	if b.Security != nil {
 		sb.WriteString("Security:\n")
 		if b.Security.AuthMethod != "" {
-			sb.WriteString(fmt.Sprintf("  Auth Method: %s\n", b.Security.AuthMethod))
+			fmt.Fprintf(&sb, "  Auth Method: %s\n", b.Security.AuthMethod)
 		}
 		if b.Security.AuthProvider != "" {
-			sb.WriteString(fmt.Sprintf("  Auth Provider: %s\n", b.Security.AuthProvider))
+			fmt.Fprintf(&sb, "  Auth Provider: %s\n", b.Security.AuthProvider)
 		}
 		if b.Security.AuthModel != "" {
-			sb.WriteString(fmt.Sprintf("  Auth Model: %s\n", b.Security.AuthModel))
+			fmt.Fprintf(&sb, "  Auth Model: %s\n", b.Security.AuthModel)
 		}
 		if len(b.Security.Roles) > 0 {
-			sb.WriteString(fmt.Sprintf("  Roles: %s\n", strings.Join(b.Security.Roles, ", ")))
+			fmt.Fprintf(&sb, "  Roles: %s\n", strings.Join(b.Security.Roles, ", "))
 		}
 	}
 
 	if len(b.Cloud) > 0 {
 		sb.WriteString("Cloud Resources:\n")
 		for _, cr := range b.Cloud {
-			sb.WriteString(fmt.Sprintf("  %s (provider=%s, type=%s)\n", cr.Name, cr.Provider, cr.Type))
+			fmt.Fprintf(&sb, "  %s (provider=%s, type=%s)\n", cr.Name, cr.Provider, cr.Type)
 		}
 	}
 
@@ -496,15 +496,15 @@ func (b *Bundle) FilterByModule(names []string) *Bundle {
 		nameSet[n] = true
 	}
 	filtered := &Bundle{
-		Project:    b.Project,
-		Summary:    b.Summary,
-		Metadata:   b.Metadata,
-		Security:   b.Security,
-		Cloud:      b.Cloud,
-		NEIR:       b.NEIR,
-		Raw:        b.Raw,
-		Languages:  b.Languages,
-		Targets:    b.Targets,
+		Project:   b.Project,
+		Summary:   b.Summary,
+		Metadata:  b.Metadata,
+		Security:  b.Security,
+		Cloud:     b.Cloud,
+		NEIR:      b.NEIR,
+		Raw:       b.Raw,
+		Languages: b.Languages,
+		Targets:   b.Targets,
 	}
 	for _, m := range b.Modules {
 		if nameSet[m.Name] {

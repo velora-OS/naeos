@@ -8,10 +8,10 @@ import (
 type ReviewStatus string
 
 const (
-	StatusApproved  ReviewStatus = "approved"
-	StatusRejected  ReviewStatus = "rejected"
-	StatusPending   ReviewStatus = "pending"
-	StatusChanges   ReviewStatus = "changes_requested"
+	StatusApproved ReviewStatus = "approved"
+	StatusRejected ReviewStatus = "rejected"
+	StatusPending  ReviewStatus = "pending"
+	StatusChanges  ReviewStatus = "changes_requested"
 )
 
 type ReviewComment struct {

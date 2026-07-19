@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,7 +24,7 @@ type CommandRunner interface {
 type ExecCommandRunner struct{}
 
 func (r *ExecCommandRunner) Run(name string, args []string, dir string) ([]byte, error) {
-	cmd := exec.Command(name, args...)
+	cmd := exec.CommandContext(context.Background(), name, args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -61,7 +62,7 @@ func (t *TerraformRunner) writeHCL(hcl string) error {
 		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to create terraform working directory", err)
 	}
 	path := filepath.Join(t.WorkDir, "main.tf")
-	if err := os.WriteFile(path, []byte(hcl), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(hcl), 0o600); err != nil {
 		return naeoserrors.Wrap(naeoserrors.ErrCloud, "failed to write HCL file", err)
 	}
 	return nil
@@ -79,8 +80,8 @@ func (t *TerraformRunner) Init() error {
 // PlanOutput summarizes the changes detected by terraform plan.
 type PlanOutput struct {
 	Changes struct {
-		Add    int `json:"add"`
-		Change int `json:"change"`
+		Add     int `json:"add"`
+		Change  int `json:"change"`
 		Destroy int `json:"destroy"`
 	} `json:"changes"`
 }
@@ -94,10 +95,6 @@ func (t *TerraformRunner) Plan() (*PlanOutput, error) {
 	return parsePlanJSON(raw)
 }
 
-func parsePlanOutput(raw []byte) (*PlanOutput, error) {
-	return parsePlanJSON(raw)
-}
-
 func parsePlanJSON(raw []byte) (*PlanOutput, error) {
 	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -106,10 +103,10 @@ func parsePlanJSON(raw []byte) (*PlanOutput, error) {
 			continue
 		}
 		var event struct {
-			Type        string      `json:"@message"`
-			Changes     *struct {
-				Add    int `json:"add"`
-				Change int `json:"change"`
+			Type    string `json:"@message"`
+			Changes *struct {
+				Add     int `json:"add"`
+				Change  int `json:"change"`
 				Destroy int `json:"destroy"`
 			} `json:"changes"`
 		}
@@ -119,8 +116,8 @@ func parsePlanJSON(raw []byte) (*PlanOutput, error) {
 		if event.Changes != nil {
 			return &PlanOutput{
 				Changes: struct {
-					Add    int `json:"add"`
-					Change int `json:"change"`
+					Add     int `json:"add"`
+					Change  int `json:"change"`
 					Destroy int `json:"destroy"`
 				}{
 					Add:     event.Changes.Add,
@@ -153,9 +150,9 @@ func (t *TerraformRunner) ApplyDestroy() error {
 
 // OutputValue represents a single terraform output value.
 type OutputValue struct {
-	Value     any `json:"value"`
-	Sensitive bool        `json:"sensitive"`
-	Type      any `json:"type"`
+	Value     any  `json:"value"`
+	Sensitive bool `json:"sensitive"`
+	Type      any  `json:"type"`
 }
 
 // Output retrieves all terraform output values.
@@ -206,17 +203,17 @@ func TempWorkDir(prefix string) (string, error) {
 }
 
 type poolEntry struct {
-	runner    *TerraformRunner
-	lastUsed  time.Time
-	initDone  bool
+	runner   *TerraformRunner
+	lastUsed time.Time
+	initDone bool
 }
 
 // RunnerPool manages a pool of reusable TerraformRunner instances.
 type RunnerPool struct {
-	mu       sync.RWMutex
-	entries  map[string]*poolEntry
-	maxSize  int
-	idleTTL  time.Duration
+	mu      sync.RWMutex
+	entries map[string]*poolEntry
+	maxSize int
+	idleTTL time.Duration
 }
 
 // NewRunnerPool creates a pool with the given max size and idle TTL.

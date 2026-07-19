@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NAEOS-foundation/naeos/internal/eventsourcing"
 	"github.com/spf13/cobra"
+
+	"github.com/NAEOS-foundation/naeos/internal/eventsourcing"
 )
 
 func newHistoryCommand() *cobra.Command {
@@ -34,7 +35,7 @@ Example:
 			}
 
 			if len(ids) == 0 {
-				cmd.OutOrStdout().Write([]byte("No pipeline runs found.\n"))
+				_, _ = cmd.OutOrStdout().Write([]byte("No pipeline runs found.\n"))
 				return nil
 			}
 
@@ -86,22 +87,23 @@ Example:
 			case "yaml":
 				return FormatOutput(cmd.OutOrStdout(), entries, "yaml")
 			default:
-				cmd.OutOrStdout().Write([]byte(fmt.Sprintf("Pipeline Run History (%d runs)\n", len(ids))))
-				cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 60) + "\n"))
+				fmt.Fprintf(cmd.OutOrStdout(), "Pipeline Run History (%d runs)\n", len(ids))
+				_, _ = cmd.OutOrStdout().Write([]byte(strings.Repeat("─", 60) + "\n"))
 				for _, e := range entries {
 					icon := "✓"
-					if e.Status == "failed" || e.Status == "error" {
+					switch e.Status {
+					case "failed", "error":
 						icon = "✗"
-					} else if e.Status == "running" {
+					case "running":
 						icon = "●"
 					}
 					durStr := ""
 					if e.Dur != "" {
 						durStr = fmt.Sprintf(" (%s)", e.Dur)
 					}
-					cmd.OutOrStdout().Write([]byte(fmt.Sprintf("  %s %s | %s | %d events%s\n", icon, e.ID, e.Name, e.Events, durStr)))
+					fmt.Fprintf(cmd.OutOrStdout(), "  %s %s | %s | %d events%s\n", icon, e.ID, e.Name, e.Events, durStr)
 					if e.Error != "" {
-						cmd.OutOrStdout().Write([]byte(fmt.Sprintf("    error: %s\n", e.Error)))
+						fmt.Fprintf(cmd.OutOrStdout(), "    error: %s\n", e.Error)
 					}
 				}
 				return nil

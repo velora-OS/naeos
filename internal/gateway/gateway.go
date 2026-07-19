@@ -95,15 +95,15 @@ const (
 )
 
 type CircuitBreaker struct {
-	name         string
-	state        CircuitState
-	failureCount int
-	successCount int
+	name             string
+	state            CircuitState
+	failureCount     int
+	successCount     int
 	failureThreshold int
 	successThreshold int
-	timeout      time.Duration
-	lastFailure  time.Time
-	mu           sync.RWMutex
+	timeout          time.Duration
+	lastFailure      time.Time
+	mu               sync.RWMutex
 }
 
 func NewCircuitBreaker(name string, failureThreshold, successThreshold int, timeout time.Duration) *CircuitBreaker {
@@ -184,10 +184,10 @@ type LoadBalancer struct {
 }
 
 type Backend struct {
-	Name     string
-	URL      string
-	Weight   int
-	Healthy  bool
+	Name      string
+	URL       string
+	Weight    int
+	Healthy   bool
 	LastCheck time.Time
 }
 
@@ -245,10 +245,10 @@ func (lb *LoadBalancer) List() []*Backend {
 // Gateway
 
 type Gateway struct {
-	rateLimiter   *RateLimiter
+	rateLimiter     *RateLimiter
 	circuitBreakers map[string]*CircuitBreaker
-	loadBalancers map[string]*LoadBalancer
-	mu            sync.RWMutex
+	loadBalancers   map[string]*LoadBalancer
+	mu              sync.RWMutex
 }
 
 func New() *Gateway {
@@ -326,13 +326,13 @@ func (g *Gateway) Route(request *Request) (*Response, error) {
 }
 
 type Request struct {
-	ID        string
-	ClientID  string
-	Service   string
-	Path      string
-	Method    string
-	Headers   map[string]string
-	Body      []byte
+	ID       string
+	ClientID string
+	Service  string
+	Path     string
+	Method   string
+	Headers  map[string]string
+	Body     []byte
 }
 
 type Response struct {

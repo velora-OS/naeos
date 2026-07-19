@@ -1,13 +1,13 @@
 package domain
 
 type Domain struct {
-	Name             string            `json:"name"`
-	Description      string            `json:"description,omitempty"`
-	BoundedContexts  []BoundedContext  `json:"bounded_contexts,omitempty"`
-	Aggregates       []Aggregate       `json:"aggregates,omitempty"`
-	Entities         []Entity          `json:"entities,omitempty"`
-	ValueObjects     []ValueObject     `json:"value_objects,omitempty"`
-	Attributes       map[string]string `json:"attributes,omitempty"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	BoundedContexts []BoundedContext  `json:"bounded_contexts,omitempty"`
+	Aggregates      []Aggregate       `json:"aggregates,omitempty"`
+	Entities        []Entity          `json:"entities,omitempty"`
+	ValueObjects    []ValueObject     `json:"value_objects,omitempty"`
+	Attributes      map[string]string `json:"attributes,omitempty"`
 }
 
 type BoundedContext struct {

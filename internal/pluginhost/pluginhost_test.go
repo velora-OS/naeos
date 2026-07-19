@@ -13,12 +13,12 @@ import (
 
 type stubPlugin struct {
 	BasePlugin
-	initErr   error
-	execErr   error
-	shutErr   error
-	executed  bool
-	action    string
-	params    map[string]any
+	initErr  error
+	execErr  error
+	shutErr  error
+	executed bool
+	action   string
+	params   map[string]any
 }
 
 func newStubPlugin(name string) *stubPlugin {

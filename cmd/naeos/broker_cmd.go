@@ -81,7 +81,7 @@ func newBrokerConnectCommand() *cobra.Command {
 	cmd.Flags().IntVar(&port, "port", 6379, "broker port")
 	cmd.Flags().StringVar(&password, "password", "", "broker password")
 	cmd.Flags().IntVar(&db, "db", 0, "Redis database number")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -141,9 +141,9 @@ func newBrokerPublishCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "broker name (required)")
 	cmd.Flags().StringVar(&channel, "channel", "", "channel name (required)")
 	cmd.Flags().StringVar(&message, "message", "", "message payload (required)")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("channel")
-	cmd.MarkFlagRequired("message")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("channel")
+	_ = cmd.MarkFlagRequired("message")
 	return cmd
 }
 
@@ -173,6 +173,6 @@ func newBrokerDisconnectCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "broker name (required)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }

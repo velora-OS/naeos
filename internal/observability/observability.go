@@ -98,9 +98,9 @@ func (e *JSONExporter) Flush() ([]byte, error) {
 }
 
 type FileExporter struct {
-	path   string
-	mu     sync.Mutex
-	file   *os.File
+	path string
+	mu   sync.Mutex
+	file *os.File
 }
 
 func NewFileExporter(path string) (*FileExporter, error) {
@@ -120,7 +120,7 @@ func (e *FileExporter) ExportSpans(spans []*Span) error {
 		if err != nil {
 			continue
 		}
-		e.file.Write(append(data, '\n'))
+		_, _ = e.file.Write(append(data, '\n'))
 	}
 	return nil
 }
@@ -134,7 +134,7 @@ func (e *FileExporter) ExportMetrics(metrics []*Metric) error {
 		if err != nil {
 			continue
 		}
-		e.file.Write(append(data, '\n'))
+		_, _ = e.file.Write(append(data, '\n'))
 	}
 	return nil
 }
@@ -148,7 +148,7 @@ func (e *FileExporter) ExportLogs(entries []LogEntry) error {
 		if err != nil {
 			continue
 		}
-		e.file.Write(append(data, '\n'))
+		_, _ = e.file.Write(append(data, '\n'))
 	}
 	return nil
 }
@@ -158,11 +158,11 @@ func (e *FileExporter) Close() error {
 }
 
 type MemoryCleanup struct {
-	tracer     *Tracer
-	maxAge     time.Duration
-	stopCh     chan struct{}
-	running    bool
-	mu         sync.Mutex
+	tracer  *Tracer
+	maxAge  time.Duration
+	stopCh  chan struct{}
+	running bool
+	mu      sync.Mutex
 }
 
 func NewMemoryCleanup(tracer *Tracer, maxAge time.Duration) *MemoryCleanup {
@@ -221,10 +221,10 @@ func (mc *MemoryCleanup) cleanup() {
 }
 
 type HistogramValue struct {
-	Count  int64
-	Sum    float64
-	Min    float64
-	Max    float64
+	Count   int64
+	Sum     float64
+	Min     float64
+	Max     float64
 	Buckets []HistogramBucket
 }
 
@@ -234,10 +234,10 @@ type HistogramBucket struct {
 }
 
 type MetricsCollector struct {
-	name        string
-	metrics     map[string]*Metric
-	histograms  map[string]*HistogramValue
-	mu          sync.RWMutex
+	name       string
+	metrics    map[string]*Metric
+	histograms map[string]*HistogramValue
+	mu         sync.RWMutex
 }
 
 func NewMetricsCollector(name string) *MetricsCollector {

@@ -51,7 +51,7 @@ func (n *RealNATS) Close() error {
 	defer n.mu.Unlock()
 
 	for channel, sub := range n.subscribers {
-		sub.Unsubscribe()
+		_ = sub.Unsubscribe()
 		delete(n.subscribers, channel)
 	}
 
@@ -96,7 +96,7 @@ func (n *RealNATS) Subscribe(channel string, handler MessageHandler) error {
 			Payload:   m.Data,
 			Timestamp: time.Now(),
 		}
-		handler(msg)
+		_ = handler(msg)
 	})
 	if err != nil {
 		return fmt.Errorf("subscribe to %s: %w", channel, err)
@@ -114,7 +114,7 @@ func (n *RealNATS) Unsubscribe(channel string) error {
 	defer n.mu.Unlock()
 
 	if sub, ok := n.subscribers[channel]; ok {
-		sub.Unsubscribe()
+		_ = sub.Unsubscribe()
 		delete(n.subscribers, channel)
 	}
 	return nil

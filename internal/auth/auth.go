@@ -423,12 +423,12 @@ func (m *SessionManager) Cleanup() int {
 // Auth Manager
 
 type Manager struct {
-	rbac       *RBAC
-	apiKeys    *APIKeyManager
-	sessions   *SessionManager
-	oauth2     map[string]OAuth2ProviderInterface
-	users      map[string]*User
-	mu         sync.RWMutex
+	rbac     *RBAC
+	apiKeys  *APIKeyManager
+	sessions *SessionManager
+	oauth2   map[string]OAuth2ProviderInterface
+	users    map[string]*User
+	mu       sync.RWMutex
 }
 
 func NewManager() *Manager {

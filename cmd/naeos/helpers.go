@@ -116,23 +116,15 @@ func resolveConfigPath(configPath string) (string, error) {
 	return "", fmt.Errorf("missing required --config (no config file found in current directory)")
 }
 
-func mustConfigPath(cmd *cobra.Command, configPath string) (string, error) {
+func loadPipelineConfig(configPath string, verbose bool, languages []string, dryRun bool) (*pipeline.Config, error) {
 	resolved, err := resolveConfigPath(configPath)
 	if err != nil {
-		return "", err
-	}
-	return resolved, nil
-}
-
-func loadPipelineConfig(configPath string, verbose bool, languages []string, dryRun bool) (*pipeline.Config, string, error) {
-	resolved, err := resolveConfigPath(configPath)
-	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	cfg, err := pipeline.ConfigFromFile(resolved)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 	if verbose {
 		cfg.Verbose = true
@@ -143,5 +135,5 @@ func loadPipelineConfig(configPath string, verbose bool, languages []string, dry
 	if dryRun {
 		cfg.DryRun = true
 	}
-	return &cfg, resolved, nil
+	return &cfg, nil
 }

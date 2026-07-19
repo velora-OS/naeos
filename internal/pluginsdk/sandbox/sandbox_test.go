@@ -160,7 +160,7 @@ func TestSandboxConcurrentExecution(t *testing.T) {
 				Method: fmt.Sprintf("concurrent-%d", n),
 			})
 			if err != nil {
-				errs <- fmt.Errorf("goroutine %d: %v", n, err)
+				errs <- fmt.Errorf("goroutine %d: %w", n, err)
 				return
 			}
 			if !resp.OK {

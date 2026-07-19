@@ -1,6 +1,7 @@
 package testrunner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -87,7 +88,7 @@ func (r *Runner) runGoTests(result *TestResult) (*TestResult, error) {
 	}
 	args = append(args, "./...")
 
-	cmd := exec.Command("go", args...)
+	cmd := exec.CommandContext(context.Background(), "go", args...)
 	cmd.Dir = r.config.WorkingDir
 	output, err := cmd.CombinedOutput()
 	result.Output = string(output)
@@ -111,10 +112,10 @@ func (r *Runner) runNodeTests(result *TestResult) (*TestResult, error) {
 
 	npmCmd := "npm"
 	if _, err := os.Stat(filepath.Join(r.config.WorkingDir, "pnpm-lock.yaml")); err == nil {
-			npmCmd = "pnpm"
-		}
+		npmCmd = "pnpm"
+	}
 
-	cmd := exec.Command(npmCmd, "test")
+	cmd := exec.CommandContext(context.Background(), npmCmd, "test")
 	cmd.Dir = r.config.WorkingDir
 	output, err := cmd.CombinedOutput()
 	result.Output = string(output)
@@ -124,7 +125,7 @@ func (r *Runner) runNodeTests(result *TestResult) (*TestResult, error) {
 }
 
 func (r *Runner) runPythonTests(result *TestResult) (*TestResult, error) {
-	cmd := exec.Command("python", "-m", "pytest", "-v")
+	cmd := exec.CommandContext(context.Background(), "python", "-m", "pytest", "-v")
 	cmd.Dir = r.config.WorkingDir
 	output, err := cmd.CombinedOutput()
 	result.Output = string(output)
@@ -135,7 +136,7 @@ func (r *Runner) runPythonTests(result *TestResult) (*TestResult, error) {
 
 func (r *Runner) runJavaTests(result *TestResult) (*TestResult, error) {
 	if _, err := os.Stat(filepath.Join(r.config.WorkingDir, "pom.xml")); err == nil {
-		cmd := exec.Command("mvn", "test")
+		cmd := exec.CommandContext(context.Background(), "mvn", "test")
 		cmd.Dir = r.config.WorkingDir
 		output, err := cmd.CombinedOutput()
 		result.Output = string(output)
@@ -144,7 +145,7 @@ func (r *Runner) runJavaTests(result *TestResult) (*TestResult, error) {
 	}
 
 	if _, err := os.Stat(filepath.Join(r.config.WorkingDir, "build.gradle")); err == nil {
-		cmd := exec.Command("./gradlew", "test")
+		cmd := exec.CommandContext(context.Background(), "./gradlew", "test")
 		cmd.Dir = r.config.WorkingDir
 		output, err := cmd.CombinedOutput()
 		result.Output = string(output)
@@ -156,7 +157,7 @@ func (r *Runner) runJavaTests(result *TestResult) (*TestResult, error) {
 }
 
 func (r *Runner) runRustTests(result *TestResult) (*TestResult, error) {
-	cmd := exec.Command("cargo", "test", "--verbose")
+	cmd := exec.CommandContext(context.Background(), "cargo", "test", "--verbose")
 	cmd.Dir = r.config.WorkingDir
 	output, err := cmd.CombinedOutput()
 	result.Output = string(output)
@@ -190,7 +191,7 @@ func (r *Runner) detectLanguages() []string {
 func (r *Runner) parseGoOutput(result *TestResult) {
 	lines := strings.Split(result.Output, "\n")
 	for _, line := range lines {
-		if strings.Contains(line, "ok") && strings.Contains(line, "?") == false {
+		if strings.Contains(line, "ok") && !strings.Contains(line, "?") {
 			result.Tests++
 		}
 		if strings.Contains(line, "FAIL") {
@@ -210,12 +211,12 @@ func FormatResults(results []TestResult) string {
 			status = "FAIL"
 			allPassed = false
 		}
-		sb.WriteString(fmt.Sprintf("  [%s] %s", status, r.Language))
+		fmt.Fprintf(&sb, "  [%s] %s", status, r.Language)
 		if r.Tests > 0 {
-			sb.WriteString(fmt.Sprintf(" (%d tests)", r.Tests))
+			fmt.Fprintf(&sb, " (%d tests)", r.Tests)
 		}
 		if r.Failures > 0 {
-			sb.WriteString(fmt.Sprintf(" (%d failures)", r.Failures))
+			fmt.Fprintf(&sb, " (%d failures)", r.Failures)
 		}
 		sb.WriteString("\n")
 	}

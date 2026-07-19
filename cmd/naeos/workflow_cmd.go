@@ -106,8 +106,8 @@ func newWorkflowCreateCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "workflow name (required)")
 	cmd.Flags().StringArrayVar(&steps, "steps", nil, "workflow steps (required)")
-	cmd.MarkFlagRequired("name")
-	cmd.MarkFlagRequired("steps")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("steps")
 	return cmd
 }
 
@@ -131,7 +131,7 @@ func newWorkflowExecuteCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "workflow name (required)")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
@@ -157,8 +157,8 @@ func newWorkflowApproveCommand() *cobra.Command {
 	cmd.Flags().StringVar(&id, "id", "", "request ID (required)")
 	cmd.Flags().StringVar(&approver, "approver", "", "approver name (required)")
 	cmd.Flags().StringVar(&comment, "comment", "", "approval comment")
-	cmd.MarkFlagRequired("id")
-	cmd.MarkFlagRequired("approver")
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("approver")
 	return cmd
 }
 
@@ -184,8 +184,8 @@ func newWorkflowRejectCommand() *cobra.Command {
 	cmd.Flags().StringVar(&id, "id", "", "request ID (required)")
 	cmd.Flags().StringVar(&approver, "approver", "", "approver name (required)")
 	cmd.Flags().StringVar(&comment, "comment", "", "rejection comment")
-	cmd.MarkFlagRequired("id")
-	cmd.MarkFlagRequired("approver")
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("approver")
 	return cmd
 }
 

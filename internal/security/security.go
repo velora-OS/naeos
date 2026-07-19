@@ -39,7 +39,7 @@ func ScanDir(dir string) (map[string]string, error) {
 		if info.Size() > 1<<20 {
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) //nolint:gosec // G122: path is from filepath.Walk under user-specified root
 		if err != nil {
 			return nil
 		}

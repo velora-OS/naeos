@@ -13,9 +13,9 @@ var fnPattern = regexp.MustCompile(`\$fn\{([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\}`
 var ifPattern = regexp.MustCompile(`^\$if\{([^}]+)\}\s*$`)
 
 type IncludeResolver struct {
-	baseDir    string
-	loaded     map[string]string
-	maxDepth   int
+	baseDir  string
+	loaded   map[string]string
+	maxDepth int
 }
 
 func NewIncludeResolver(baseDir string) *IncludeResolver {
@@ -46,6 +46,7 @@ func (r *IncludeResolver) resolveWithDepth(input string, depth int) (string, err
 		if r.baseDir != "" {
 			filePath = filepath.Join(r.baseDir, filePath)
 		}
+		filePath = filepath.Clean(filePath)
 
 		if cached, ok := r.loaded[filePath]; ok {
 			result = strings.Replace(result, matches[0], cached, 1)
@@ -145,7 +146,7 @@ func (r *FuncRegistry) registerBuiltin() {
 }
 
 type ConditionalResolver struct {
-	env    map[string]string
+	env map[string]string
 }
 
 func NewConditionalResolver() *ConditionalResolver {

@@ -18,15 +18,15 @@ type Event struct {
 type Handler func(event Event) error
 
 type AsyncHandler struct {
-	Handler  Handler
-	Buffer   int
-	workers  int
-	ch       chan Event
-	dead     []Event
-	maxDead  int
-	running  bool
-	mu       sync.Mutex
-	stopCh   chan struct{}
+	Handler   Handler
+	Buffer    int
+	workers   int
+	ch        chan Event
+	dead      []Event
+	maxDead   int
+	running   bool
+	mu        sync.Mutex
+	stopCh    chan struct{}
 	deadCount int64
 }
 
