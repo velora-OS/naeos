@@ -1,30 +1,30 @@
 # Documentation Index
 
-Dokumen ini berfungsi sebagai indeks utama untuk navigasi repositori NAEOS.
+This document serves as the master index for navigating the NAEOS repository.
 
-## 1. Dokumen inti
-- [README.md](README.md) — ringkasan proyek dan pintu masuk utama.
-- [GETTING-STARTED.md](GETTING-STARTED.md) — panduan awal untuk memulai.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — pedoman kontribusi.
+## 1. Core documents
+- [README.md](README.md) — project summary and main entry point.
+- [GETTING-STARTED.md](GETTING-STARTED.md) — onboarding guide.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution guidelines.
 
-## 2. Konsep dan arsitektur
-- [specification/NAEOS-SPEC-001.md](specification/NAEOS-SPEC-001.md) — overview spesifikasi inti.
-- [Reference Architecture/NAEOS-NRA-001.md](Reference%20Architecture/NAEOS-NRA-001.md) — referensi arsitektur.
-- [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) — gambaran arsitektur konseptual.
+## 2. Concepts and architecture
+- [specification/NAEOS-SPEC-001.md](specification/NAEOS-SPEC-001.md) — core specification overview.
+- [Reference Architecture/NAEOS-NRA-001.md](Reference%20Architecture/NAEOS-NRA-001.md) — reference architecture.
+- [ARCHITECTURE-OVERVIEW.md](ARCHITECTURE-OVERVIEW.md) — conceptual architecture overview.
 
-## 3. Governance dan konstitusi
-- [constitution/NAEOS-CON-001.md](constitution/NAEOS-CON-001.md) — konstitusi engineering.
+## 3. Governance and constitution
+- [constitution/NAEOS-CON-001.md](constitution/NAEOS-CON-001.md) — engineering constitution.
 - [governance/NAEOS-GOV-001.md](governance/NAEOS-GOV-001.md) — project charter.
-- [governance/NAEOS-GOV-002.md](governance/NAEOS-GOV-002.md) — visi jangka panjang NAEOS.
-- [governance/NAEOS-GOV-003.md](governance/NAEOS-GOV-003.md) — misi resmi NAEOS.
-- [governance/NAEOS-GOV-004.md](governance/NAEOS-GOV-004.md) — manifesto NAEOS.
-- [governance/NAEOS-GOV-005.md](governance/NAEOS-GOV-005.md) — prinsip inti NAEOS.
-- [governance/NAEOS-GOV-006.md](governance/NAEOS-GOV-006.md) — model governance.
+- [governance/NAEOS-GOV-002.md](governance/NAEOS-GOV-002.md) — NAEOS long-term vision.
+- [governance/NAEOS-GOV-003.md](governance/NAEOS-GOV-003.md) — NAEOS official mission.
+- [governance/NAEOS-GOV-004.md](governance/NAEOS-GOV-004.md) — NAEOS manifesto.
+- [governance/NAEOS-GOV-005.md](governance/NAEOS-GOV-005.md) — NAEOS core principles.
+- [governance/NAEOS-GOV-006.md](governance/NAEOS-GOV-006.md) — governance model.
 - [governance/NAEOS-GOV-007.md](governance/NAEOS-GOV-007.md) — roadmap.
-- [governance/NAEOS-GOV-008.md](governance/NAEOS-GOV-008.md) — kebijakan versioning.
+- [governance/NAEOS-GOV-008.md](governance/NAEOS-GOV-008.md) — versioning policy.
 
-## 4. Policy, Kernel, dan Profile
-- [kernel/NAEOS-KER-001.md](kernel/NAEOS-KER-001.md) — spesifikasi kernel.
+## 4. Policy, Kernel, and Profile
+- [kernel/NAEOS-KER-001.md](kernel/NAEOS-KER-001.md) — kernel specification.
 
 ### 4.1 Policy System Documentation
 - [policy/NAEOS-POL-001.md](policy/NAEOS-POL-001.md) — spesifikasi policy compiler (high-level overview).
@@ -36,26 +36,27 @@ Dokumen ini berfungsi sebagai indeks utama untuk navigasi repositori NAEOS.
 - [policy/NAEOS-POL-007.md](policy/NAEOS-POL-007.md) — troubleshooting & FAQ (common issues, solutions, best practices Q&A).
 
 ### 4.2 Profile System Documentation
-- [profile/NAEOS-PRO-001.md](profile/NAEOS-PRO-001.md) — spesifikasi sistem profil (high-level overview).
-- [profile/NAEOS-PRO-002.md](profile/NAEOS-PRO-002.md) — panduan implementasi & setup (cara membuat dan mengaktifkan profile).
-- [profile/NAEOS-PRO-003.md](profile/NAEOS-PRO-003.md) — contoh profile konkret (base, startup, enterprise, fintech, healthcare, saas, microservices).
+- [profile/NAEOS-PRO-001.md](profile/NAEOS-PRO-001.md) — profile system specification (high-level overview).
+- [profile/NAEOS-PRO-002.md](profile/NAEOS-PRO-002.md) — implementation & setup guide (creating and activating profiles).
+- [profile/NAEOS-PRO-003.md](profile/NAEOS-PRO-003.md) — concrete profile examples (base, startup, enterprise, fintech, healthcare, saas, microservices).
 - [profile/NAEOS-PRO-004.md](profile/NAEOS-PRO-004.md) — best practices (design principles, policy design, governance).
-- [profile/NAEOS-PRO-005.md](profile/NAEOS-PRO-005.md) — API & CLI reference (perintah lengkap, contoh penggunaan, SDK).
+- [profile/NAEOS-PRO-005.md](profile/NAEOS-PRO-005.md) — API & CLI reference (complete commands, usage examples, SDK).
 - [profile/NAEOS-PRO-006.md](profile/NAEOS-PRO-006.md) — migration & upgrade guide (upgrade strategies, major version migration, rollback).
 - [profile/NAEOS-PRO-007.md](profile/NAEOS-PRO-007.md) — troubleshooting & FAQ (common issues, solutions, best practices Q&A).
 
-## 5. Dokumen penunjang
-- [GLOSSARY.md](GLOSSARY.md) — daftar istilah penting.
-- [ROADMAP.md](ROADMAP.md) — arah pengembangan proyek.
+## 5. Supporting documents
+- [GLOSSARY.md](GLOSSARY.md) — glossary of important terms.
+- [ROADMAP.md](ROADMAP.md) — project development roadmap.
+- [CHANGELOG.md](CHANGELOG.md) — version history and release notes.
 
-## 6. Template dan proses
-- [templates/ADR-template.md](templates/ADR-template.md) — template Architecture Decision Record.
-- [templates/RFC-template.md](templates/RFC-template.md) — template Request for Comments.
-- [examples/adr-example.md](examples/adr-example.md) — contoh ADR yang sudah terisi.
-- [examples/rfc-example.md](examples/rfc-example.md) — contoh RFC yang sudah terisi.
+## 6. Templates and processes
+- [templates/ADR-template.md](templates/ADR-template.md) — Architecture Decision Record template.
+- [templates/RFC-template.md](templates/RFC-template.md) — Request for Comments template.
+- [examples/adr-example.md](examples/adr-example.md) — completed ADR example.
+- [examples/rfc-example.md](examples/rfc-example.md) — completed RFC example.
 
-## 7. Struktur dokumentasi modular
-- [docs/README.md](docs/README.md) — peta struktur dokumentasi NAEOS.
+## 7. Modular documentation structure
+- [docs/README.md](docs/README.md) — NAEOS documentation structure map.
 - [docs/NES-000-Foundation.md](docs/NES-000-Foundation.md) — foundation.
 - [docs/NES-001-Repository.md](docs/NES-001-Repository.md) — repository.
 - [docs/NES-002-Kernel.md](docs/NES-002-Kernel.md) — kernel.
@@ -79,22 +80,22 @@ Dokumen ini berfungsi sebagai indeks utama untuk navigasi repositori NAEOS.
 - [docs/NES-020-Security.md](docs/NES-020-Security.md) — security.
 - [docs/NES-021-Testing.md](docs/NES-021-Testing.md) — testing.
 - [docs/NES-022-Release.md](docs/NES-022-Release.md) — release.
-- [docs/NES-028-CLI-Reference.md](docs/NES-028-CLI-Reference.md) — referensi CLI (perintah, flag, output).
-- [docs/NES-029-Configuration.md](docs/NES-029-Configuration.md) — referensi konfigurasi pipeline.
-- [docs/NES-030-Specification-Language.md](docs/NES-030-Specification-Language.md) — bahasa spesifikasi NAEOS.
-- [docs/NES-031-Errors.md](docs/NES-031-Errors.md) — katalog kode error.
-- [docs/NES-032-Telemetry.md](docs/NES-032-Telemetry.md) — referensi telemetry dan metrik.
-- [docs/NES-033-Testing-Guide.md](docs/NES-033-Testing-Guide.md) — panduan pengujian.
-- [docs/NES-034-Event-Bus.md](docs/NES-034-Event-Bus.md) — event bus internal (pub/sub).
-- [docs/NES-035-Version-Management.md](docs/NES-035-Version-Management.md) — manajemen versi SemVer.
-- [docs/NES-036-Template-Renderer.md](docs/NES-036-Template-Renderer.md) — engine rendering template.
-- [docs/NES-037-Knowledge-Graph-Provenance.md](docs/NES-037-Knowledge-Graph-Provenance.md) — knowledge graph dan provenance tracking.
-- [docs/NES-038-Shared-Types-Contracts.md](docs/NES-038-Shared-Types-Contracts.md) — tipe data dan kontrak bersama.
-- [docs/NES-039-SDK-MultiLanguage.md](docs/NES-039-SDK-MultiLanguage.md) — spesifikasi SDK multi-language (Go, TS, Python, Java, Rust).
-- [docs/NES-040-Output-Adapter-Architecture.md](docs/NES-040-Output-Adapter-Architecture.md) — arsitektur output adapter untuk ekstensi bahasa.
+- [docs/NES-028-CLI-Reference.md](docs/NES-028-CLI-Reference.md) — CLI reference (commands, flags, output).
+- [docs/NES-029-Configuration.md](docs/NES-029-Configuration.md) — pipeline configuration reference.
+- [docs/NES-030-Specification-Language.md](docs/NES-030-Specification-Language.md) — NAEOS specification language.
+- [docs/NES-031-Errors.md](docs/NES-031-Errors.md) — error code catalog.
+- [docs/NES-032-Telemetry.md](docs/NES-032-Telemetry.md) — telemetry and metrics reference.
+- [docs/NES-033-Testing-Guide.md](docs/NES-033-Testing-Guide.md) — testing guide.
+- [docs/NES-034-Event-Bus.md](docs/NES-034-Event-Bus.md) — internal event bus (pub/sub).
+- [docs/NES-035-Version-Management.md](docs/NES-035-Version-Management.md) — SemVer version management.
+- [docs/NES-036-Template-Renderer.md](docs/NES-036-Template-Renderer.md) — template rendering engine.
+- [docs/NES-037-Knowledge-Graph-Provenance.md](docs/NES-037-Knowledge-Graph-Provenance.md) — knowledge graph and provenance tracking.
+- [docs/NES-038-Shared-Types-Contracts.md](docs/NES-038-Shared-Types-Contracts.md) — shared types and contracts.
+- [docs/NES-039-SDK-MultiLanguage.md](docs/NES-039-SDK-MultiLanguage.md) — multi-language SDK specification (Go, TS, Python, Java, Rust).
+- [docs/NES-040-Output-Adapter-Architecture.md](docs/NES-040-Output-Adapter-Architecture.md) — output adapter architecture for language extensions.
 - [docs/NES-042-Database.md](docs/NES-042-Database.md) — database layer (PostgreSQL, MySQL, SQLite).
 - [docs/NES-043-WebSocket.md](docs/NES-043-WebSocket.md) — WebSocket real-time communication.
-- [docs/NES-044-EventSourcing.md](docs/NES-044-EventSourcing.md) — event sourcing dan aggregate snapshots.
+- [docs/NES-044-EventSourcing.md](docs/NES-044-EventSourcing.md) — event sourcing and aggregate snapshots.
 - [docs/NES-045-Distributed.md](docs/NES-045-Distributed.md) — distributed task execution.
 - [docs/NES-046-ConfigHotReload.md](docs/NES-046-ConfigHotReload.md) — configuration hot-reload.
 - [docs/NES-047-PipelineCache.md](docs/NES-047-PipelineCache.md) — pipeline result caching.
@@ -105,51 +106,51 @@ Dokumen ini berfungsi sebagai indeks utama untuk navigasi repositori NAEOS.
 - [docs/NES-052-CICD.md](docs/NES-052-CICD.md) — CI/CD pipeline automation.
 - [docs/NES-053-WASMPlugin.md](docs/NES-053-WASMPlugin.md) — WASM plugin sandboxed execution.
 
-## 8. Rekomendasi membaca
+## 8. Reading recommendations
 
-### 8.1 Untuk pemula (memahami proyek)
-Urutan yang disarankan:
+### 8.1 For beginners (understanding the project)
+Suggested reading order:
 1. [README.md](README.md)
 2. [GETTING-STARTED.md](GETTING-STARTED.md)
 3. [specification/NAEOS-SPEC-001.md](specification/NAEOS-SPEC-001.md)
 4. [constitution/NAEOS-CON-001.md](constitution/NAEOS-CON-001.md)
 5. [policy/NAEOS-POL-001.md](policy/NAEOS-POL-001.md)
 
-### 8.2 Untuk policy system
-Jika ingin memahami dan menggunakan policy system, baca dalam urutan:
-1. [policy/NAEOS-POL-001.md](policy/NAEOS-POL-001.md) — pahami konsep dasar policy compiler
-2. [policy/NAEOS-POL-003.md](policy/NAEOS-POL-003.md) — lihat contoh konkret policies
-3. [policy/NAEOS-POL-002.md](policy/NAEOS-POL-002.md) — praktik menulis dan mendefinisikan policies
-4. [policy/NAEOS-POL-004.md](policy/NAEOS-POL-004.md) — best practices policy design
-5. [policy/NAEOS-POL-006.md](policy/NAEOS-POL-006.md) — evaluasi dan enforcement strategies
-6. [policy/NAEOS-POL-005.md](policy/NAEOS-POL-005.md) — technical deep dive (opsional, untuk developers)
-7. [policy/NAEOS-POL-007.md](policy/NAEOS-POL-007.md) — troubleshooting saat perlu
+### 8.2 For the policy system
+To understand and use the policy system, read in this order:
+1. [policy/NAEOS-POL-001.md](policy/NAEOS-POL-001.md) — understand basic policy compiler concepts
+2. [policy/NAEOS-POL-003.md](policy/NAEOS-POL-003.md) — see concrete policy examples
+3. [policy/NAEOS-POL-002.md](policy/NAEOS-POL-002.md) — writing and defining policies
+4. [policy/NAEOS-POL-004.md](policy/NAEOS-POL-004.md) — policy design best practices
+5. [policy/NAEOS-POL-006.md](policy/NAEOS-POL-006.md) — evaluation and enforcement strategies
+6. [policy/NAEOS-POL-005.md](policy/NAEOS-POL-005.md) — technical deep dive (optional, for developers)
+7. [policy/NAEOS-POL-007.md](policy/NAEOS-POL-007.md) — troubleshooting when needed
 
-### 8.3 Untuk pengguna CLI
-Jika ingin langsung menggunakan NAEOS, baca dalam urutan:
-1. [docs/NES-028-CLI-Reference.md](docs/NES-028-CLI-Reference.md) — perintah CLI lengkap
-2. [docs/NES-029-Configuration.md](docs/NES-029-Configuration.md) — format konfigurasi
-3. [docs/NES-030-Specification-Language.md](docs/NES-030-Specification-Language.md) — menulis spesifikasi
-4. [examples/spec-minimal.yaml](examples/spec-minimal.yaml) — contoh spesifikasi minimal
-5. [examples/spec-full.yaml](examples/spec-full.yaml) — contoh spesifikasi lengkap
+### 8.3 For CLI users
+To use NAEOS directly, read in this order:
+1. [docs/NES-028-CLI-Reference.md](docs/NES-028-CLI-Reference.md) — complete CLI commands
+2. [docs/NES-029-Configuration.md](docs/NES-029-Configuration.md) — configuration format
+3. [docs/NES-030-Specification-Language.md](docs/NES-030-Specification-Language.md) — writing specifications
+4. [examples/spec-minimal.yaml](examples/spec-minimal.yaml) — minimal specification example
+5. [examples/spec-full.yaml](examples/spec-full.yaml) — full specification example
 
-### 8.4 Untuk pengembang & pengujian
-1. [docs/NES-033-Testing-Guide.md](docs/NES-033-Testing-Guide.md) — panduan pengujian
-2. [docs/NES-031-Errors.md](docs/NES-031-Errors.md) — katalog error
-3. [docs/NES-032-Telemetry.md](docs/NES-032-Telemetry.md) — observabilitas
+### 8.4 For developers & testing
+1. [docs/NES-033-Testing-Guide.md](docs/NES-033-Testing-Guide.md) — testing guide
+2. [docs/NES-031-Errors.md](docs/NES-031-Errors.md) — error catalog
+3. [docs/NES-032-Telemetry.md](docs/NES-032-Telemetry.md) — observability
 
-### 8.5 Untuk profile system
-Jika ingin memahami dan menggunakan profile system, baca dalam urutan:
-1. [profile/NAEOS-PRO-001.md](profile/NAEOS-PRO-001.md) — pahami konsep dasar
-2. [profile/NAEOS-PRO-003.md](profile/NAEOS-PRO-003.md) — lihat contoh konkret
-3. [profile/NAEOS-PRO-002.md](profile/NAEOS-PRO-002.md) — praktik implementasi
+### 8.5 For the profile system
+To understand and use the profile system, read in this order:
+1. [profile/NAEOS-PRO-001.md](profile/NAEOS-PRO-001.md) — understand basic concepts
+2. [profile/NAEOS-PRO-003.md](profile/NAEOS-PRO-003.md) — see concrete examples
+3. [profile/NAEOS-PRO-002.md](profile/NAEOS-PRO-002.md) — implementation practices
 4. [profile/NAEOS-PRO-004.md](profile/NAEOS-PRO-004.md) — best practices
-5. [profile/NAEOS-PRO-005.md](profile/NAEOS-PRO-005.md) — referensi CLI & API
-6. [profile/NAEOS-PRO-007.md](profile/NAEOS-PRO-007.md) — troubleshooting saat perlu
-7. [profile/NAEOS-PRO-006.md](profile/NAEOS-PRO-006.md) — upgrade guide saat upgrade
+5. [profile/NAEOS-PRO-005.md](profile/NAEOS-PRO-005.md) — CLI & API reference
+6. [profile/NAEOS-PRO-007.md](profile/NAEOS-PRO-007.md) — troubleshooting when needed
+7. [profile/NAEOS-PRO-006.md](profile/NAEOS-PRO-006.md) — upgrade guide when upgrading
 
-## 9. Dokumen referensi paket Go
-Dokumen berikut mengacu langsung pada paket Go di repositori:
+## 9. Go package reference documents
+The following documents directly reference Go packages in this repository:
 - [docs/NES-002-Kernel-API.md](docs/NES-002-Kernel-API.md) — API publik `pkg/kernel`.
 - [docs/NES-023-NEIR-Model.md](docs/NES-023-NEIR-Model.md) — model `internal/neir/model`.
 - [docs/NES-026-Pipeline.md](docs/NES-026-Pipeline.md) — pipeline `pkg/pipeline`.
@@ -165,9 +166,9 @@ Dokumen berikut mengacu langsung pada paket Go di repositori:
 - [docs/NES-039-SDK-MultiLanguage.md](docs/NES-039-SDK-MultiLanguage.md) — SDK multi-language `internal/generation/adapters`.
 - [docs/NES-040-Output-Adapter-Architecture.md](docs/NES-040-Output-Adapter-Architecture.md) — adapter architecture `internal/generation/adapters`.
 
-## 10. Catatan navigasi
-- Gunakan dokumen ini sebagai titik masuk saat mencari topik tertentu.
-- Jika Anda ingin memahami keseluruhan proyek, mulai dari bagian inti terlebih dahulu.
-- Untuk kontribusi, lihat [CONTRIBUTING.md](CONTRIBUTING.md).
-- Untuk policy system, mulai dari NAEOS-POL-001 kemudian lanjut sesuai kebutuhan.
-- Untuk profile system, mulai dari NAEOS-PRO-001 kemudian lanjut sesuai kebutuhan.
+## 10. Navigation notes
+- Use this document as your entry point when searching for a specific topic.
+- To understand the overall project, start with the core documents first.
+- For contributions, see [CONTRIBUTING.md](CONTRIBUTING.md).
+- For the policy system, start with NAEOS-POL-001 and continue as needed.
+- For the profile system, start with NAEOS-PRO-001 and continue as needed.
