@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/NAEOS-foundation/naeos/internal/compiler"
@@ -29,6 +30,88 @@ func testNEIR() *model.NEIR {
 		Services: []service.Service{
 			{Name: "http-api", Kind: "http", Port: 8080},
 		},
+	}
+}
+
+func TestParseCompiledFiles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		count   int
+		wantErr bool
+	}{
+		{
+			name:    "valid JSON array",
+			input:   `[{"path":"test.md","content":"hello","kind":"instructions"}]`,
+			count:   1,
+			wantErr: false,
+		},
+		{
+			name:    "multiple files",
+			input:   `[{"path":"a.md","content":"a","kind":"docs"},{"path":"b.md","content":"b","kind":"rules"}]`,
+			count:   2,
+			wantErr: false,
+		},
+		{
+			name:    "empty array",
+			input:   `[]`,
+			count:   0,
+			wantErr: true,
+		},
+		{
+			name:    "invalid JSON",
+			input:   `not json`,
+			count:   0,
+			wantErr: true,
+		},
+		{
+			name:    "JSON in code block",
+			input:   "```json\n[{\"path\":\"x\",\"content\":\"y\",\"kind\":\"z\"}]\n```",
+			count:   1,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files, err := parseCompiledFiles(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(files) != tt.count {
+				t.Errorf("got %d files, want %d", len(files), tt.count)
+			}
+		})
+	}
+}
+
+func TestBuildNEIRContext(t *testing.T) {
+	t.Parallel()
+
+	neir := testNEIR()
+	ctx := buildNEIRContext(neir)
+	if ctx == "" {
+		t.Fatal("expected non-empty context")
+	}
+	if !strings.Contains(ctx, "test-project") {
+		t.Error("expected project name")
+	}
+	if !strings.Contains(ctx, "hexagonal") {
+		t.Error("expected architecture pattern")
+	}
+	if !strings.Contains(ctx, "core") {
+		t.Error("expected module name")
+	}
+	if !strings.Contains(ctx, "http-api") {
+		t.Error("expected service name")
 	}
 }
 

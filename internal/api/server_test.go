@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/NAEOS-foundation/naeos/internal/profiles"
 )
 
 func TestNewServer(t *testing.T) {
@@ -859,5 +862,330 @@ func TestReadyzEndpoint(t *testing.T) {
 	body := w.Body.String()
 	if !bytes.Contains([]byte(body), []byte("ready")) {
 		t.Errorf("expected 'ready' in response body, got %s", body)
+	}
+}
+
+func TestProfilesEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/profiles", nil)
+	w := httptest.NewRecorder()
+
+	s.handleProfiles(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected success to be true")
+	}
+
+	data, _ := json.Marshal(resp.Data)
+	var result map[string]any
+	json.Unmarshal(data, &result)
+
+	if _, ok := result["profiles"]; !ok {
+		t.Error("expected profiles in response")
+	}
+	if _, ok := result["count"]; !ok {
+		t.Error("expected count in response")
+	}
+}
+
+func TestProfilePublishEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"id":   "test-profile",
+		"name": "Test Profile",
+	})
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/profiles/publish", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleProfilePublish(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected success to be true")
+	}
+}
+
+func TestProfileSubscribeEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"registry_url": "https://example.com/registry",
+		"api_key":      "test-key",
+		"interval":     "10s",
+	})
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/profiles/subscribe", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleProfileSubscribe(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected success to be true")
+	}
+}
+
+func TestProfileUnsubscribeEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"registry_url": "https://example.com/registry",
+	})
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/profiles/unsubscribe", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleProfileUnsubscribe(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Success {
+		t.Error("expected success to be false")
+	}
+}
+
+func TestProfileByIDEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	s.profiles.Register(&profiles.Profile{
+		ID:   "saas",
+		Name: "SaaS App",
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/profiles/saas", nil)
+	w := httptest.NewRecorder()
+
+	s.handleProfileByID(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected success to be true")
+	}
+
+	req404 := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/profiles/nonexistent", nil)
+	w404 := httptest.NewRecorder()
+
+	s.handleProfileByID(w404, req404)
+
+	if w404.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w404.Code)
+	}
+}
+
+func TestAIEnrichStreamEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"spec": "test spec",
+	})
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/ai/enrich/stream", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleAIEnrichStream(w, req)
+
+	ct := w.Header().Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Errorf("expected content-type text/event-stream, got %s", ct)
+	}
+
+	bodyStr := w.Body.String()
+	if !strings.Contains(bodyStr, "event:") {
+		t.Error("expected SSE event framing in response")
+	}
+	if !strings.Contains(bodyStr, "data:") {
+		t.Error("expected SSE data in response")
+	}
+}
+
+func TestAIExplainStreamEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"spec":         "test",
+		"architecture": "microservices",
+	})
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/ai/explain/stream", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleAIExplainStream(w, req)
+
+	ct := w.Header().Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Errorf("expected content-type text/event-stream, got %s", ct)
+	}
+
+	bodyStr := w.Body.String()
+	if !strings.Contains(bodyStr, "event:") {
+		t.Error("expected SSE event framing in response")
+	}
+	if !strings.Contains(bodyStr, "data:") {
+		t.Error("expected SSE data in response")
+	}
+}
+
+func TestProfilePublishEndpointMissingFields(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/profiles/publish", nil)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleProfilePublish(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestProfileSubscribeEndpointMissingFields(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/profiles/subscribe", nil)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleProfileSubscribe(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestSpecVisualizeEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body, _ := json.Marshal(map[string]string{
+		"spec": "project: test\nmodules:\n  - name: core\n    path: ./core\n",
+	})
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/specs/visualize", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleSpecVisualize(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var resp APIResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !resp.Success {
+		t.Error("expected success to be true")
+	}
+}
+
+func TestAICompileStreamEndpoint(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body := bytes.NewReader([]byte(`{"spec":"project: test","target":"opencode"}`))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/ai/compile/stream", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleAICompileStream(w, req)
+
+	ct := w.Header().Get("Content-Type")
+	if ct != "text/event-stream" {
+		t.Errorf("expected text/event-stream content-type, got %s", ct)
+	}
+}
+
+func TestAICompileStreamEndpointMissingSpec(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	body := bytes.NewReader([]byte(`{}`))
+	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/ai/compile/stream", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	s.handleAICompileStream(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestAICompileStreamEndpointMethodNotAllowed(t *testing.T) {
+	s := NewServer(":8080", &AuthConfig{Enabled: false})
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/api/v1/ai/compile/stream", nil)
+	w := httptest.NewRecorder()
+
+	s.handleAICompileStream(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestParsePagination(t *testing.T) {
+	tests := []struct {
+		name           string
+		query          string
+		wantOffset     int
+		wantLimit      int
+	}{
+		{name: "defaults", query: "", wantOffset: 0, wantLimit: 50},
+		{name: "limit only", query: "limit=10", wantOffset: 0, wantLimit: 10},
+		{name: "limit capped", query: "limit=999", wantOffset: 0, wantLimit: 50},
+		{name: "offset zero", query: "offset=0&limit=20", wantOffset: 0, wantLimit: 20},
+		{name: "offset positive", query: "offset=30&limit=15", wantOffset: 30, wantLimit: 15},
+		{name: "page one", query: "page=1&limit=10", wantOffset: 0, wantLimit: 10},
+		{name: "page three", query: "page=3&limit=20", wantOffset: 40, wantLimit: 20},
+		{name: "offset takes precedence", query: "offset=5&page=3&limit=10", wantOffset: 5, wantLimit: 10},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/?"+tt.query, nil)
+			offset, limit := parsePagination(req)
+			if offset != tt.wantOffset {
+				t.Errorf("offset = %d, want %d", offset, tt.wantOffset)
+			}
+			if limit != tt.wantLimit {
+				t.Errorf("limit = %d, want %d", limit, tt.wantLimit)
+			}
+		})
 	}
 }

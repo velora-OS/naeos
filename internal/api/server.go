@@ -25,9 +25,9 @@ import (
 	"github.com/NAEOS-foundation/naeos/internal/errors"
 	"github.com/NAEOS-foundation/naeos/internal/mcp"
 	"github.com/NAEOS-foundation/naeos/internal/monitoring"
+	"github.com/NAEOS-foundation/naeos/internal/multitenant"
 	"github.com/NAEOS-foundation/naeos/internal/pluginhost"
 	"github.com/NAEOS-foundation/naeos/internal/profiles"
-	"github.com/NAEOS-foundation/naeos/internal/multitenant"
 	"github.com/NAEOS-foundation/naeos/internal/specification/parser"
 	"github.com/NAEOS-foundation/naeos/internal/version"
 	naeosws "github.com/NAEOS-foundation/naeos/internal/websocket"
@@ -36,39 +36,41 @@ import (
 
 // Server is the main HTTP API server for the NAEOS platform.
 type Server struct {
-	Addr            string
-	Router          *http.ServeMux
-	server          *http.Server
-	Auth            *AuthConfig
-	CORS            *CORSConfig
-	MaxBodySize     int64
-	Limiter         *RateLimiter
-	TenantLimiter   *RateLimiter
-	APIKeys         map[string]*RateLimiter
-	apiKeysMu       sync.RWMutex
-	jwt             *JWTValidator
-	authManager     *auth.Manager
-	routePerms      map[string]auth.RoutePermission
-	parser          parser.Parser
-	compiler        *compiler.Compiler
-	bundle          *contextbundle.Generator
-	store           *artifacts.Store
-	pipelines       []pipelineRun
-	pipelinesMu     sync.RWMutex
-	pipelineJobs    map[string]*pipelineJob
-	jobsMu          sync.RWMutex
-	deployments     []cloudDeployment
-	deployMu        sync.RWMutex
-	plugins         *pluginhost.Manager
-	metrics         *monitoring.Metrics
-	metricsRegistry *monitoring.Registry
-	auditor         audit.Auditor
-	wsServer        *naeosws.Server
-	mcpServer       *mcp.Server
-	db              database.Database
-	profiles        *profiles.Registry
+	Addr             string
+	Router           *http.ServeMux
+	server           *http.Server
+	Auth             *AuthConfig
+	CORS             *CORSConfig
+	MaxBodySize      int64
+	Limiter          *RateLimiter
+	TenantLimiter    *RateLimiter
+	APIKeys          map[string]*RateLimiter
+	apiKeysMu        sync.RWMutex
+	jwt              *JWTValidator
+	authManager      *auth.Manager
+	routePerms       map[string]auth.RoutePermission
+	parser           parser.Parser
+	compiler         *compiler.Compiler
+	bundle           *contextbundle.Generator
+	store            *artifacts.Store
+	pipelines        []pipelineRun
+	pipelinesMu      sync.RWMutex
+	pipelineJobs     map[string]*pipelineJob
+	jobsMu           sync.RWMutex
+	deployments      []cloudDeployment
+	deployMu         sync.RWMutex
+	plugins          *pluginhost.Manager
+	metrics          *monitoring.Metrics
+	metricsRegistry  *monitoring.Registry
+	auditor          audit.Auditor
+	wsServer         *naeosws.Server
+	mcpServer        *mcp.Server
+	db               database.Database
+	profiles         *profiles.Registry
+	profileSubs      map[string]*profiles.Subscription
+	profileSubMu     sync.Mutex
 	pipelineObserver pipeline.PipelineObserver
-	tenantWorkspace *multitenant.Workspace
+	tenantWorkspace  *multitenant.Workspace
 }
 
 type pipelineRun struct {
@@ -137,16 +139,18 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	})))
 
 	store := artifacts.NewStore(".naeos/artifacts")
-	_ = store.LoadFromDisk()
+	if err := store.LoadFromDisk(); err != nil {
+		slog.Warn("failed to load artifacts from disk", "error", err)
+	}
 
 	metrics := monitoring.NewMetrics()
 
 	routePerms := defaultRoutePermissions()
 	s := &Server{
-		Addr:        addr,
-		Router:      http.NewServeMux(),
-		Auth:        auth,
-		routePerms:  routePerms,
+		Addr:       addr,
+		Router:     http.NewServeMux(),
+		Auth:       auth,
+		routePerms: routePerms,
 		CORS: &CORSConfig{
 			AllowedOrigins: []string{
 				"http://localhost:3000",
@@ -156,16 +160,17 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 			AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders: []string{"Content-Type", "Authorization"},
 		},
-		MaxBodySize:  10 << 20,
+		MaxBodySize:   10 << 20,
 		Limiter:       NewRateLimiter(100, time.Minute),
 		TenantLimiter: NewRateLimiter(1000, time.Minute),
 		APIKeys:       make(map[string]*RateLimiter),
-		parser:       parser.NewParser(),
-		compiler:     compiler.New(),
-		store:        store,
-		pipelineJobs: make(map[string]*pipelineJob),
-		plugins:      pluginhost.NewManager(".naeos/plugins"),
-		profiles:     profiles.NewRegistry(),
+		parser:        parser.NewParser(),
+		compiler:      compiler.New(),
+		store:         store,
+		pipelineJobs:  make(map[string]*pipelineJob),
+		plugins:       pluginhost.NewManager(".naeos/plugins"),
+		profiles:      profiles.NewRegistry(),
+		profileSubs:   make(map[string]*profiles.Subscription),
 	}
 
 	if auth != nil && auth.JWTSecret != "" {
@@ -180,7 +185,6 @@ func NewServer(addr string, auth *AuthConfig) *Server {
 	s.metricsRegistry = metrics.Registry()
 	s.pipelineObserver = monitoring.NewMetricsObserver(metrics)
 	s.auditor = audit.NewMemoryAuditor()
-	s.profiles = profiles.NewRegistry()
 	s.setupRoutes()
 	return s
 }
@@ -215,6 +219,7 @@ func (s *Server) setupRoutes() {
 	s.Router.HandleFunc("/api/v1/profiles/publish", s.handleProfilePublish)
 	s.Router.HandleFunc("/api/v1/profiles/sync", s.handleProfileSync)
 	s.Router.HandleFunc("/api/v1/profiles/subscribe", s.handleProfileSubscribe)
+	s.Router.HandleFunc("/api/v1/profiles/unsubscribe", s.handleProfileUnsubscribe)
 	s.Router.HandleFunc("/api/v1/profiles/", s.handleProfileByID)
 
 	// MCP endpoints
@@ -239,6 +244,7 @@ func (s *Server) setupRoutes() {
 	// AI endpoints
 	s.Router.HandleFunc("/api/v1/ai/enrich/stream", s.handleAIEnrichStream)
 	s.Router.HandleFunc("/api/v1/ai/explain/stream", s.handleAIExplainStream)
+	s.Router.HandleFunc("/api/v1/ai/compile/stream", s.handleAICompileStream)
 
 	// OIDC discovery
 	s.Router.HandleFunc("/.well-known/openid-configuration", s.handleOIDCDiscovery)
@@ -246,29 +252,31 @@ func (s *Server) setupRoutes() {
 
 func defaultRoutePermissions() map[string]auth.RoutePermission {
 	return map[string]auth.RoutePermission{
-		"/api/v1/specs":             {Resource: auth.ResourceSpec, Action: auth.ActionRead},
-		"/api/v1/specs/validate":    {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
-		"/api/v1/specs/compile":     {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
-		"/api/v1/specs/visualize":   {Resource: auth.ResourceSpec, Action: auth.ActionRead},
-		"/api/v1/pipeline/run":      {Resource: auth.ResourcePipeline, Action: auth.ActionWrite},
-		"/api/v1/pipeline/status":   {Resource: auth.ResourcePipeline, Action: auth.ActionRead},
-		"/api/v1/artifacts":         {Resource: auth.ResourceArtifact, Action: auth.ActionRead},
-		"/api/v1/context/generate":  {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
-		"/api/v1/profiles":          {Resource: auth.ResourceProfile, Action: auth.ActionRead},
-		"/api/v1/profiles/publish":  {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
-		"/api/v1/profiles/sync":     {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
-		"/api/v1/profiles/subscribe": {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
-		"/api/v1/cloud/plan":        {Resource: auth.ResourceCloud, Action: auth.ActionRead},
-		"/api/v1/cloud/deploy":      {Resource: auth.ResourceCloud, Action: auth.ActionWrite},
-		"/api/v1/cloud/destroy":     {Resource: auth.ResourceCloud, Action: auth.ActionDelete},
-		"/api/v1/cloud/status":      {Resource: auth.ResourceCloud, Action: auth.ActionRead},
-		"/api/v1/plugins":           {Resource: auth.ResourcePlugin, Action: auth.ActionRead},
-		"/api/v1/plugins/execute":   {Resource: auth.ResourcePlugin, Action: auth.ActionWrite},
-		"/api/v1/ai/enrich/stream":  {Resource: auth.ResourceAI, Action: auth.ActionWrite},
-		"/api/v1/ai/explain/stream": {Resource: auth.ResourceAI, Action: auth.ActionRead},
-		"/api/v1/config/schema":     {Resource: auth.ResourceConfig, Action: auth.ActionRead},
-		"/api/v1/version":           {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
-		"/api/v1/health":            {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
+		"/api/v1/specs":                {Resource: auth.ResourceSpec, Action: auth.ActionRead},
+		"/api/v1/specs/validate":       {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
+		"/api/v1/specs/compile":        {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
+		"/api/v1/specs/visualize":      {Resource: auth.ResourceSpec, Action: auth.ActionRead},
+		"/api/v1/pipeline/run":         {Resource: auth.ResourcePipeline, Action: auth.ActionWrite},
+		"/api/v1/pipeline/status":      {Resource: auth.ResourcePipeline, Action: auth.ActionRead},
+		"/api/v1/artifacts":            {Resource: auth.ResourceArtifact, Action: auth.ActionRead},
+		"/api/v1/context/generate":     {Resource: auth.ResourceSpec, Action: auth.ActionWrite},
+		"/api/v1/profiles":             {Resource: auth.ResourceProfile, Action: auth.ActionRead},
+		"/api/v1/profiles/publish":     {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/profiles/sync":        {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/profiles/subscribe":   {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/profiles/unsubscribe": {Resource: auth.ResourceProfile, Action: auth.ActionWrite},
+		"/api/v1/cloud/plan":           {Resource: auth.ResourceCloud, Action: auth.ActionRead},
+		"/api/v1/cloud/deploy":         {Resource: auth.ResourceCloud, Action: auth.ActionWrite},
+		"/api/v1/cloud/destroy":        {Resource: auth.ResourceCloud, Action: auth.ActionDelete},
+		"/api/v1/cloud/status":         {Resource: auth.ResourceCloud, Action: auth.ActionRead},
+		"/api/v1/plugins":              {Resource: auth.ResourcePlugin, Action: auth.ActionRead},
+		"/api/v1/plugins/execute":      {Resource: auth.ResourcePlugin, Action: auth.ActionWrite},
+		"/api/v1/ai/enrich/stream":     {Resource: auth.ResourceAI, Action: auth.ActionWrite},
+		"/api/v1/ai/explain/stream":    {Resource: auth.ResourceAI, Action: auth.ActionRead},
+		"/api/v1/ai/compile/stream":    {Resource: auth.ResourceAI, Action: auth.ActionWrite},
+		"/api/v1/config/schema":        {Resource: auth.ResourceConfig, Action: auth.ActionRead},
+		"/api/v1/version":              {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
+		"/api/v1/health":               {Resource: auth.ResourceAdmin, Action: auth.ActionRead},
 	}
 }
 
@@ -666,10 +674,30 @@ func (s *Server) handleSpecCompile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b := s.bundle.GenerateFromSpec(doc)
-	targets := s.compiler.Targets()
-	if len(targets) == 0 {
+
+	allTargets := s.compiler.Targets()
+	if len(allTargets) == 0 {
 		s.writeError(w, http.StatusServiceUnavailable, "no compiler targets available; check compiler configuration")
 		return
+	}
+
+	var targets []compiler.Target
+	if req.Target != "" {
+		requested := compiler.Target(req.Target)
+		found := false
+		for _, t := range allTargets {
+			if t == requested {
+				found = true
+				break
+			}
+		}
+		if !found {
+			s.writeError(w, http.StatusBadRequest, "unknown target: "+req.Target)
+			return
+		}
+		targets = []compiler.Target{requested}
+	} else {
+		targets = allTargets
 	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"compiled": true,
@@ -934,8 +962,10 @@ func (s *Server) handlePipelineRun(w http.ResponseWriter, r *http.Request) {
 				s.pipelinesMu.Unlock()
 
 				if s.db != nil {
-					_, _ = s.db.Exec("INSERT INTO pipeline_runs (id, status, project, modules, services, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-						run.ID, run.Status, run.Project, run.Modules, run.Services, run.CreatedAt)
+					if _, err := s.db.Exec("INSERT INTO pipeline_runs (id, status, project, modules, services, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+						run.ID, run.Status, run.Project, run.Modules, run.Services, run.CreatedAt); err != nil {
+						slog.Warn("failed to persist pipeline run", "error", err)
+					}
 				}
 
 				s.jobsMu.Lock()
@@ -1020,7 +1050,9 @@ func (s *Server) handleArtifacts(w http.ResponseWriter, r *http.Request) {
 			s.writeError(w, http.StatusInternalServerError, "failed to store artifact: "+err.Error())
 			return
 		}
-		_ = s.store.WriteToDisk()
+		if err := s.store.WriteToDisk(); err != nil {
+			slog.Error("failed to persist artifacts to disk", "error", err)
+		}
 		s.writeJSON(w, http.StatusCreated, map[string]any{
 			"message":  "artifact stored",
 			"artifact": artifact,
@@ -1477,6 +1509,8 @@ func (s *Server) handleProfileSubscribe(w http.ResponseWriter, r *http.Request) 
 	}
 	var req struct {
 		RegistryURL string `json:"registry_url"`
+		APIKey      string `json:"api_key,omitempty"`
+		Interval    string `json:"interval,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.writeError(w, http.StatusBadRequest, "invalid request body")
@@ -1486,8 +1520,73 @@ func (s *Server) handleProfileSubscribe(w http.ResponseWriter, r *http.Request) 
 		s.writeError(w, http.StatusBadRequest, "registry_url is required")
 		return
 	}
+
+	s.profileSubMu.Lock()
+	defer s.profileSubMu.Unlock()
+
+	if _, exists := s.profileSubs[req.RegistryURL]; exists {
+		s.writeJSON(w, http.StatusConflict, map[string]any{
+			"message":      "already subscribed to this registry",
+			"registry_url": req.RegistryURL,
+		})
+		return
+	}
+
+	interval := 5 * time.Minute
+	if req.Interval != "" {
+		if d, err := time.ParseDuration(req.Interval); err == nil && d > 0 {
+			interval = d
+		}
+	}
+
+	reg := profiles.RemoteRegistry{
+		URL:    req.RegistryURL,
+		APIKey: req.APIKey,
+	}
+	sub := s.profiles.Subscribe(reg, interval)
+	s.profileSubs[req.RegistryURL] = sub
+
 	s.writeJSON(w, http.StatusOK, map[string]any{
-		"message":      "subscription registered",
+		"message":      "subscription started",
+		"registry_url": req.RegistryURL,
+		"interval":     interval.String(),
+	})
+}
+
+func (s *Server) handleProfileUnsubscribe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		RegistryURL string `json:"registry_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.RegistryURL == "" {
+		s.writeError(w, http.StatusBadRequest, "registry_url is required")
+		return
+	}
+
+	s.profileSubMu.Lock()
+	defer s.profileSubMu.Unlock()
+
+	sub, exists := s.profileSubs[req.RegistryURL]
+	if !exists {
+		s.writeJSON(w, http.StatusNotFound, map[string]any{
+			"message":      "no active subscription for this registry",
+			"registry_url": req.RegistryURL,
+		})
+		return
+	}
+
+	sub.Stop()
+	delete(s.profileSubs, req.RegistryURL)
+
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"message":      "subscription stopped",
 		"registry_url": req.RegistryURL,
 	})
 }
@@ -1520,9 +1619,10 @@ func (s *Server) handleAIEnrichStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Spec   string `json:"spec"`
-		Model  string `json:"model,omitempty"`
-		APIKey string `json:"api_key,omitempty"`
+		Spec     string         `json:"spec"`
+		Model    string         `json:"model,omitempty"`
+		Provider ai.LLMProvider `json:"provider,omitempty"`
+		APIKey   string         `json:"api_key,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON: %v", err))
@@ -1537,22 +1637,10 @@ func (s *Server) handleAIEnrichStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	cfg := ai.LLMConfig{
-		Provider: ai.ProviderOpenAI,
-		Model:    req.Model,
-		APIKey:   req.APIKey,
-	}
-	if cfg.Model == "" {
-		cfg.Model = "gpt-4o-mini"
-	}
-	if cfg.APIKey == "" {
-		if k := os.Getenv("OPENAI_API_KEY"); k != "" {
-			cfg.APIKey = k
-		}
-	}
+	cfg := buildLLMConfig(req.Provider, req.Model, req.APIKey)
 
 	svc := ai.NewLLMService(cfg)
-	if err := svc.StreamEnrichSpec(req.Spec, w); err != nil {
+	if err := svc.StreamEnrichSpec(r.Context(), req.Spec, w); err != nil {
 		fmt.Fprintf(w, "event: error\ndata: {\"message\":%q}\n\n", err.Error())
 	}
 }
@@ -1564,10 +1652,11 @@ func (s *Server) handleAIExplainStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Spec         string `json:"spec"`
-		Architecture string `json:"architecture"`
-		Model        string `json:"model,omitempty"`
-		APIKey       string `json:"api_key,omitempty"`
+		Spec         string         `json:"spec"`
+		Architecture string         `json:"architecture"`
+		Model        string         `json:"model,omitempty"`
+		Provider     ai.LLMProvider `json:"provider,omitempty"`
+		APIKey       string         `json:"api_key,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON: %v", err))
@@ -1582,26 +1671,102 @@ func (s *Server) handleAIExplainStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	cfg := ai.LLMConfig{
-		Provider: ai.ProviderOpenAI,
-		Model:    req.Model,
-		APIKey:   req.APIKey,
-	}
-	if cfg.Model == "" {
-		cfg.Model = "gpt-4o-mini"
-	}
-	if cfg.APIKey == "" {
-		if k := os.Getenv("OPENAI_API_KEY"); k != "" {
-			cfg.APIKey = k
-		}
-	}
+	cfg := buildLLMConfig(req.Provider, req.Model, req.APIKey)
 
 	svc := ai.NewLLMService(cfg)
-	if err := svc.StreamExplainArchitecture(req.Spec, req.Architecture, w); err != nil {
+	if err := svc.StreamExplainArchitecture(r.Context(), req.Spec, req.Architecture, w); err != nil {
 		fmt.Fprintf(w, "event: error\ndata: {\"message\":%q}\n\n", err.Error())
 	}
 }
 
+func (s *Server) handleAICompileStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	var req struct {
+		Spec     string         `json:"spec"`
+		Target   string         `json:"target"`
+		Model    string         `json:"model,omitempty"`
+		Provider ai.LLMProvider `json:"provider,omitempty"`
+		APIKey   string         `json:"api_key,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON: %v", err))
+		return
+	}
+	if req.Spec == "" {
+		s.writeError(w, http.StatusBadRequest, "spec is required")
+		return
+	}
+	if req.Target == "" {
+		req.Target = "opencode"
+	}
+
+	doc, err := s.parser.Parse(req.Spec)
+	if err != nil {
+		s.writeError(w, http.StatusBadRequest, "parse error: "+err.Error())
+		return
+	}
+	b := s.bundle.GenerateFromSpec(doc)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	cfg := buildLLMConfig(req.Provider, req.Model, req.APIKey)
+	svc := ai.NewLLMService(cfg)
+	if err := svc.StreamCompileSpec(r.Context(), req.Target, b.ToMarkdown(), w); err != nil {
+		fmt.Fprintf(w, "event: error\ndata: {\"message\":%q}\n\n", err.Error())
+	}
+}
+
+func buildLLMConfig(provider ai.LLMProvider, model, apiKey string) ai.LLMConfig {
+	if provider == "" {
+		provider = ai.ProviderOpenAI
+	} else {
+		switch provider {
+		case ai.ProviderOpenAI, ai.ProviderAnthropic, ai.ProviderOllama:
+		default:
+			slog.Warn("unrecognized LLM provider, falling back to openai", "provider", provider)
+			provider = ai.ProviderOpenAI
+		}
+	}
+	if model == "" {
+		switch provider {
+		case ai.ProviderAnthropic:
+			model = "claude-3-haiku-20240307"
+		case ai.ProviderOllama:
+			model = "llama3.2"
+		default:
+			model = "gpt-4o-mini"
+		}
+	}
+	if apiKey == "" {
+		if k := os.Getenv("NAEOS_LLM_API_KEY"); k != "" {
+			apiKey = k
+		}
+	}
+	if apiKey == "" {
+		switch provider {
+		case ai.ProviderAnthropic:
+			if k := os.Getenv("ANTHROPIC_API_KEY"); k != "" {
+				apiKey = k
+			}
+		case ai.ProviderOllama:
+		default:
+			if k := os.Getenv("OPENAI_API_KEY"); k != "" {
+				apiKey = k
+			}
+		}
+	}
+	return ai.LLMConfig{
+		Provider: provider,
+		Model:    model,
+		APIKey:   apiKey,
+	}
+}
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]string{
 		"version":  version.String(),
@@ -1733,7 +1898,11 @@ func parsePagination(r *http.Request) (offset, limit int) {
 		}
 	}
 	offset = 0
-	if p := r.URL.Query().Get("page"); p != "" {
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	} else if p := r.URL.Query().Get("page"); p != "" {
 		if v, err := strconv.Atoi(p); err == nil && v > 0 {
 			offset = (v - 1) * limit
 		}

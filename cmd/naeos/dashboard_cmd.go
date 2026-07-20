@@ -34,8 +34,14 @@ func newDashboardCommand() *cobra.Command {
 			mux.Router.HandleFunc("/", dash.ServeHTTP)
 			mux.Router.HandleFunc("/ws", wsServer.HandleWebSocket)
 
-			broadcaster := ws.NewEventBroadcaster(wsServer)
 			al := dashboard.NewActivityLog(500)
+			ch := dashboard.NewComponentHealth()
+			dh := dashboard.NewAPIHandler(dash, al, ch, dashboard.DefaultConfig())
+			mux.Router.Handle("/api/stats", dh)
+			mux.Router.Handle("/api/activity", dh)
+			mux.Router.Handle("/api/health", dh)
+
+			broadcaster := ws.NewEventBroadcaster(wsServer)
 			al.SetLogCallback(func(entry dashboard.LogEntry) {
 				level := string(entry.Level)
 				if level == "" {
@@ -63,6 +69,11 @@ func newDashboardCommand() *cobra.Command {
 					al.Add(dashboard.LevelInfo, "Dashboard running")
 				}
 			}()
+
+			ch.Set("API Server", dashboard.Healthy, "Running")
+			ch.Set("Parser", dashboard.Healthy, "Ready")
+			ch.Set("Compiler", dashboard.Healthy, "Ready")
+			ch.Set("MCP Server", dashboard.Degraded, "Stopped")
 
 			return mux.Start()
 		},

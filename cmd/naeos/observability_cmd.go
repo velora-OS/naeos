@@ -293,6 +293,9 @@ Example:
 				Addr:              addr,
 				Handler:           mux,
 				ReadHeaderTimeout: 10 * time.Second,
+				ReadTimeout:       15 * time.Second,
+				WriteTimeout:      15 * time.Second,
+				IdleTimeout:       60 * time.Second,
 			}
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)

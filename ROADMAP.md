@@ -22,6 +22,38 @@ Roadmap ini memberikan arah pengembangan dokumentasi dan ekosistem NAEOS.
 - memperkuat dokumentasi publik,
 - mendukung adopsi lintas organisasi.
 
+### Sprint 3.1 — Dashboard
+- [x] Dashboard pagination bug fix (offset + page params)
+- [x] Dashboard API routes mounted (/api/stats, /api/activity, /api/health)
+- [x] Component health initialization and registration
+
+### Sprint 3.2 — Profile & Marketplace
+- [x] Profile subscribe/unsubscribe API endpoints
+- [x] RemoteClient.Publish/Subscribe with API key support
+- [x] 9 test functions (registry + remote client)
+
+### Sprint 3.3 — Distributed Builds
+- [x] Priority queue (container/heap) for task scheduling
+- [x] Atomic data race fixes (draining, agent state)
+- [x] Agent registration/unregistration with heartbeats
+- [x] 10 test functions (priority, agents, multi-worker)
+
+### Sprint 3.4 — AI & Compiler
+- [x] True SSE streaming (OpenAI stream:true, Anthropic SSE API)
+- [x] Provider selection (openai/anthropic/ollama) in API handlers
+- [x] Context cancellation via r.Context() propagation
+- [x] SSE decoder with event/ data parsing
+- [x] --stream and --provider flags for CLI ai enrich
+- [x] 9 SSE streaming integration tests
+- [x] Data race fix: sync.RWMutex in profiles.Registry
+
+### Sprint 3.5 — AI Compiler Integration
+- [x] AI-powered compiler adapter (ai_adapter.go) with buildNEIRContext, parseCompiledFiles
+- [x] StreamCompileSpec method for NEIR context → compiler output generation
+- [x] CLI: naeos ai compile --input-file --target --provider
+- [x] API: POST /api/v1/ai/compile/stream with SSE streaming
+- [x] Tests: StreamCompileSpec (mock transport), parseCompiledFiles, buildNEIRContext, API handler
+
 ### v0.10.0 — Code Quality & Lint Compliance
 - [x] golangci-lint: resolved all 999 issues (999 → 0)
 - [x] Removed 22 unused functions, types, vars, and struct fields

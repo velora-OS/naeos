@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -53,6 +54,7 @@ type openAIRequest struct {
 	Messages    []chatMessage `json:"messages"`
 	MaxTokens   int           `json:"max_tokens"`
 	Temperature float64       `json:"temperature"`
+	Stream      bool          `json:"stream,omitempty"`
 }
 
 type openAIResponse struct {
@@ -81,8 +83,23 @@ type anthropicResponse struct {
 	} `json:"error,omitempty"`
 }
 
+type openAIStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
+
 // NewLLMService creates an LLM service with the given configuration.
 func NewLLMService(config LLMConfig, lib ...*promptlib.Library) *LLMService {
+	if config.APIKey == "" && (config.Provider == ProviderOpenAI || config.Provider == ProviderAnthropic) {
+		slog.Warn("LLM API key is empty; requests will likely fail", "provider", config.Provider)
+	}
 	if config.Model == "" {
 		switch config.Provider {
 		case ProviderOpenAI:
@@ -117,8 +134,16 @@ func NewLLMService(config LLMConfig, lib ...*promptlib.Library) *LLMService {
 
 // EnrichSpec sends a specification to the LLM for enhancement with best practices.
 func (s *LLMService) EnrichSpec(specContent string) (string, error) {
+	return s.EnrichSpecContext(context.Background(), specContent)
+}
+
+// EnrichSpecContext enriches a specification with context support.
+func (s *LLMService) EnrichSpecContext(ctx context.Context, specContent string) (string, error) {
+	if specContent == "" {
+		return "", fmt.Errorf("empty specification")
+	}
 	prompt := s.buildEnrichPrompt(specContent)
-	return s.callLLM(prompt)
+	return s.callLLM(ctx, prompt)
 }
 
 func (s *LLMService) buildEnrichPrompt(specContent string) string {
@@ -141,15 +166,23 @@ Specification:
 
 // GenerateSuggestions asks the LLM to produce improvement suggestions for a specification.
 func (s *LLMService) GenerateSuggestions(specContent string) ([]Suggestion, error) {
+	return s.GenerateSuggestionsContext(context.Background(), specContent)
+}
+
+// GenerateSuggestionsContext asks the LLM for improvement suggestions with context support.
+func (s *LLMService) GenerateSuggestionsContext(ctx context.Context, specContent string) ([]Suggestion, error) {
+	if specContent == "" {
+		return nil, fmt.Errorf("empty specification")
+	}
 	prompt := s.buildSuggestionsPrompt(specContent)
 
-	response, err := s.callLLM(prompt)
+	response, err := s.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
 
 	var suggestions []Suggestion
-	if err := json.Unmarshal([]byte(cleanJSON(response)), &suggestions); err != nil {
+	if err := json.Unmarshal([]byte(CleanJSON(response)), &suggestions); err != nil {
 		return nil, fmt.Errorf("parse LLM response: %w", err)
 	}
 
@@ -176,8 +209,16 @@ Specification:
 
 // ExplainArchitecture asks the LLM to explain an architecture pattern in the context of the specification.
 func (s *LLMService) ExplainArchitecture(specContent, architecture string) (string, error) {
+	return s.ExplainArchitectureContext(context.Background(), specContent, architecture)
+}
+
+// ExplainArchitectureContext explains an architecture pattern with context support.
+func (s *LLMService) ExplainArchitectureContext(ctx context.Context, specContent, architecture string) (string, error) {
+	if specContent == "" {
+		return "", fmt.Errorf("empty specification")
+	}
 	prompt := s.buildExplainPrompt(specContent, architecture)
-	return s.callLLM(prompt)
+	return s.callLLM(ctx, prompt)
 }
 
 func (s *LLMService) buildExplainPrompt(specContent, arch string) string {
@@ -202,22 +243,22 @@ Architecture explanation:`, arch, specContent)
 
 // modelContextWindows maps known model names to their context window sizes (in tokens).
 var modelContextWindows = map[string]int{
-	"gpt-4o":                128000,
-	"gpt-4o-mini":           128000,
-	"gpt-4-turbo":           128000,
-	"gpt-4":                 8192,
-	"gpt-3.5-turbo":         16385,
-	"claude-3-opus-20240229":   200000,
-	"claude-3-sonnet-20240229": 200000,
-	"claude-3-haiku-20240307":  200000,
+	"gpt-4o":                     128000,
+	"gpt-4o-mini":                128000,
+	"gpt-4-turbo":                128000,
+	"gpt-4":                      8192,
+	"gpt-3.5-turbo":              16385,
+	"claude-3-opus-20240229":     200000,
+	"claude-3-sonnet-20240229":   200000,
+	"claude-3-haiku-20240307":    200000,
 	"claude-3-5-sonnet-20241022": 200000,
-	"claude-3-5-haiku-20241022": 200000,
-	"llama3.2":              8192,
-	"llama3.1":              8192,
-	"llama3":                8192,
-	"mistral":               8192,
-	"codellama":             16384,
-	"mixtral":               32768,
+	"claude-3-5-haiku-20241022":  200000,
+	"llama3.2":                   8192,
+	"llama3.1":                   8192,
+	"llama3":                     8192,
+	"mistral":                    8192,
+	"codellama":                  16384,
+	"mixtral":                    32768,
 }
 
 // estimateTokens returns a rough estimate of the number of tokens in a string.
@@ -257,28 +298,20 @@ func (s *LLMService) truncatePrompt(prompt string) string {
 	return truncated
 }
 
-func (s *LLMService) callLLM(prompt string) (string, error) {
+func (s *LLMService) callLLM(ctx context.Context, prompt string) (string, error) {
 	prompt = s.truncatePrompt(prompt)
 	switch s.config.Provider {
 	case ProviderOpenAI, ProviderOllama:
-		response, err := s.callOpenAI(prompt)
-		if err != nil {
-			slog.Error("openai call failed", "error", err)
-		}
-		return response, err
+		return s.callOpenAI(ctx, prompt)
 	case ProviderAnthropic:
-		response, err := s.callAnthropic(prompt)
-		if err != nil {
-			slog.Error("anthropic call failed", "error", err)
-		}
-		return response, err
+		return s.callAnthropic(ctx, prompt)
 	default:
 		slog.Error("unsupported LLM provider", "provider", s.config.Provider)
 		return "", fmt.Errorf("unsupported LLM provider: %s", s.config.Provider)
 	}
 }
 
-func (s *LLMService) callOpenAI(prompt string) (string, error) {
+func (s *LLMService) callOpenAI(ctx context.Context, prompt string) (string, error) {
 	reqBody := openAIRequest{
 		Model: s.config.Model,
 		Messages: []chatMessage{
@@ -299,9 +332,13 @@ func (s *LLMService) callOpenAI(prompt string) (string, error) {
 	}
 	url := baseURL + "/v1/chat/completions"
 
-	ctx, cancel := context.WithTimeout(context.Background(), s.config.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	reqCtx := ctx
+	if s.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(ctx, s.config.Timeout)
+		defer cancel()
+	}
+	req, err := http.NewRequestWithContext(reqCtx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -343,7 +380,211 @@ func (s *LLMService) callOpenAI(prompt string) (string, error) {
 	return result.Choices[0].Message.Content, nil
 }
 
-func (s *LLMService) callAnthropic(prompt string) (string, error) {
+func (s *LLMService) streamOpenAI(ctx context.Context, prompt string, w io.Writer) error {
+	flusher, flushable := w.(http.Flusher)
+
+	writeEvent := func(event, data string) error {
+		_, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		if flushable {
+			flusher.Flush()
+		}
+		return err
+	}
+
+	if err := writeEvent("start", "{}"); err != nil {
+		return err
+	}
+
+	reqBody := openAIRequest{
+		Model: s.config.Model,
+		Messages: []chatMessage{
+			{Role: "user", Content: prompt},
+		},
+		MaxTokens:   s.config.MaxTokens,
+		Temperature: 0.3,
+		Stream:      true,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	baseURL := s.config.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.openai.com"
+	}
+	url := baseURL + "/v1/chat/completions"
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if s.config.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+s.config.APIKey)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, err.Error()))
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		_ = writeEvent("error", fmt.Sprintf(`{"message":"API error (status %d): %s"}`, resp.StatusCode, string(respBody)))
+		return fmt.Errorf("openai streaming: status %d", resp.StatusCode)
+	}
+
+	decoder := NewSSEDecoder(resp.Body)
+	for {
+		event, data, err := decoder.Decode()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, err.Error()))
+			return err
+		}
+		if event != "data" {
+			continue
+		}
+
+		if string(data) == "[DONE]" {
+			break
+		}
+
+		var chunk openAIStreamChunk
+		if err := json.Unmarshal(data, &chunk); err != nil {
+			slog.Warn("failed to parse OpenAI SSE data chunk", "error", err)
+			continue
+		}
+
+		if chunk.Error != nil {
+			_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, chunk.Error.Message))
+			return fmt.Errorf("openai streaming error: %s", chunk.Error.Message)
+		}
+
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+			escaped := strings.ReplaceAll(chunk.Choices[0].Delta.Content, "\n", "\\n")
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			if err := writeEvent("chunk", fmt.Sprintf(`{"text":"%s"}`, escaped)); err != nil {
+				return err
+			}
+		}
+
+		if len(chunk.Choices) > 0 && chunk.Choices[0].FinishReason != nil {
+			break
+		}
+	}
+
+	slog.Info("openai stream completed")
+	return writeEvent("done", `{"status":"completed"}`)
+}
+
+func (s *LLMService) streamAnthropic(ctx context.Context, prompt string, w io.Writer) error {
+	flusher, flushable := w.(http.Flusher)
+
+	writeEvent := func(event, data string) error {
+		_, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		if flushable {
+			flusher.Flush()
+		}
+		return err
+	}
+
+	if err := writeEvent("start", "{}"); err != nil {
+		return err
+	}
+
+	reqBody := anthropicRequest{
+		Model:     s.config.Model,
+		Messages:  []chatMessage{{Role: "user", Content: prompt}},
+		MaxTokens: s.config.MaxTokens,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	baseURL := s.config.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.anthropic.com"
+	}
+	url := baseURL + "/v1/messages?stream=true"
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", s.config.APIKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, err.Error()))
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		_ = writeEvent("error", fmt.Sprintf(`{"message":"Anthropic error (status %d): %s"}`, resp.StatusCode, string(respBody)))
+		return fmt.Errorf("anthropic streaming: status %d", resp.StatusCode)
+	}
+
+	decoder := NewSSEDecoder(resp.Body)
+	for {
+		event, data, err := decoder.Decode()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, err.Error()))
+			return err
+		}
+
+		switch event {
+		case "content_block_delta":
+			var delta struct {
+				Delta struct {
+					Text string `json:"text"`
+				} `json:"delta"`
+			}
+			if err := json.Unmarshal(data, &delta); err == nil && delta.Delta.Text != "" {
+				escaped := strings.ReplaceAll(delta.Delta.Text, "\n", "\\n")
+				escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+				if err := writeEvent("chunk", fmt.Sprintf(`{"text":"%s"}`, escaped)); err != nil {
+					return err
+				}
+			} else if err != nil {
+				slog.Debug("failed to parse anthropic delta", "error", err)
+			}
+		case "error":
+			var errResp struct {
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(data, &errResp); err == nil && errResp.Error.Message != "" {
+				_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, errResp.Error.Message))
+				return fmt.Errorf("anthropic streaming error: %s", errResp.Error.Message)
+			}
+		case "message_stop":
+			slog.Info("anthropic stream completed")
+			return writeEvent("done", `{"status":"completed"}`)
+		}
+	}
+
+	slog.Info("anthropic stream completed")
+	return writeEvent("done", `{"status":"completed"}`)
+}
+
+func (s *LLMService) callAnthropic(ctx context.Context, prompt string) (string, error) {
 	reqBody := anthropicRequest{
 		Model: s.config.Model,
 		Messages: []chatMessage{
@@ -363,9 +604,13 @@ func (s *LLMService) callAnthropic(prompt string) (string, error) {
 	}
 	url := baseURL + "/v1/messages"
 
-	ctx, cancel := context.WithTimeout(context.Background(), s.config.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	reqCtx := ctx
+	if s.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		reqCtx, cancel = context.WithTimeout(ctx, s.config.Timeout)
+		defer cancel()
+	}
+	req, err := http.NewRequestWithContext(reqCtx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -400,64 +645,133 @@ func (s *LLMService) callAnthropic(prompt string) (string, error) {
 	return result.Content[0].Text, nil
 }
 
-func (s *LLMService) StreamEnrichSpec(specContent string, w io.Writer) error {
+func (s *LLMService) buildCompilerPrompt(target string, neirContext string) string {
+	if s.library != nil {
+		rendered, err := s.library.RenderLLM("compile-spec", map[string]any{
+			"Target":      target,
+			"NEIRContext": neirContext,
+		})
+		if err == nil && rendered.User != "" {
+			return rendered.User
+		}
+	}
+
+	return fmt.Sprintf(`You are a compiler that converts NAEOS architectural specifications into configuration files for %s AI coding assistants.
+Generate the most effective rules, context, and instruction files that capture the project structure accurately.
+Output format: JSON array of files, each with "path", "content", and "kind" fields.
+Only output valid JSON, no explanations.
+
+Project Context:
+%s
+
+Generate the %s compiler output:`, target, neirContext, target)
+}
+
+func (s *LLMService) StreamCompileSpec(ctx context.Context, target, specContent string, w io.Writer) error {
+	prompt := s.buildCompilerPrompt(target, specContent)
+	return s.streamLLM(ctx, prompt, w)
+}
+
+func (s *LLMService) StreamEnrichSpec(ctx context.Context, specContent string, w io.Writer) error {
 	prompt := s.buildEnrichPrompt(specContent)
-	return s.streamLLM(prompt, w)
+	return s.streamLLM(ctx, prompt, w)
 }
 
-func (s *LLMService) StreamExplainArchitecture(specContent, architecture string, w io.Writer) error {
+func (s *LLMService) StreamExplainArchitecture(ctx context.Context, specContent, architecture string, w io.Writer) error {
 	prompt := s.buildExplainPrompt(specContent, architecture)
-	return s.streamLLM(prompt, w)
+	return s.streamLLM(ctx, prompt, w)
 }
 
-func (s *LLMService) streamLLM(prompt string, w io.Writer) error {
-	flusher, flushable := w.(http.Flusher)
+func (s *LLMService) streamLLM(ctx context.Context, prompt string, w io.Writer) error {
+	prompt = s.truncatePrompt(prompt)
 
-	writeEvent := func(event, data string) error {
-		_, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
-		if flushable {
-			flusher.Flush()
+	switch s.config.Provider {
+	case ProviderOpenAI, ProviderOllama:
+		return s.streamOpenAI(ctx, prompt, w)
+	case ProviderAnthropic:
+		return s.streamAnthropic(ctx, prompt, w)
+	default:
+		return fmt.Errorf("unsupported LLM provider for streaming: %s", s.config.Provider)
+	}
+}
+
+// SSEDecoder parses Server-Sent Events from a stream.
+type SSEDecoder struct {
+	r   io.Reader
+	buf []byte
+}
+
+func NewSSEDecoder(r io.Reader) *SSEDecoder {
+	return &SSEDecoder{r: r}
+}
+
+func (d *SSEDecoder) Decode() (event string, data []byte, err error) {
+	d.buf = d.buf[:0]
+	for {
+		var line []byte
+		line, err = d.readLine()
+		if err != nil {
+			return
 		}
-		return err
-	}
-
-	if err := writeEvent("start", "{}"); err != nil {
-		return err
-	}
-
-	result, err := s.callLLM(prompt)
-	if err != nil {
-		_ = writeEvent("error", fmt.Sprintf(`{"message":"%s"}`, err.Error()))
-		return err
-	}
-
-	words := strings.Fields(result)
-	var buf strings.Builder
-	for _, word := range words {
-		buf.WriteString(word)
-		buf.WriteByte(' ')
-		chunk := strings.TrimSpace(buf.String())
-		if len(chunk) >= 80 || word == words[len(words)-1] {
-			escaped := strings.ReplaceAll(chunk, "\n", "\\n")
-			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-			if err := writeEvent("chunk", fmt.Sprintf(`{"text":"%s"}`, escaped)); err != nil {
-				return err
+		if len(line) == 0 {
+			if len(d.buf) > 0 {
+				return event, d.buf, nil
 			}
-			buf.Reset()
+			continue
+		}
+		if line[0] == ':' {
+			continue
+		}
+		parts := splitSSELine(string(line))
+		if len(parts) < 2 {
+			continue
+		}
+		switch parts[0] {
+		case "event":
+			event = parts[1]
+		case "data":
+			if len(d.buf) > 0 {
+				d.buf = append(d.buf, '\n')
+			}
+			d.buf = append(d.buf, []byte(parts[1])...)
 		}
 	}
-
-	if buf.Len() > 0 {
-		remaining := strings.TrimSpace(buf.String())
-		escaped := strings.ReplaceAll(remaining, "\n", "\\n")
-		escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-		_ = writeEvent("chunk", fmt.Sprintf(`{"text":"%s"}`, escaped))
-	}
-
-	return writeEvent("done", `{"status":"completed"}`)
 }
 
-func cleanJSON(s string) string {
+func (d *SSEDecoder) readLine() ([]byte, error) {
+	var line []byte
+	for {
+		b := make([]byte, 1)
+		n, err := d.r.Read(b)
+		if err != nil {
+			return line, err
+		}
+		if n == 0 {
+			return line, io.ErrNoProgress
+		}
+		if b[0] == '\n' {
+			return line, nil
+		}
+		if b[0] != '\r' {
+			line = append(line, b[0])
+		}
+	}
+}
+
+func splitSSELine(line string) []string {
+	idx := strings.IndexByte(line, ':')
+	if idx < 0 {
+		return nil
+	}
+	field := strings.TrimSpace(line[:idx])
+	value := line[idx+1:]
+	if len(value) > 0 && value[0] == ' ' {
+		value = value[1:]
+	}
+	return []string{field, value}
+}
+
+func CleanJSON(s string) string {
 	s = strings.TrimSpace(s)
 	if strings.HasPrefix(s, "```json") {
 		s = strings.TrimPrefix(s, "```json")

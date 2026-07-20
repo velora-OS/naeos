@@ -108,5 +108,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newTUICommand())
 	root.AddCommand(newArtifactsCommand())
 	root.AddCommand(newBuildCommand())
+	root.AddCommand(newComplianceCommand())
 	return root
 }

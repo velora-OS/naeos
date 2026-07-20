@@ -46,8 +46,8 @@ func TestNewWithDefaults(t *testing.T) {
 	}
 
 	compilerTpls := lib.ListCompilerTemplates()
-	if len(compilerTpls) != 6 {
-		t.Errorf("expected 6 compiler templates, got %d: %v", len(compilerTpls), compilerTpls)
+	if len(compilerTpls) != 7 {
+		t.Errorf("expected 7 compiler templates, got %d: %v", len(compilerTpls), compilerTpls)
 	}
 }
 
@@ -265,8 +265,8 @@ func TestListAll(t *testing.T) {
 	lib := NewWithDefaults()
 
 	all := lib.ListAll()
-	if len(all) != 9 {
-		t.Errorf("expected 9 total items (3 LLM + 6 compiler), got %d", len(all))
+	if len(all) != 10 {
+		t.Errorf("expected 10 total items (3 LLM + 7 compiler), got %d", len(all))
 	}
 
 	for _, m := range all {

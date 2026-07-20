@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"container/heap"
 	"context"
 	"fmt"
 	"sync"
@@ -28,6 +29,43 @@ const (
 	AgentStatusOffline AgentStatus = "offline"
 	AgentStatusBusy    AgentStatus = "busy"
 )
+
+type taskItem struct {
+	task     *Task
+	priority int
+	index    int
+}
+
+type priorityQueue []*taskItem
+
+func (pq priorityQueue) Len() int { return len(pq) }
+
+func (pq priorityQueue) Less(i, j int) bool {
+	return pq[i].priority > pq[j].priority
+}
+
+func (pq priorityQueue) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+	pq[i].index = i
+	pq[j].index = j
+}
+
+func (pq *priorityQueue) Push(x any) {
+	n := len(*pq)
+	item := x.(*taskItem)
+	item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *priorityQueue) Pop() any {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil
+	item.index = -1
+	*pq = old[:n-1]
+	return item
+}
 
 type Task struct {
 	ID        string            `json:"id"`
@@ -59,13 +97,14 @@ type Worker interface {
 type Coordinator struct {
 	workers  []Worker
 	agents   map[string]*Agent
-	taskCh   chan *Task
+	queue    priorityQueue
+	notify   chan struct{}
 	resultCh chan *TaskResult
 	mu       sync.RWMutex
 	wg       sync.WaitGroup
 	handlers map[string]func(ctx context.Context, task *Task) (*TaskResult, error)
 	metrics  *CoordinatorMetrics
-	draining atomic.Bool
+	draining bool
 	drainWg  sync.WaitGroup
 }
 
@@ -85,7 +124,8 @@ func NewCoordinator(workers []Worker, queueSize int) *Coordinator {
 	return &Coordinator{
 		workers:  workers,
 		agents:   make(map[string]*Agent),
-		taskCh:   make(chan *Task, queueSize),
+		queue:    make(priorityQueue, 0),
+		notify:   make(chan struct{}, queueSize),
 		resultCh: make(chan *TaskResult, queueSize),
 		handlers: make(map[string]func(ctx context.Context, task *Task) (*TaskResult, error)),
 		metrics:  &CoordinatorMetrics{},
@@ -93,22 +133,28 @@ func NewCoordinator(workers []Worker, queueSize int) *Coordinator {
 }
 
 func (c *Coordinator) Submit(task *Task) {
+	c.pushTask(task, 0)
+}
+
+func (c *Coordinator) SubmitPriority(task *Task) {
+	c.pushTask(task, task.Priority)
+}
+
+func (c *Coordinator) pushTask(task *Task, priority int) {
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = time.Now()
 	}
 	if task.MaxRetry < 0 {
 		task.MaxRetry = 0
 	}
+	c.mu.Lock()
+	heap.Push(&c.queue, &taskItem{task: task, priority: priority})
+	c.mu.Unlock()
 	c.metrics.TasksSubmitted.Add(1)
-	c.taskCh <- task
-}
-
-func (c *Coordinator) SubmitPriority(task *Task) {
-	if task.CreatedAt.IsZero() {
-		task.CreatedAt = time.Now()
+	select {
+	case c.notify <- struct{}{}:
+	default:
 	}
-	c.metrics.TasksSubmitted.Add(1)
-	c.taskCh <- task
 }
 
 func (c *Coordinator) RegisterAgent(agent *Agent) error {
@@ -186,28 +232,43 @@ func (c *Coordinator) Start(ctx context.Context) {
 func (c *Coordinator) workerLoop(ctx context.Context, w Worker) {
 	defer c.wg.Done()
 	for {
-		if c.draining.Load() {
+		task := c.popTask(ctx)
+		if task == nil {
 			return
 		}
+		c.mu.Lock()
+		if c.draining {
+			c.mu.Unlock()
+			return
+		}
+		c.mu.Unlock()
+		c.drainWg.Add(1)
+		result := c.executeWithRetry(ctx, w, task)
+		c.drainWg.Done()
+		if result != nil {
+			c.resultCh <- result
+		}
+	}
+}
+
+func (c *Coordinator) popTask(ctx context.Context) *Task {
+	for {
+		c.mu.Lock()
+		for c.queue.Len() > 0 {
+			item := heap.Pop(&c.queue).(*taskItem)
+			c.mu.Unlock()
+			return item.task
+		}
+		if c.draining {
+			c.mu.Unlock()
+			return nil
+		}
+		c.mu.Unlock()
+
 		select {
 		case <-ctx.Done():
-			return
-		case task, ok := <-c.taskCh:
-			if !ok {
-				return
-			}
-			c.mu.Lock()
-			if c.draining.Load() {
-				c.mu.Unlock()
-				return
-			}
-			c.drainWg.Add(1)
-			c.mu.Unlock()
-			result := c.executeWithRetry(ctx, w, task)
-			c.drainWg.Done()
-			if result != nil {
-				c.resultCh <- result
-			}
+			return nil
+		case <-c.notify:
 		}
 	}
 }
@@ -219,7 +280,10 @@ func (c *Coordinator) executeWithRetry(ctx context.Context, w Worker, task *Task
 	}
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if c.draining.Load() {
+		c.mu.Lock()
+		draining := c.draining
+		c.mu.Unlock()
+		if draining {
 			return &TaskResult{
 				TaskID:  task.ID,
 				Error:   "coordinator draining",
@@ -297,17 +361,20 @@ func (c *Coordinator) Results() <-chan *TaskResult {
 }
 
 func (c *Coordinator) Stop() {
-	close(c.taskCh)
+	c.mu.Lock()
+	c.draining = true
+	c.mu.Unlock()
+	close(c.notify)
 	c.wg.Wait()
 	close(c.resultCh)
 }
 
 func (c *Coordinator) Drain() {
 	c.mu.Lock()
-	c.draining.Store(true)
+	c.draining = true
 	c.mu.Unlock()
+	close(c.notify)
 	c.drainWg.Wait()
-	close(c.taskCh)
 	c.wg.Wait()
 	close(c.resultCh)
 }
