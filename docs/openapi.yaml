@@ -3,7 +3,7 @@ openapi: "3.0.3"
 info:
   title: NAEOS API
   description: Neural Architecture Engine for Orchestration & Synthesis
-  version: "1.1.0"
+  version: "1.5.0"
   contact:
     name: NAEOS Foundation
     url: https://github.com/NAEOS-foundation/naeos
@@ -202,6 +202,78 @@ paths:
                 $ref: "#/components/schemas/ContextGenerateResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+
+  /api/v1/ai/enrich/stream:
+    post:
+      operationId: aiEnrichStream
+      summary: Enrich a specification using AI (streaming SSE)
+      description: Sends a spec to the configured LLM provider and streams enriched suggestions via Server-Sent Events.
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIEnrichStreamRequest"
+      responses:
+        "200":
+          description: SSE stream of enrichment chunks
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SSEStreamResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /api/v1/ai/explain/stream:
+    post:
+      operationId: aiExplainStream
+      summary: Explain architecture using AI (streaming SSE)
+      description: Sends a spec and optional architecture description to the configured LLM provider and streams architectural explanation via Server-Sent Events.
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIExplainStreamRequest"
+      responses:
+        "200":
+          description: SSE stream of explanation chunks
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SSEStreamResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /api/v1/ai/compile/stream:
+    post:
+      operationId: aiCompileStream
+      summary: Compile spec for AI assistant using LLM (streaming SSE)
+      description: Parses a spec, generates a NEIR context bundle, and streams AI compile instructions for the specified target assistant via Server-Sent Events.
+      tags: [AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AICompileStreamRequest"
+      responses:
+        "200":
+          description: SSE stream of compiled instructions
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SSEStreamResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /api/v1/cloud/plan:
     post:
@@ -808,6 +880,79 @@ components:
               type: string
             project:
               type: string
+
+    AIEnrichStreamRequest:
+      type: object
+      required: [spec]
+      properties:
+        spec:
+          type: string
+          description: Raw NEIR specification text
+        model:
+          type: string
+          description: LLM model override (e.g. gpt-4o-mini, claude-3-haiku)
+        provider:
+          type: string
+          enum: [openai, anthropic, ollama]
+          description: LLM provider override
+        api_key:
+          type: string
+          description: API key override (falls back to NAEOS_LLM_API_KEY env var)
+
+    AIExplainStreamRequest:
+      type: object
+      required: [spec]
+      properties:
+        spec:
+          type: string
+          description: Raw NEIR specification text
+        architecture:
+          type: string
+          description: Optional architecture description for context
+        model:
+          type: string
+          description: LLM model override
+        provider:
+          type: string
+          enum: [openai, anthropic, ollama]
+          description: LLM provider override
+        api_key:
+          type: string
+          description: API key override
+
+    AICompileStreamRequest:
+      type: object
+      required: [spec]
+      properties:
+        spec:
+          type: string
+          description: Raw NEIR specification text
+        target:
+          type: string
+          description: Target AI assistant (defaults to opencode)
+          default: opencode
+        model:
+          type: string
+          description: LLM model override
+        provider:
+          type: string
+          enum: [openai, anthropic, ollama]
+          description: LLM provider override
+        api_key:
+          type: string
+          description: API key override
+
+    SSEStreamResponse:
+      type: object
+      description: "Server-Sent Events stream. Each event is one of: data (chunk), error, or done."
+      properties:
+        event:
+          type: string
+          enum: [chunk, error, done]
+          description: SSE event type
+        data:
+          type: string
+          description: Event payload (text chunk, error message, or empty for done)
 
     CloudResourceRequest:
       type: object
