@@ -78,7 +78,7 @@ jobs:
           sha256sum naeos-linux-amd64 naeos-linux-arm64 naeos-darwin-amd64 naeos-darwin-arm64 naeos-windows-amd64.exe > checksums.txt
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: NAEOS ${{ steps.version.outputs.VERSION }}
           body: |
