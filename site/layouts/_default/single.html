@@ -38,7 +38,12 @@
                     <a href="{{ "docs/plugin-sdk/" | relLangURL }}" data-title="Plugin SDK"{{ if eq .RelPermalink (relLangURL "/docs/plugin-sdk/") }} class="active"{{ end }}>Plugin SDK</a>
                 </nav>
             </aside>
+            <div class="doc-drawer-overlay" id="doc-drawer-overlay"></div>
             {{ end }}
+            <button class="doc-drawer-toggle" id="doc-drawer-toggle" aria-label="Toggle documentation sidebar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+                {{ i18n "nav_docs" }}
+            </button>
             <div class="{{ if hasPrefix .RelPermalink "/docs/" }}single-content{{ end }}">
                 {{ partial "toc.html" . }}
                 {{ .Content }}

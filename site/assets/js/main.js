@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
   initSidebarFilter();
   initImageLightbox();
   initPageTransitions();
+  initDocsDrawer();
 });
 
 function toggleMobileMenu(force) {
@@ -782,4 +783,31 @@ function initPageTransitions() {
     preload.as = 'document';
     document.head.appendChild(preload);
   }, { passive: true });
+}
+
+function initDocsDrawer() {
+  var toggle = document.getElementById('doc-drawer-toggle');
+  var sidebar = document.querySelector('.doc-sidebar');
+  var overlay = document.getElementById('doc-drawer-overlay');
+  if (!toggle || !sidebar || !overlay) return;
+
+  function open() { sidebar.classList.add('open'); overlay.classList.add('open'); document.body.style.overflow = 'hidden'; }
+  function close() { sidebar.classList.remove('open'); overlay.classList.remove('open'); document.body.style.overflow = ''; }
+
+  toggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (sidebar.classList.contains('open')) close(); else open();
+  });
+
+  overlay.addEventListener('click', close);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sidebar.classList.contains('open')) close();
+  });
+
+  sidebar.querySelectorAll('a, button').forEach(function (el) {
+    el.addEventListener('click', function () {
+      if (window.innerWidth <= 968) close();
+    });
+  });
 }
